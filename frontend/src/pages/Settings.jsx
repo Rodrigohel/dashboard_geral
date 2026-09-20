@@ -25,12 +25,16 @@ function GatewayCard({ meta, value, onSave }) {
   const [testing, setTesting] = useState(false);
   const toast = useToast();
 
+  async function doSave() {
+    await onSave(meta.key, { baseUrl, publicUrl, serviceUsername, servicePassword: servicePassword || undefined });
+    setServicePassword('');
+  }
+
   async function handleSave() {
     setSaving(true);
     try {
-      await onSave(meta.key, { baseUrl, publicUrl, serviceUsername, servicePassword: servicePassword || undefined });
+      await doSave();
       toast(`Gateway "${meta.title}" salvo.`);
-      setServicePassword('');
     } catch (err) {
       toast(err.message, 'error');
     } finally {
@@ -38,9 +42,13 @@ function GatewayCard({ meta, value, onSave }) {
     }
   }
 
+  // Sempre salva antes de testar — testar contra o que já está salvo (e não
+  // o que está digitado na tela) confundia: uma senha nova digitada mas
+  // ainda não salva fazia o teste "passar" usando a senha antiga.
   async function handleTest() {
     setTesting(true);
     try {
+      await doSave();
       await api.settings.testGateway(meta.key);
       toast(`Conexão com "${meta.title}" funcionando — login OK.`);
     } catch (err) {
@@ -49,6 +57,8 @@ function GatewayCard({ meta, value, onSave }) {
       setTesting(false);
     }
   }
+
+  const canTest = baseUrl && serviceUsername;
 
   return (
     <div className="surface" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -104,11 +114,12 @@ function GatewayCard({ meta, value, onSave }) {
         <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
           {saving ? <span className="spinner" /> : 'Salvar'}
         </button>
-        <button className="btn btn-secondary" onClick={handleTest} disabled={testing || !value?.configured}>
+        <button className="btn btn-secondary" onClick={handleTest} disabled={testing || saving || !canTest}>
           {testing ? <span className="spinner spinner-dark" /> : 'Testar conexão'}
         </button>
       </div>
-      {!value?.configured && <span className="field-hint">Salve o endereço e a conta de serviço antes de testar.</span>}
+      {!canTest && <span className="field-hint">Preencha o endereço e o usuário de serviço para poder testar.</span>}
+      <span className="field-hint">"Testar conexão" salva os campos preenchidos e tenta logar de verdade — não precisa clicar em "Salvar" antes.</span>
     </div>
   );
 }
