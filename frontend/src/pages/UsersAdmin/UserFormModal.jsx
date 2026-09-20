@@ -80,7 +80,7 @@ export default function UserFormModal({ user, currentUserId, onClose, onSave }) 
       <form className="modal-body" onSubmit={handleSubmit}>
         {error && <div className="login-error">{error}</div>}
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <div className="grid-2">
           <div className="field">
             <label className="field-label">Login</label>
             <input className="input" value={form.username} disabled={!!user} onChange={(e) => set('username', e.target.value)} placeholder="joao.silva" />

@@ -98,7 +98,7 @@ export default function DeviceFormModal({ device, onClose, onSave }) {
           Usar HTTPS
         </label>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <div className="grid-2">
           <div className="field">
             <label className="field-label">Usuário do equipamento</label>
             <input className="input" value={form.deviceUsername} onChange={(e) => set('deviceUsername', e.target.value)} />

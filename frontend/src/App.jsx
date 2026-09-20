@@ -16,18 +16,24 @@ export default function App() {
   const { user, checking, login, logout, can } = useAuth();
   const { theme, setTheme } = useTheme();
   const [view, setView] = useState('home');
+  const [menuOpen, setMenuOpen] = useState(false);
 
   if (checking) return <LoadingScreen />;
   if (!user) return <Login onLogin={login} />;
 
   const isOwner = user.role === 'owner';
 
+  function navigate(next) {
+    setView(next);
+    setMenuOpen(false);
+  }
+
   function renderView() {
     switch (view) {
       case 'rede':
-        return can('rede') ? <ModuleLink moduleKey="rede" isOwner={isOwner} onNavigate={setView} /> : <NoAccess />;
+        return can('rede') ? <ModuleLink moduleKey="rede" isOwner={isOwner} onNavigate={navigate} /> : <NoAccess />;
       case 'interfone':
-        return can('interfone') ? <ModuleLink moduleKey="interfone" isOwner={isOwner} onNavigate={setView} /> : <NoAccess />;
+        return can('interfone') ? <ModuleLink moduleKey="interfone" isOwner={isOwner} onNavigate={navigate} /> : <NoAccess />;
       case 'acesso':
         return can('acesso') ? <AccessControl isOwner={isOwner} /> : <NoAccess />;
       case 'usuarios':
@@ -37,15 +43,15 @@ export default function App() {
       case 'configuracoes':
         return isOwner ? <Settings /> : <NoAccess />;
       default:
-        return <Home user={user} onNavigate={setView} />;
+        return <Home user={user} onNavigate={navigate} />;
     }
   }
 
   return (
     <div className="shell">
-      <Sidebar view={view} onNavigate={setView} can={can} isOwner={isOwner} />
+      <Sidebar view={view} onNavigate={navigate} can={can} isOwner={isOwner} open={menuOpen} onClose={() => setMenuOpen(false)} />
       <div>
-        <TopBar view={view} user={user} onLogout={logout} theme={theme} setTheme={setTheme} />
+        <TopBar view={view} user={user} onLogout={logout} theme={theme} setTheme={setTheme} onMenuClick={() => setMenuOpen(true)} />
         <main className="content">{renderView()}</main>
       </div>
     </div>

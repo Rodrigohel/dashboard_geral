@@ -50,14 +50,34 @@ async function authenticate(moduleKey) {
   const gw = getGatewayConfig(moduleKey);
   if (!gw.configured) throw new Error(`Gateway "${moduleKey}" ainda não foi configurado.`);
 
-  const res = await fetch(`${gw.baseUrl}/api/auth/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username: gw.serviceUsername, password: gw.servicePassword }),
-    signal: AbortSignal.timeout(8000),
-  });
-  if (!res.ok) throw new Error(`Falha ao autenticar no painel "${moduleKey}" (HTTP ${res.status})`);
-  const data = await res.json();
+  let res;
+  try {
+    res = await fetch(`${gw.baseUrl}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: gw.serviceUsername, password: gw.servicePassword }),
+      signal: AbortSignal.timeout(8000),
+    });
+  } catch (err) {
+    // Erro de rede (host errado, porta fechada, painel fora do ar) — sem
+    // isso, o usuário só veria "fetch failed", sem pista nenhuma.
+    throw new Error(`Não consegui alcançar ${gw.baseUrl} (${err.message}). Confira o endereço interno da API.`);
+  }
+
+  const text = await res.text();
+  let data = {};
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    // resposta não-JSON — segue com data vazio, a mensagem abaixo cobre isso
+  }
+
+  if (!res.ok) {
+    throw new Error(data.error || `Painel respondeu HTTP ${res.status} — confira usuário/senha de serviço.`);
+  }
+  if (!data.token) {
+    throw new Error('Login aceito, mas o painel não retornou um token — endereço da API pode estar errado.');
+  }
   tokenCache.set(moduleKey, { token: data.token, obtainedAt: Date.now() });
   return data.token;
 }
@@ -65,6 +85,13 @@ async function authenticate(moduleKey) {
 export async function getServiceToken(moduleKey, { forceRefresh = false } = {}) {
   if (!forceRefresh && tokenCache.has(moduleKey)) return tokenCache.get(moduleKey).token;
   return authenticate(moduleKey);
+}
+
+// Usado pelo botão "Testar conexão" nas Configurações — tenta logar de
+// verdade com a conta de serviço salva, sem afetar o cache normal.
+export async function testGatewayConnection(moduleKey) {
+  await authenticate(moduleKey);
+  return true;
 }
 
 // Middleware de proxy "manual": mais simples e previsível do que configurar
