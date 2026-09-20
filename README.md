@@ -75,6 +75,31 @@ real):
 
 ## Instalação
 
+### Tudo de uma vez (Portal + Rede + Interfone)
+
+No servidor Debian, clone só este repositório e rode um único script — ele
+cuida deste Portal e também clona/instala (ou atualiza, se já existirem) os
+outros dois painéis:
+
+```bash
+git clone https://github.com/Rodrigohel/dashboard_geral /opt/portal
+cd /opt/portal
+sudo ./install-all.sh
+```
+
+**É esse o comando que você roda sempre que quiser trazer uma atualização
+do GitHub para o servidor** (depois de eu mandar um merge para o `main` de
+qualquer um dos três repositórios) — idempotente, não apaga usuários,
+equipamentos ou configurações já cadastrados. Ele instala Node.js se
+faltar, registra cada serviço no systemd, e no fim mostra o endereço de
+cada painel e os comandos de log.
+
+> Prefere controlar cada projeto separadamente, ou instalar só o Portal
+> (ex.: numa máquina diferente da que já tem o Rede/Interfone)? Rode o
+> `install.sh` de cada repositório individualmente — veja abaixo.
+
+### Só o Portal
+
 ```bash
 git clone <url-deste-repo> /opt/portal
 cd /opt/portal
