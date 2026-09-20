@@ -2,6 +2,68 @@ import { useEffect, useState } from 'react';
 import Icon from '../components/Icon.jsx';
 import { api } from '../api/client.js';
 
+function levelFor(percent, { warn = 60, danger = 85 } = {}) {
+  if (percent === null || percent === undefined) return 'ok';
+  if (percent >= danger) return 'danger';
+  if (percent >= warn) return 'warn';
+  return 'ok';
+}
+
+function MiniMeter({ label, percent, level, sub }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5 }}>
+        <span style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>{label}</span>
+        <span style={{ color: 'var(--text-tertiary)' }}>{sub}</span>
+      </div>
+      <div className="meter">
+        <div className={`meter-fill level-${level}`} style={{ width: `${Math.min(100, Math.max(0, percent ?? 0))}%` }} />
+      </div>
+    </div>
+  );
+}
+
+function ServerHealthWidget({ onNavigate }) {
+  const [health, setHealth] = useState(null);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    api.system.health().then(setHealth).catch(() => setError(true));
+  }, []);
+
+  if (error) return null;
+
+  return (
+    <div className="surface" style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700 }}>
+          <Icon name="server" size={17} />
+          Saúde do servidor
+        </div>
+        <button className="btn btn-ghost btn-sm" onClick={() => onNavigate('servidor')}>
+          Ver detalhes
+        </button>
+      </div>
+      {!health ? (
+        <div className="skeleton" style={{ height: 44, borderRadius: 8 }} />
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 16 }}>
+          <MiniMeter label="Processador" percent={health.cpu.loadPercent} level={levelFor(health.cpu.loadPercent)} sub={`${health.cpu.loadPercent}%`} />
+          <MiniMeter label="Memória" percent={health.memory.usedPercent} level={levelFor(health.memory.usedPercent)} sub={`${health.memory.usedPercent}%`} />
+          {health.disk && (
+            <MiniMeter
+              label="Disco"
+              percent={health.disk.usedPercent}
+              level={levelFor(health.disk.usedPercent, { warn: 70, danger: 90 })}
+              sub={`${health.disk.usedPercent}%`}
+            />
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 const MODULE_META = {
   rede: {
     title: 'Rede',
@@ -41,6 +103,8 @@ export default function Home({ user, onNavigate }) {
           <p>Aqui está um resumo do que você tem acesso.</p>
         </div>
       </div>
+
+      {user.role === 'owner' && <ServerHealthWidget onNavigate={onNavigate} />}
 
       <div className="module-grid">
         {user.modules?.map((key) => {

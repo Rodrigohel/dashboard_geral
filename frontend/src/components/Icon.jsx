@@ -31,6 +31,10 @@ const paths = {
   building: 'M4 21V5a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v16M12 21v-9a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v9M8 8h.01M8 12h.01M8 16h.01M16 12h.01M16 16h.01M2 21h20',
   key: 'M15.5 8.5a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0ZM8.5 8.5H2M5 8.5v3',
   copy: 'M9 9h11v11H9zM5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1',
+  server:
+    'M3 4h18a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1ZM3 13h18a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1v-5a1 1 0 0 1 1-1ZM7 7h.01M7 16h.01M11 7h4M11 16h4',
+  thermometer: 'M14 14.76V4a2 2 0 1 0-4 0v10.76a4 4 0 1 0 4 0Z',
+  cpu: 'M9 3v3M15 3v3M9 18v3M15 18v3M3 9h3M3 15h3M18 9h3M18 15h3M7 7h10v10H7z',
 };
 
 export default function Icon({ name, size = 18, strokeWidth = 1.8, className }) {

@@ -9,6 +9,7 @@ const NAV_ITEMS = [
 
 const ADMIN_ITEMS = [
   { key: 'usuarios', label: 'Usuários', icon: 'users' },
+  { key: 'servidor', label: 'Saúde do servidor', icon: 'server' },
   { key: 'configuracoes', label: 'Configurações', icon: 'settings' },
 ];
 

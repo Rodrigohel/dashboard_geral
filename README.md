@@ -42,6 +42,11 @@ Servidor Debian (FreePBX)
   módulos liberados para ela e, dentro de Controle de acesso, só os
   porteiros específicos liberados (útil para dar acesso a um síndico só do
   bloco dele, por exemplo).
+- **Saúde do servidor** (só para o administrador/owner): como essa mesma
+  máquina roda o FreePBX de verdade, o Portal mostra CPU, memória, disco,
+  temperatura e o status dos serviços dela — para acompanhar que a
+  instalação dos painéis não sobrecarrega a máquina a ponto de afetar a
+  central telefônica.
 
 ## Estado atual — o que já funciona vs. o que falta validar
 
@@ -54,6 +59,8 @@ CRUD completo, upload de foto, mensagens de erro):
 - CRUD de usuários **dentro** de cada porteiro (nome, matrícula, senha,
   cartão, validade) + upload de foto facial, e telas de Configurações
   (gateways) e Usuários.
+- Saúde do servidor (CPU, memória, disco, temperatura quando o sistema
+  expõe o sensor, e status read-only dos serviços systemd desta máquina).
 
 **Precisa de validação em campo** (não dá para testar sem o equipamento
 real):
@@ -142,6 +149,8 @@ Acesse `http://localhost:5175`.
 - `POST /api/access/devices/:id/users/:userId/photo` — foto facial.
 - `GET/PUT /api/settings/gateways/:moduleKey` — configuração dos gateways
   de Rede/Interfone (owner).
+- `GET /api/system/health` — CPU, memória, disco, temperatura e status dos
+  serviços desta máquina (owner).
 - `ALL /gateway/rede/*`, `ALL /gateway/interfone/*` — proxy autenticado
   para a API dos painéis existentes.
 
