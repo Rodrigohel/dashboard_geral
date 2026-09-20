@@ -1,142 +1,360 @@
-// Cliente para a API HTTP embutida nos controladores de acesso facial
-// Intelbras (XPE 3200 IP Face, SS 3532 MF e afins) — todos derivados da
-// mesma plataforma "Control iD" por trás da linha de controle de acesso da
-// Intelbras, expondo endpoints .fcgi para login e CRUD de objetos
-// (create_objects / load_objects / modify_objects / destroy_objects) e
-// upload de foto facial (user_set_image).
+// Cliente para os controladores de acesso facial Intelbras — a XPE 3200 IP
+// Face e a SS 3532 MF usam DUAS APIs diferentes entre si (fabricante é o
+// mesmo, protocolo não é). Cada uma tem sua implementação isolada abaixo,
+// escolhida por `device.model`.
 //
-// IMPORTANTE: a Intelbras não publica um dicionário de campos 100% aberto
-// do objeto "users" — o formato abaixo segue o que está documentado
-// publicamente para a API Control iD/Bio-T. Antes de ir para produção,
-// valide num equipamento real (ex.: `listUsers` numa unidade de teste) e
-// ajuste os nomes de campo em `toDeviceUser`/`fromDeviceUser` se o
-// firmware instalado usar nomes diferentes.
+// XPE 3200 IP Face — validada contra hardware real (fonte: implementação
+// de terceiros já rodando em produção, https://github.com/Sys-Bernardo-Rodrigues/zapy_rasp,
+// citando o PDF oficial "XPE3200_IP_FACE_Http_API_de_Integração.pdf"):
+//   - IMPORTANTE: a API vem DESLIGADA de fábrica — precisa habilitar em
+//     "Segurança > HTTP API" na interface web do próprio equipamento antes
+//     de qualquer chamada funcionar.
+//   - `POST /api/{target}/{action}`, corpo `{ target, action, data }`,
+//     autenticação HTTP Basic (mesmo usuário/senha do login web).
+//   - Resposta `{ retcode, action, message, data }` — `retcode === 0` é
+//     sucesso.
+//
+// SS 3532 MF (linha Bio-T) — AINDA NÃO VALIDADA contra hardware real. A
+// implementação de referência usada aqui é baseada só na documentação
+// (https://integracao.intelbras.com.br/linha-de-faciais), sem confirmação
+// em campo — trate como ponto de partida, não como certeza:
+//   - `GET/POST /cgi-bin/{Recurso}.cgi?action=...`, autenticação HTTP
+//     Digest (RFC 2617) real, resposta em TEXTO PURO ("OK" ou um código de
+//     erro), não JSON.
+//   - Não existe endpoint de listagem de usuários na implementação de
+//     referência — listar usuários não é suportado ainda para este modelo.
+import crypto from 'node:crypto';
 
 function baseUrlOf(device) {
   const scheme = device.use_https ? 'https' : 'http';
   return `${scheme}://${device.host}:${device.port}`;
 }
 
-async function request(device, session, fcgiPath, body) {
-  const url = `${baseUrlOf(device)}/${fcgiPath}`;
-  const headers = { 'Content-Type': 'application/json' };
-  if (session) headers.Cookie = session;
+function deriveRegistration(name) {
+  const slug = String(name || 'user').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 12) || 'user';
+  return `${slug}${Math.random().toString(36).slice(2, 6)}`;
+}
 
-  const res = await fetch(url, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(body ?? {}),
-    signal: AbortSignal.timeout(8000),
-  });
+// ======================================================================
+// XPE 3200 IP Face
+// ======================================================================
+
+async function xpeCall(device, password, target, action, data) {
+  const url = `${baseUrlOf(device)}/api/${target}/${action}`;
+  const auth = 'Basic ' + Buffer.from(`${device.device_username}:${password}`).toString('base64');
+
+  let res;
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: auth },
+      body: JSON.stringify({ target, action, data: data ?? {} }),
+      signal: AbortSignal.timeout(8000),
+    });
+  } catch (err) {
+    throw new Error(`Não consegui alcançar ${url} (${err.message}).`);
+  }
 
   const text = await res.text();
-  let data;
+  let json;
   try {
-    data = text ? JSON.parse(text) : {};
+    json = text ? JSON.parse(text) : {};
   } catch {
-    throw new Error(`Resposta inesperada do equipamento (${res.status}): ${text.slice(0, 200)}`);
+    throw new Error(
+      `Resposta inesperada do equipamento (${res.status}): ${text.slice(0, 200)}. ` +
+        `Confira se a "API HTTP" está habilitada em Segurança na interface web do equipamento.`
+    );
   }
 
-  if (!res.ok || data.error) {
-    throw new Error(data.error || `Falha ao falar com o equipamento (HTTP ${res.status})`);
+  if (res.status === 401) throw new Error('Usuário/senha do equipamento recusados (HTTP 401).');
+  if (!res.ok || json.retcode !== 0) {
+    throw new Error(json.message || `Falha na chamada ${target}/${action} (HTTP ${res.status}, retcode ${json.retcode}).`);
   }
-  return { data, res };
+  return json.data || {};
 }
 
-// Autentica e devolve o cookie de sessão a ser reenviado nas próximas
-// chamadas. Alguns firmwares devolvem a sessão no corpo (`session`) em vez
-// de cookie — cobrimos os dois casos.
-async function login(device, password) {
-  const { data, res } = await request(device, null, 'login.fcgi', {
-    login: device.device_username,
-    password,
-  });
-
-  const setCookie = res.headers.getSetCookie
-    ? res.headers.getSetCookie()
-    : [res.headers.get('set-cookie')].filter(Boolean);
-
-  if (setCookie.length) return setCookie.map((c) => c.split(';')[0]).join('; ');
-  if (data.session) return `session=${data.session}`;
-  throw new Error('Login aceito, mas o equipamento não retornou uma sessão.');
-}
-
-function toDeviceUser(input) {
-  const values = {
-    name: input.name,
-    registration: input.registration || String(input.name || '').slice(0, 20),
-  };
-  if (input.password) values.password = input.password;
-  if (input.expiration) values.expiration = input.expiration; // ISO date, acesso expira nessa data
-  if (input.cardNumber) values.card_number = input.cardNumber;
-  return values;
-}
-
-function fromDeviceUser(row) {
+function xpeFromItem(item) {
   return {
-    id: row.id,
-    name: row.name,
-    registration: row.registration,
-    hasFace: Boolean(row.image ?? row.has_image),
-    cardNumber: row.card_number || row.cardNumber || null,
-    expiration: row.expiration || null,
+    id: item.ID,
+    name: item.Name,
+    registration: item.UserID,
+    hasFace: Boolean(item.FaceImage),
+    cardNumber: item.CardCode || null,
+    expiration: null, // XPE não tem validade configurável por usuário (Validity é fixo)
   };
 }
 
-export async function listUsers(device, password) {
-  const session = await login(device, password);
-  const { data } = await request(device, session, 'load_objects.fcgi', { object: 'users' });
-  return (data.users || []).map(fromDeviceUser);
+// NOTE: formato exato do CardCode não confirmado por documentação oficial
+// (só sabemos que é hex de 4 bytes com ordem de bytes invertida) — valide
+// contra um cartão real antes de depender disso em produção.
+function toXpeCardCode(cardNumber) {
+  const num = Number(cardNumber);
+  if (!Number.isFinite(num)) return String(cardNumber);
+  const hex = Math.trunc(num).toString(16).padStart(8, '0').toUpperCase();
+  const bytes = hex.match(/.{2}/g) || [];
+  return bytes.reverse().join(',');
 }
 
-export async function createUser(device, password, input) {
-  const session = await login(device, password);
-  const { data } = await request(device, session, 'create_objects.fcgi', {
-    object: 'users',
-    values: [toDeviceUser(input)],
-  });
-  const id = data.ids?.[0];
-  if (!id) throw new Error('Equipamento não retornou o id do usuário criado.');
-  return { id, ...fromDeviceUser({ id, ...toDeviceUser(input) }) };
+function xpeBuildItem(input) {
+  const item = {
+    UserID: input.registration || deriveRegistration(input.name),
+    Name: input.name,
+    Validity: '0',
+    Relay: '1',
+  };
+  if (input.password) item.PrivatePIN = input.password;
+  if (input.cardNumber) item.CardCode = toXpeCardCode(input.cardNumber);
+  return item;
 }
 
-export async function updateUser(device, password, userId, input) {
-  const session = await login(device, password);
-  await request(device, session, 'modify_objects.fcgi', {
-    object: 'users',
-    match: { id: userId },
-    values: toDeviceUser(input),
-  });
-  return { id: userId, ...fromDeviceUser({ id: userId, ...toDeviceUser(input) }) };
+async function xpeFindByUserId(device, password, userId) {
+  const data = await xpeCall(device, password, 'user', 'get');
+  return (data.item || []).find((it) => it.UserID === userId) || null;
 }
 
-export async function deleteUser(device, password, userId) {
-  const session = await login(device, password);
-  await request(device, session, 'destroy_objects.fcgi', {
-    object: 'users',
-    match: { id: userId },
-  });
+async function xpeFindById(device, password, id) {
+  const data = await xpeCall(device, password, 'user', 'get');
+  return (data.item || []).find((it) => String(it.ID) === String(id)) || null;
 }
 
-// Cadastro/troca da foto facial — multipart, não JSON como os demais.
-export async function setUserPhoto(device, password, userId, fileBuffer, mimeType) {
-  const session = await login(device, password);
-  const form = new FormData();
-  form.append('user_id', String(userId));
-  form.append('file', new Blob([fileBuffer], { type: mimeType || 'image/jpeg' }), 'face.jpg');
-
-  const res = await fetch(`${baseUrlOf(device)}/user_set_image.fcgi`, {
-    method: 'POST',
-    headers: { Cookie: session },
-    body: form,
-    signal: AbortSignal.timeout(15000),
-  });
-  if (!res.ok) throw new Error(`Falha ao enviar a foto (HTTP ${res.status})`);
+async function xpeListUsers(device, password) {
+  const data = await xpeCall(device, password, 'user', 'get');
+  return (data.item || []).map(xpeFromItem);
 }
 
-// Usado pelo botão "Testar conexão" na tela de equipamentos — só confirma
-// que dá para logar, sem mexer em nada.
-export async function testConnection(device, password) {
-  await login(device, password);
+async function xpeCreateUser(device, password, input) {
+  const item = xpeBuildItem(input);
+  await xpeCall(device, password, 'user', 'add', { item: [item] });
+  // A resposta de "add" não tem formato confirmado — busca o item recém
+  // criado pelo UserID pra descobrir o ID interno que os outros métodos
+  // (set/del) exigem.
+  const created = await xpeFindByUserId(device, password, item.UserID);
+  return created ? xpeFromItem(created) : { id: item.UserID, ...xpeFromItem({ ...item, ID: item.UserID }) };
+}
+
+async function xpeUpdateUser(device, password, userId, input) {
+  // user/set substitui o item inteiro (não é PATCH) — busca o existente e
+  // mescla, senão campos não enviados (ex.: FaceImage já cadastrada) somem.
+  const existing = await xpeFindById(device, password, userId);
+  const merged = { ...(existing || {}), ...xpeBuildItem(input), ID: String(userId) };
+  await xpeCall(device, password, 'user', 'set', { item: [merged] });
+  return xpeFromItem(merged);
+}
+
+async function xpeDeleteUser(device, password, userId) {
+  // Endpoint de exclusão não está confirmado por documentação/código de
+  // referência — por simetria com "set" (que exige ID), assume o mesmo aqui.
+  await xpeCall(device, password, 'user', 'del', { item: [{ ID: String(userId) }] });
+}
+
+async function xpeSetUserPhoto(device, password, userId, fileBuffer) {
+  const existing = await xpeFindById(device, password, userId);
+  if (!existing) throw new Error('Usuário não encontrado no equipamento.');
+  if (fileBuffer.length > 200 * 1024) {
+    throw new Error('Foto maior que 200KB — reduza o tamanho do arquivo (limite do equipamento).');
+  }
+  const merged = { ...existing, FaceImage: fileBuffer.toString('base64') };
+  await xpeCall(device, password, 'user', 'set', { item: [merged] });
+}
+
+async function xpeTestConnection(device, password) {
+  await xpeCall(device, password, 'system', 'info');
   return true;
 }
+
+// ======================================================================
+// SS 3532 MF (Bio-T) — não validada em hardware real, ver aviso no topo.
+// ======================================================================
+
+function md5(s) {
+  return crypto.createHash('md5').update(s).digest('hex');
+}
+
+function parseDigestChallenge(header) {
+  const parts = {};
+  const re = /(\w+)=(?:"([^"]*)"|([^,\s]+))/g;
+  let m;
+  while ((m = re.exec(header))) parts[m[1].toLowerCase()] = m[2] ?? m[3];
+  return parts;
+}
+
+// Faz a requisição sem autenticação primeiro; se o equipamento responder
+// 401 com um desafio Digest (RFC 2617), monta o header de autorização e
+// tenta de novo — igual o `fetch` faria automaticamente se suportasse
+// Digest nativamente (não suporta).
+async function digestFetch(url, { method = 'GET', username, password, jsonBody } = {}) {
+  const headers = jsonBody ? { 'Content-Type': 'application/json' } : {};
+  const body = jsonBody ? JSON.stringify(jsonBody) : undefined;
+  const opts = { method, headers, body, signal: AbortSignal.timeout(8000) };
+
+  let res;
+  try {
+    res = await fetch(url, opts);
+  } catch (err) {
+    throw new Error(`Não consegui alcançar ${url} (${err.message}).`);
+  }
+  if (res.status !== 401) return res;
+
+  const challenge = res.headers.get('www-authenticate') || '';
+  if (!/digest/i.test(challenge)) {
+    throw new Error(`Equipamento pediu autenticação ${challenge.split(' ')[0] || 'desconhecida'}, esperava Digest.`);
+  }
+  const { realm, nonce, opaque, qop } = parseDigestChallenge(challenge);
+  const u = new URL(url);
+  const uri = u.pathname + u.search;
+  const ha1 = md5(`${username}:${realm}:${password}`);
+  const ha2 = md5(`${method}:${uri}`);
+
+  let authHeader;
+  if (qop) {
+    const qopValue = qop.split(',')[0].trim();
+    const nc = '00000001';
+    const cnonce = crypto.randomBytes(8).toString('hex');
+    const response = md5(`${ha1}:${nonce}:${nc}:${cnonce}:${qopValue}:${ha2}`);
+    authHeader =
+      `Digest username="${username}", realm="${realm}", nonce="${nonce}", uri="${uri}", ` +
+      `qop=${qopValue}, nc=${nc}, cnonce="${cnonce}", response="${response}"` +
+      (opaque ? `, opaque="${opaque}"` : '');
+  } else {
+    const response = md5(`${ha1}:${nonce}:${ha2}`);
+    authHeader = `Digest username="${username}", realm="${realm}", nonce="${nonce}", uri="${uri}", response="${response}"` + (opaque ? `, opaque="${opaque}"` : '');
+  }
+
+  try {
+    return await fetch(url, { ...opts, headers: { ...headers, Authorization: authHeader } });
+  } catch (err) {
+    throw new Error(`Não consegui alcançar ${url} (${err.message}).`);
+  }
+}
+
+async function biotRequest(device, password, cgi, action, { method = 'POST', jsonBody, extraQuery } = {}) {
+  const qs = new URLSearchParams({ action, ...(extraQuery || {}) });
+  const url = `${baseUrlOf(device)}/cgi-bin/${cgi}?${qs.toString()}`;
+  const res = await digestFetch(url, { method, username: device.device_username, password, jsonBody });
+  const text = (await res.text()).trim();
+  if (res.status === 401) throw new Error('Usuário/senha do equipamento recusados (HTTP 401).');
+  if (!res.ok) throw new Error(`Equipamento respondeu HTTP ${res.status}: ${text.slice(0, 200)}`);
+  return text;
+}
+
+function biotIsOk(text) {
+  return /^OK/i.test(text);
+}
+
+function toBiotDateTime(iso) {
+  const d = new Date(iso);
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
+// input.password é ignorado aqui de propósito: a implementação de
+// referência da linha Bio-T não tem nenhum campo de PIN/senha por usuário.
+function biotUserBody(userId, name, expirationIso) {
+  return {
+    UserID: userId,
+    UserName: name,
+    UserType: 0,
+    Doors: [0],
+    TimeSections: [255],
+    ValidFrom: '2020-01-01 00:00:00',
+    ValidTo: expirationIso ? toBiotDateTime(expirationIso) : '2037-12-31 23:59:59',
+  };
+}
+
+async function biotListUsers() {
+  throw new Error(
+    'Listar usuários ainda não é suportado para o modelo SS 3532 MF (a implementação de referência não documenta esse endpoint). ' +
+      'Você ainda pode cadastrar um usuário novo pelo formulário "Novo usuário", mas editar/excluir pela lista não está disponível para este modelo por enquanto.'
+  );
+}
+
+async function biotCreateUser(device, password, input) {
+  const userId = input.registration || deriveRegistration(input.name);
+  const body = { UserList: [biotUserBody(userId, input.name, input.expiration)] };
+  let text = await biotRequest(device, password, 'AccessUser.cgi', 'insertMulti', { jsonBody: body });
+  if (!biotIsOk(text) && /alreadyexist/i.test(text)) {
+    text = await biotRequest(device, password, 'AccessUser.cgi', 'updateMulti', { jsonBody: body });
+  }
+  if (!biotIsOk(text)) throw new Error(`Equipamento recusou o usuário: ${text.slice(0, 200)}`);
+
+  if (input.cardNumber) {
+    const cardBody = { CardList: [{ UserID: userId, CardNo: String(input.cardNumber), CardType: 0, CardStatus: 0 }] };
+    const cardText = await biotRequest(device, password, 'AccessCard.cgi', 'insertMulti', { jsonBody: cardBody });
+    if (!biotIsOk(cardText)) throw new Error(`Usuário criado, mas falhou ao associar o cartão: ${cardText.slice(0, 200)}`);
+  }
+
+  return { id: userId, name: input.name, registration: userId, hasFace: false, cardNumber: input.cardNumber || null, expiration: input.expiration || null };
+}
+
+async function biotUpdateUser(device, password, userId, input) {
+  const body = { UserList: [biotUserBody(String(userId), input.name, input.expiration)] };
+  const text = await biotRequest(device, password, 'AccessUser.cgi', 'updateMulti', { jsonBody: body });
+  if (!biotIsOk(text)) throw new Error(`Equipamento recusou a atualização: ${text.slice(0, 200)}`);
+  return { id: userId, name: input.name, registration: String(userId), hasFace: null, cardNumber: input.cardNumber || null, expiration: input.expiration || null };
+}
+
+async function biotDeleteUser(device, password, userId) {
+  const text = await biotRequest(device, password, 'AccessUser.cgi', 'removeMulti', {
+    method: 'GET',
+    extraQuery: { 'UserIDList[0]': String(userId) },
+  });
+  if (!biotIsOk(text)) throw new Error(`Equipamento recusou a exclusão: ${text.slice(0, 200)}`);
+}
+
+async function biotSetUserPhoto(device, password, userId, fileBuffer) {
+  if (fileBuffer.length > 100 * 1024) {
+    throw new Error('Foto maior que 100KB — reduza o tamanho do arquivo (limite do equipamento).');
+  }
+  const body = { FaceList: [{ UserID: String(userId), PhotoData: [fileBuffer.toString('base64')] }] };
+  let text = await biotRequest(device, password, 'AccessFace.cgi', 'insertMulti', { jsonBody: body });
+  if (!biotIsOk(text) && /photoexist/i.test(text)) {
+    text = await biotRequest(device, password, 'AccessFace.cgi', 'updateMulti', { jsonBody: body });
+  }
+  if (!biotIsOk(text)) throw new Error(`Equipamento recusou a foto: ${text.slice(0, 200)}`);
+}
+
+async function biotTestConnection(device, password) {
+  const text = await biotRequest(device, password, 'magicBox.cgi', 'getSoftwareVersion', { method: 'GET' });
+  if (!text) throw new Error('Equipamento não respondeu como esperado.');
+  return true;
+}
+
+// ======================================================================
+// Dispatcher — escolhe a implementação pelo modelo cadastrado.
+// ======================================================================
+
+const CLIENTS = {
+  xpe3200: {
+    listUsers: xpeListUsers,
+    createUser: xpeCreateUser,
+    updateUser: xpeUpdateUser,
+    deleteUser: xpeDeleteUser,
+    setUserPhoto: xpeSetUserPhoto,
+    testConnection: xpeTestConnection,
+  },
+  ss3532mf: {
+    listUsers: biotListUsers,
+    createUser: biotCreateUser,
+    updateUser: biotUpdateUser,
+    deleteUser: biotDeleteUser,
+    setUserPhoto: biotSetUserPhoto,
+    testConnection: biotTestConnection,
+  },
+};
+
+function clientFor(device) {
+  const client = CLIENTS[device.model];
+  if (!client) {
+    throw new Error(
+      `Modelo "${device.model}" não tem um cliente de API implementado — escolha "Intelbras XPE 3200 IP Face" ou "Intelbras SS 3532 MF" no cadastro do equipamento.`
+    );
+  }
+  return client;
+}
+
+export const listUsers = (device, password) => clientFor(device).listUsers(device, password);
+export const createUser = (device, password, input) => clientFor(device).createUser(device, password, input);
+export const updateUser = (device, password, userId, input) => clientFor(device).updateUser(device, password, userId, input);
+export const deleteUser = (device, password, userId) => clientFor(device).deleteUser(device, password, userId);
+export const setUserPhoto = (device, password, userId, fileBuffer) => clientFor(device).setUserPhoto(device, password, userId, fileBuffer);
+export const testConnection = (device, password) => clientFor(device).testConnection(device, password);
