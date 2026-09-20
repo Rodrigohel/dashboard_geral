@@ -1,0 +1,108 @@
+// Gateway server-to-server para os painéis de Rede e Interfone: eles
+// continuam sendo aplicações Node independentes, cada uma com seu próprio
+// login (usuário/senha + JWT). Em vez do cliente logar duas vezes, o
+// próprio Portal loga nelas com uma conta de serviço (configurada em
+// Configurações → Gateways) e repassa as chamadas — o usuário final só vê
+// o login do Portal.
+import { db } from '../db/sqlite.js';
+import { config } from '../config.js';
+import { encryptSecret, decryptSecret } from './cryptoService.js';
+
+// Token de serviço em memória por módulo — evita logar de novo a cada
+// requisição. Reautentica sozinho se o painel de baixo responder 401.
+const tokenCache = new Map(); // moduleKey -> { token, obtainedAt }
+
+export function getGatewayConfig(moduleKey) {
+  const row = db.prepare('SELECT * FROM module_gateways WHERE module_key = ?').get(moduleKey);
+  const fallback = config.gateways[moduleKey] || {};
+  return {
+    baseUrl: row?.base_url || fallback.baseUrl || '',
+    publicUrl: row?.public_url || '',
+    serviceUsername: row?.service_username || '',
+    servicePassword: row ? decryptSecret(row.service_password_enc) : '',
+    configured: Boolean(row?.base_url && row?.service_username),
+  };
+}
+
+export function saveGatewayConfig(moduleKey, { baseUrl, publicUrl, serviceUsername, servicePassword }) {
+  const existing = db.prepare('SELECT * FROM module_gateways WHERE module_key = ?').get(moduleKey);
+  const passwordEnc = servicePassword ? encryptSecret(servicePassword) : existing?.service_password_enc || '';
+
+  if (existing) {
+    db.prepare(
+      'UPDATE module_gateways SET base_url = ?, public_url = ?, service_username = ?, service_password_enc = ? WHERE module_key = ?'
+    ).run(
+      baseUrl ?? existing.base_url,
+      publicUrl ?? existing.public_url,
+      serviceUsername ?? existing.service_username,
+      passwordEnc,
+      moduleKey
+    );
+  } else {
+    db.prepare(
+      'INSERT INTO module_gateways (module_key, base_url, public_url, service_username, service_password_enc) VALUES (?, ?, ?, ?, ?)'
+    ).run(moduleKey, baseUrl || '', publicUrl || '', serviceUsername || '', passwordEnc);
+  }
+  tokenCache.delete(moduleKey);
+}
+
+async function authenticate(moduleKey) {
+  const gw = getGatewayConfig(moduleKey);
+  if (!gw.configured) throw new Error(`Gateway "${moduleKey}" ainda não foi configurado.`);
+
+  const res = await fetch(`${gw.baseUrl}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: gw.serviceUsername, password: gw.servicePassword }),
+    signal: AbortSignal.timeout(8000),
+  });
+  if (!res.ok) throw new Error(`Falha ao autenticar no painel "${moduleKey}" (HTTP ${res.status})`);
+  const data = await res.json();
+  tokenCache.set(moduleKey, { token: data.token, obtainedAt: Date.now() });
+  return data.token;
+}
+
+export async function getServiceToken(moduleKey, { forceRefresh = false } = {}) {
+  if (!forceRefresh && tokenCache.has(moduleKey)) return tokenCache.get(moduleKey).token;
+  return authenticate(moduleKey);
+}
+
+// Middleware de proxy "manual": mais simples e previsível do que configurar
+// http-proxy-middleware com reautenticação embutida. Encaminha
+// método/corpo/query, injeta o Bearer do token de serviço, e tenta de novo
+// uma vez se o painel de baixo responder 401 (token expirado).
+export function gatewayProxy(moduleKey) {
+  return async (req, res) => {
+    const gw = getGatewayConfig(moduleKey);
+    if (!gw.configured) {
+      return res.status(503).json({ error: `Gateway "${moduleKey}" ainda não foi configurado nas Configurações.` });
+    }
+
+    const targetPath = req.originalUrl.replace(new RegExp(`^/gateway/${moduleKey}`), '/api');
+    const doRequest = async (token) =>
+      fetch(`${gw.baseUrl}${targetPath}`, {
+        method: req.method,
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: ['GET', 'HEAD'].includes(req.method) ? undefined : JSON.stringify(req.body ?? {}),
+        signal: AbortSignal.timeout(15000),
+      });
+
+    try {
+      let token = await getServiceToken(moduleKey);
+      let response = await doRequest(token);
+      if (response.status === 401) {
+        token = await getServiceToken(moduleKey, { forceRefresh: true });
+        response = await doRequest(token);
+      }
+      const body = await response.text();
+      res.status(response.status);
+      res.set('Content-Type', response.headers.get('content-type') || 'application/json');
+      res.send(body);
+    } catch (err) {
+      res.status(502).json({ error: `Painel "${moduleKey}" indisponível: ${err.message}` });
+    }
+  };
+}

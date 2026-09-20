@@ -1,0 +1,25 @@
+{
+  "name": "portal-backend",
+  "version": "1.0.0",
+  "description": "Backend do Portal unificado: login único, permissões por usuário, gateway para os painéis de Rede e Interfone, e gestão remota dos controladores de acesso facial Intelbras (XPE 3200 IP Face / SS 3532 MF).",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "seed:admin": "node src/db/seedAdmin.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "better-sqlite3": "^11.3.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "http-proxy-middleware": "^3.0.3",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^2.4.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

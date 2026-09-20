@@ -1,0 +1,70 @@
+:root {
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-display: 'Manrope', var(--font-sans);
+
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-xl: 28px;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 64px;
+
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* Marca: azul elétrico -> violeta, sempre a mesma nos dois temas */
+  --accent-500: #4f7dff;
+  --accent-400: #6d93ff;
+  --accent-600: #3d5fe0;
+  --accent-glow: rgba(79, 125, 255, 0.35);
+  --violet-500: #8b5cf6;
+
+  --success-500: #22c55e;
+  --success-soft: rgba(34, 197, 94, 0.16);
+  --warning-500: #f5a623;
+  --warning-soft: rgba(245, 166, 35, 0.16);
+  --danger-500: #ef4444;
+  --danger-soft: rgba(239, 68, 68, 0.16);
+}
+
+:root[data-theme='dark'] {
+  --bg-page: #0a0e1a;
+  --bg-page-gradient: radial-gradient(1200px circle at 12% -8%, rgba(79, 125, 255, 0.18) 0%, transparent 55%),
+    radial-gradient(900px circle at 100% 0%, rgba(139, 92, 246, 0.12) 0%, transparent 50%), #0a0e1a;
+  --bg-surface: #12172a;
+  --bg-surface-raised: #171d33;
+  --bg-surface-hover: #1c2340;
+  --bg-glass: rgba(23, 29, 51, 0.6);
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.16);
+  --text-primary: #f4f6fb;
+  --text-secondary: #9aa5c0;
+  --text-tertiary: #626b87;
+  --shadow-md: 0 8px 24px -8px rgba(0, 0, 0, 0.55);
+  --shadow-lg: 0 24px 64px -16px rgba(0, 0, 0, 0.6);
+  --overlay-scrim: rgba(5, 7, 16, 0.72);
+}
+
+:root[data-theme='light'] {
+  --bg-page: #f3f5fb;
+  --bg-page-gradient: radial-gradient(1200px circle at 12% -8%, rgba(79, 125, 255, 0.1) 0%, transparent 55%),
+    radial-gradient(900px circle at 100% 0%, rgba(139, 92, 246, 0.07) 0%, transparent 50%), #f3f5fb;
+  --bg-surface: #ffffff;
+  --bg-surface-raised: #ffffff;
+  --bg-surface-hover: #f1f4fc;
+  --bg-glass: rgba(255, 255, 255, 0.72);
+  --border-subtle: rgba(15, 23, 42, 0.08);
+  --border-strong: rgba(15, 23, 42, 0.14);
+  --text-primary: #0f1424;
+  --text-secondary: #566080;
+  --text-tertiary: #8e97b3;
+  --shadow-md: 0 8px 24px -10px rgba(15, 23, 42, 0.14);
+  --shadow-lg: 0 24px 64px -20px rgba(15, 23, 42, 0.22);
+  --overlay-scrim: rgba(15, 20, 36, 0.4);
+}
