@@ -141,6 +141,17 @@ export default function Home({ user, onNavigate }) {
                       Abrir painel <Icon name="externalLink" size={14} />
                     </a>
                   </>
+                ) : info?.configured ? (
+                  <>
+                    <span className="badge badge-warning">
+                      <span className="badge-dot" /> falta o link público
+                    </span>
+                    {user.role === 'owner' && (
+                      <button className="btn btn-secondary btn-sm" onClick={() => onNavigate('configuracoes')}>
+                        Configurar
+                      </button>
+                    )}
+                  </>
                 ) : (
                   <>
                     <span className="badge badge-warning">
