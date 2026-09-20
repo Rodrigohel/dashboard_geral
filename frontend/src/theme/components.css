@@ -311,6 +311,18 @@ table.data-table {
   }
 }
 
+/* ---------- Grades responsivas ---------- */
+.grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+@media (max-width: 640px) {
+  .grid-2 {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* ---------- Diversos ---------- */
 .empty-state {
   display: flex;

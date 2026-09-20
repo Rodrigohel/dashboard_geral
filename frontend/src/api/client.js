@@ -72,5 +72,6 @@ export const api = {
   settings: {
     getGateways: () => request('/api/settings/gateways'),
     saveGateway: (moduleKey, payload) => request(`/api/settings/gateways/${moduleKey}`, { method: 'PUT', body: payload }),
+    testGateway: (moduleKey) => request(`/api/settings/gateways/${moduleKey}/test-connection`, { method: 'POST' }),
   },
 };

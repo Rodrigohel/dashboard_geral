@@ -22,6 +22,7 @@ function GatewayCard({ meta, value, onSave }) {
   const [serviceUsername, setServiceUsername] = useState(value?.serviceUsername || '');
   const [servicePassword, setServicePassword] = useState('');
   const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
   const toast = useToast();
 
   async function handleSave() {
@@ -34,6 +35,18 @@ function GatewayCard({ meta, value, onSave }) {
       toast(err.message, 'error');
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleTest() {
+    setTesting(true);
+    try {
+      await api.settings.testGateway(meta.key);
+      toast(`Conexão com "${meta.title}" funcionando — login OK.`);
+    } catch (err) {
+      toast(err.message, 'error');
+    } finally {
+      setTesting(false);
     }
   }
 
@@ -55,7 +68,7 @@ function GatewayCard({ meta, value, onSave }) {
         )}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+      <div className="grid-2">
         <div className="field">
           <label className="field-label">Endereço interno da API</label>
           <input className="input" value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} placeholder="http://127.0.0.1:3002" />
@@ -66,7 +79,7 @@ function GatewayCard({ meta, value, onSave }) {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+      <div className="grid-2">
         <div className="field">
           <label className="field-label">Usuário de serviço</label>
           <input className="input" value={serviceUsername} onChange={(e) => setServiceUsername(e.target.value)} placeholder="portal-service" />
@@ -83,14 +96,19 @@ function GatewayCard({ meta, value, onSave }) {
         </div>
       </div>
       <span className="field-hint">
-        Crie uma conta comum nesse painel (pela tela de Usuários dele) só para o Portal usar — assim o cliente nunca vê o login duplo.
+        Crie uma conta comum nesse painel (pela tela de Usuários dele) e informe aqui — usuário e senha
+        de serviço, separados da sua conta pessoal nele.
       </span>
 
-      <div>
+      <div style={{ display: 'flex', gap: 8 }}>
         <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
           {saving ? <span className="spinner" /> : 'Salvar'}
         </button>
+        <button className="btn btn-secondary" onClick={handleTest} disabled={testing || !value?.configured}>
+          {testing ? <span className="spinner spinner-dark" /> : 'Testar conexão'}
+        </button>
       </div>
+      {!value?.configured && <span className="field-hint">Salve o endereço e a conta de serviço antes de testar.</span>}
     </div>
   );
 }
@@ -128,10 +146,11 @@ export default function Settings() {
       <div className="surface" style={{ padding: 24, display: 'flex', gap: 16, alignItems: 'flex-start' }}>
         <Icon name="key" size={20} style={{ color: 'var(--accent-400)', flexShrink: 0, marginTop: 2 }} />
         <div style={{ fontSize: 13.5, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-          <strong style={{ color: 'var(--text-primary)' }}>Acesso externo:</strong> este Portal deve ser o único
-          endereço exposto para a internet (via Cloudflare Tunnel, apontando para este servidor). Os painéis de Rede
-          e Interfone continuam só na rede local — o Portal fala com eles por trás, usando a conta de serviço
-          configurada acima.
+          <strong style={{ color: 'var(--text-primary)' }}>O que cada campo faz hoje:</strong> o botão "Abrir painel"
+          na tela Início usa só a <strong>URL pública</strong> — abre o painel original numa aba nova, com o login
+          dele mesmo (login único ainda não está pronto pra Rede/Interfone). Já o <strong>endereço interno da API</strong> e
+          a <strong>conta de serviço</strong> preparam a integração completa (uma tela só, sem login duplo) — clique em
+          "Testar conexão" pra confirmar que essa conta de serviço realmente consegue logar naquele painel.
         </div>
       </div>
     </>

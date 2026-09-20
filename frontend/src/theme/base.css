@@ -12,6 +12,7 @@ body,
 
 body {
   margin: 0;
+  overflow-x: hidden;
   font-family: var(--font-sans);
   background: var(--bg-page-gradient);
   background-attachment: fixed;

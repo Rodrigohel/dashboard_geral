@@ -61,7 +61,7 @@ export default function DeviceUserFormModal({ user, onClose, onSave }) {
           <input className="input" value={form.registration} onChange={(e) => set('registration', e.target.value)} placeholder="Opcional — gerado automaticamente se vazio" />
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <div className="grid-2">
           <div className="field">
             <label className="field-label">Senha de acesso (opcional)</label>
             <input className="input" value={form.password} onChange={(e) => set('password', e.target.value)} placeholder="Senha numérica" />

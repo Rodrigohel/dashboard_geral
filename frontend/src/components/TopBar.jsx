@@ -11,7 +11,7 @@ const TITLES = {
   configuracoes: ['Configurações', 'Integrações e preferências gerais'],
 };
 
-export default function TopBar({ view, user, onLogout, theme, setTheme }) {
+export default function TopBar({ view, user, onLogout, theme, setTheme, onMenuClick }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
   const [title, subtitle] = TITLES[view] || ['Portal', ''];
@@ -31,9 +31,14 @@ export default function TopBar({ view, user, onLogout, theme, setTheme }) {
 
   return (
     <header className="topbar">
-      <div>
-        <div className="topbar-title">{title}</div>
-        <div className="topbar-subtitle">{subtitle}</div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flex: '1 1 auto' }}>
+        <button className="btn btn-ghost btn-icon menu-btn" onClick={onMenuClick} aria-label="Abrir menu" style={{ flexShrink: 0 }}>
+          <Icon name="menu" size={20} />
+        </button>
+        <div style={{ minWidth: 0 }}>
+          <div className="topbar-title">{title}</div>
+          <div className="topbar-subtitle">{subtitle}</div>
+        </div>
       </div>
 
       <div className="topbar-actions">
