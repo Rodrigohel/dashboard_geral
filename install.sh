@@ -66,17 +66,22 @@ export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq || warn "Falha ao atualizar algum repositório apt — continuando."
 apt-get install -y -qq curl ca-certificates gnupg rsync openssl build-essential python3 >/dev/null
 
+# Reaproveita um Node.js >=18 já instalado, em vez de forçar a versão 20 —
+# o backend só exige >=18, e este servidor tipicamente já roda outros
+# painéis Node (e o próprio FreePBX/Sangoma, que às vezes segura o pacote
+# `nodejs` com apt-mark hold) nessa mesma versão. Trocar o Node do sistema
+# sem necessidade arrisca esses outros serviços por nada.
 NODE_OK=0
 if command -v node >/dev/null 2>&1; then
   NODE_MAJOR="$(node -v | sed 's/v//;s/\..*//')"
-  [ "$NODE_MAJOR" -ge 20 ] 2>/dev/null && NODE_OK=1
+  [ "$NODE_MAJOR" -ge 18 ] 2>/dev/null && NODE_OK=1
 fi
 if [ "$NODE_OK" -eq 0 ]; then
-  info "Instalando Node.js 20.x (NodeSource)..."
+  info "Nenhum Node.js >=18 utilizável encontrado — instalando Node.js 20.x (NodeSource)..."
   curl -fsSL https://deb.nodesource.com/setup_20.x | bash - >/dev/null 2>&1
   apt-get install -y -qq nodejs >/dev/null
 else
-  info "Reaproveitando Node.js já instalado."
+  info "Reaproveitando Node.js já instalado (não mexe no pacote 'nodejs' existente)."
 fi
 info "Node $(node -v) / npm $(npm -v)"
 
