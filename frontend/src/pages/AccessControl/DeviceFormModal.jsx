@@ -4,7 +4,7 @@ import Modal from '../../components/Modal.jsx';
 const MODELS = [
   { value: 'xpe3200', label: 'Intelbras XPE 3200 IP Face' },
   { value: 'ss3532mf', label: 'Intelbras SS 3532 MF (Bio-T)' },
-  { value: 'other', label: 'Outro (compatível com API Control iD)' },
+  { value: 'other', label: 'Outro (ainda não suportado)' },
 ];
 
 export default function DeviceFormModal({ device, onClose, onSave }) {
@@ -80,6 +80,16 @@ export default function DeviceFormModal({ device, onClose, onSave }) {
               </option>
             ))}
           </select>
+          {form.model === 'xpe3200' && (
+            <span className="field-hint">
+              Precisa habilitar antes, na interface web do próprio equipamento: Segurança → API HTTP (vem desligada de fábrica).
+            </span>
+          )}
+          {form.model === 'ss3532mf' && (
+            <span className="field-hint">
+              Suporte a este modelo ainda não foi validado num equipamento real — cadastro/foto devem funcionar, mas listar/editar/excluir usuários ainda não.
+            </span>
+          )}
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 100px', gap: 12 }}>

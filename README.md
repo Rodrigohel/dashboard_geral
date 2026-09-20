@@ -62,17 +62,29 @@ CRUD completo, upload de foto, mensagens de erro):
 - Saúde do servidor (CPU, memória, disco, temperatura quando o sistema
   expõe o sensor, e status read-only dos serviços systemd desta máquina).
 
-**Precisa de validação em campo** (não dá para testar sem o equipamento
-real):
-- `backend/src/services/accessControlClient.js` implementa a API HTTP dos
-  porteiros Intelbras seguindo o padrão documentado publicamente
-  (Control iD: `login.fcgi`, `create_objects.fcgi`, `load_objects.fcgi`,
-  `modify_objects.fcgi`, `destroy_objects.fcgi`, `user_set_image.fcgi`).
-  A Intelbras não publica o dicionário completo de campos do objeto
-  `users` — antes de usar em produção, cadastre um porteiro de teste e use
-  o botão "Testar conexão" e a listagem de usuários para confirmar que os
-  nomes de campo batem com o firmware instalado; ajuste
-  `toDeviceUser`/`fromDeviceUser` se necessário.
+**Sobre a API dos porteiros** (`backend/src/services/accessControlClient.js`)
+— a Intelbras usa **duas APIs diferentes** entre as linhas de equipamento,
+mesmo dentro da própria XPE/SS:
+
+- **XPE 3200 IP Face** — `POST /api/{target}/{action}` com autenticação
+  HTTP Basic, validado contra as informações de uma implementação real em
+  produção de terceiros (não é documentação oficial pública — a Intelbras
+  não publica o PDF de integração livremente, só mediante contato com o
+  time de SDK). **Precisa habilitar antes**, na interface web do próprio
+  equipamento: **Segurança → API HTTP** (vem desligada de fábrica) — sem
+  isso, toda chamada cai em 404. Testado nesta sessão contra um servidor
+  simulado reproduzindo o protocolo completo (criar/listar/editar/excluir
+  usuário, foto facial, preservação de campos ao atualizar).
+- **SS 3532 MF (Bio-T)** — protocolo bem diferente: `/cgi-bin/*.cgi` com
+  autenticação HTTP Digest (RFC 2617) de verdade e respostas em texto puro
+  ("OK" ou um código de erro), não JSON. **Ainda não validado contra um
+  equipamento real** — a implementação segue só a documentação pública da
+  Intelbras para essa linha, sem confirmação em campo. Cadastro de usuário
+  e foto devem funcionar; **listar/editar/excluir pela tela ainda não é
+  suportado** para este modelo (não há endpoint de listagem documentado).
+  Teste com cuidado num equipamento de teste antes de usar em produção.
+
+**Ainda pendente:**
 - Os módulos **Rede** e **Interfone** hoje abrem o painel original em uma
   nova aba (ainda com o login próprio dele, se a conta de serviço não
   tiver sido criada) — a integração numa única tela (mesmo domínio, um
@@ -128,7 +140,7 @@ Acesse `http://localhost:5175`.
 - `GET/POST/PUT/DELETE /api/access/devices` — cadastro dos porteiros.
 - `POST /api/access/devices/:id/test-connection`.
 - `GET/POST/PUT/DELETE /api/access/devices/:id/users` — usuários dentro do
-  porteiro (via API Intelbras/Control iD).
+  porteiro (protocolo depende do modelo, ver seção acima).
 - `POST /api/access/devices/:id/users/:userId/photo` — foto facial.
 - `GET/PUT /api/settings/gateways/:moduleKey` — configuração dos gateways
   de Rede/Interfone (owner).
