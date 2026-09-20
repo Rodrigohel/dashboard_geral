@@ -7,6 +7,7 @@ const TITLES = {
   interfone: ['Interfone', 'Ramais, chamadas e saúde do PBX'],
   acesso: ['Controle de acesso', 'Porteiros e reconhecimento facial'],
   usuarios: ['Usuários', 'Contas do Portal e permissões'],
+  servidor: ['Saúde do servidor', 'CPU, memória, disco e temperatura desta máquina'],
   configuracoes: ['Configurações', 'Integrações e preferências gerais'],
 };
 

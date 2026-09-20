@@ -8,6 +8,7 @@ import { usersRouter } from './routes/users.js';
 import { accessDevicesRouter } from './routes/accessDevices.js';
 import { settingsRouter } from './routes/settings.js';
 import { modulesRouter } from './routes/modules.js';
+import { systemRouter } from './routes/system.js';
 import { requireAuth, requireOwner, requireModule } from './middleware/auth.js';
 import { gatewayProxy } from './services/gatewayService.js';
 import './db/sqlite.js';
@@ -23,6 +24,7 @@ app.use('/api/modules', requireAuth, modulesRouter);
 app.use('/api/users', requireAuth, requireOwner, usersRouter);
 app.use('/api/access/devices', requireAuth, requireModule('acesso'), accessDevicesRouter);
 app.use('/api/settings', requireAuth, requireOwner, settingsRouter);
+app.use('/api/system', requireAuth, requireOwner, systemRouter);
 
 // Gateway: o front-end do Portal chama /gateway/rede/... e /gateway/interfone/...
 // como se fossem API própria; por trás, isso vira uma chamada autenticada

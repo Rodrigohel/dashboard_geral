@@ -10,6 +10,7 @@ import ModuleLink from './pages/ModuleLink.jsx';
 import AccessControl from './pages/AccessControl/index.jsx';
 import UsersAdmin from './pages/UsersAdmin/index.jsx';
 import Settings from './pages/Settings.jsx';
+import ServerHealth from './pages/ServerHealth.jsx';
 
 export default function App() {
   const { user, checking, login, logout, can } = useAuth();
@@ -31,6 +32,8 @@ export default function App() {
         return can('acesso') ? <AccessControl isOwner={isOwner} /> : <NoAccess />;
       case 'usuarios':
         return isOwner ? <UsersAdmin currentUserId={user.id} /> : <NoAccess />;
+      case 'servidor':
+        return isOwner ? <ServerHealth /> : <NoAccess />;
       case 'configuracoes':
         return isOwner ? <Settings /> : <NoAccess />;
       default:
