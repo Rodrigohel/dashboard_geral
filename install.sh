@@ -6,8 +6,9 @@
 #   cd /opt/portal
 #   sudo ./install.sh
 #
-# Idempotente: pode rodar de novo (ex.: depois de um `git pull`) para
-# atualizar dependências e reiniciar o serviço, sem perder usuários,
+# Idempotente: pode rodar de novo a qualquer momento para atualizar — ele
+# mesmo busca a versão mais recente do código (git pull) antes de
+# reinstalar dependências e reiniciar o serviço, sem perder usuários,
 # equipamentos ou configurações já cadastrados.
 #
 # Todas as opções abaixo também podem ser passadas como variáveis de
@@ -61,7 +62,19 @@ log "Portal — instalação"
 info "Diretório de instalação: $INSTALL_DIR"
 ask "Porta do Portal (único serviço que deve ficar exposto externamente)" "$PORT" PORT
 
-log "1/6 — Instalando dependências do sistema (Node.js, build tools)"
+log "1/7 — Buscando a versão mais recente do código"
+if [ -d "$SCRIPT_DIR/.git" ]; then
+  CURRENT_BRANCH="$(git -C "$SCRIPT_DIR" rev-parse --abbrev-ref HEAD)"
+  if git -C "$SCRIPT_DIR" pull --ff-only origin "$CURRENT_BRANCH"; then
+    info "Atualizado para $(git -C "$SCRIPT_DIR" rev-parse --short HEAD) (branch $CURRENT_BRANCH)."
+  else
+    warn "Não consegui atualizar automaticamente (histórico local diverge do remoto) — seguindo com o código que já está em $SCRIPT_DIR. Resolva manualmente com 'git status'/'git log' se precisar garantir a versão mais nova."
+  fi
+else
+  warn "Pasta não é um checkout git — pulando atualização automática do código (rode a partir de um clone do repositório para isso funcionar sozinho)."
+fi
+
+log "2/7 — Instalando dependências do sistema (Node.js, build tools)"
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq || warn "Falha ao atualizar algum repositório apt — continuando."
 apt-get install -y -qq curl ca-certificates gnupg rsync openssl build-essential python3 >/dev/null
@@ -85,7 +98,7 @@ else
 fi
 info "Node $(node -v) / npm $(npm -v)"
 
-log "2/6 — Preparando $INSTALL_DIR"
+log "3/7 — Preparando $INSTALL_DIR"
 if [ "$SCRIPT_DIR" != "$INSTALL_DIR" ]; then
   mkdir -p "$INSTALL_DIR"
   rsync -a --delete \
@@ -97,7 +110,7 @@ else
 fi
 cd "$INSTALL_DIR"
 
-log "3/6 — Configurando usuário de sistema '$SERVICE_USER'"
+log "4/7 — Configurando usuário de sistema '$SERVICE_USER'"
 if ! id -u "$SERVICE_USER" >/dev/null 2>&1; then
   useradd --system --home "$INSTALL_DIR" --shell /usr/sbin/nologin "$SERVICE_USER"
   info "Usuário '$SERVICE_USER' criado."
@@ -105,7 +118,7 @@ else
   info "Usuário '$SERVICE_USER' já existe."
 fi
 
-log "4/6 — Instalando e configurando o backend"
+log "5/7 — Instalando e configurando o backend"
 cd "$INSTALL_DIR/backend"
 npm install --omit=dev --no-audit --no-fund --silent
 
@@ -145,7 +158,7 @@ else
   info "Já existe usuário cadastrado — pulando (rode 'npm run seed:admin' manualmente se precisar)."
 fi
 
-log "5/6 — Instalando e buildando o frontend"
+log "6/7 — Instalando e buildando o frontend"
 cd "$INSTALL_DIR/frontend"
 npm install --no-audit --no-fund --silent
 npm run build --silent
@@ -154,7 +167,7 @@ info "Build gerado em frontend/dist — o backend serve esses arquivos direto, n
 chown -R "$SERVICE_USER:$SERVICE_USER" "$INSTALL_DIR"
 [ -d "$INSTALL_DIR/.git" ] && chown -R root:root "$INSTALL_DIR/.git"
 
-log "6/6 — Registrando o serviço systemd"
+log "7/7 — Registrando o serviço systemd"
 UNIT_FILE=/etc/systemd/system/portal-backend.service
 cat > "$UNIT_FILE" <<EOF
 [Unit]

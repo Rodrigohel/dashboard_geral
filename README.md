@@ -93,9 +93,11 @@ cd /opt/portal
 sudo ./install.sh
 ```
 
-Idempotente — depois de um `git pull`, rode `sudo ./install.sh` de novo
-para atualizar sem perder nada (usuários, equipamentos, configurações
-continuam intactos).
+**Para atualizar depois, é o mesmo comando** (`sudo ./install.sh`, de dentro
+de `/opt/portal`) — ele já busca a versão mais recente do código sozinho
+antes de reinstalar/reiniciar, sem perder usuários, equipamentos ou
+configurações já cadastrados. Não precisa (nem deve) rodar `git pull` na
+mão antes.
 
 Depois de instalado:
 1. **Configurações → Gateways**: aponte para os backends do Rede/Interfone
