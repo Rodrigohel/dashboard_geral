@@ -14,6 +14,7 @@ const MODULES = [
 const REDE_FEATURES = [
   { key: 'rede.dispositivos', label: 'Cadastro de equipamentos (criar, editar, excluir, importar, escanear)' },
   { key: 'rede.plantaBaixa', label: 'Planta baixa (mapa dos equipamentos por pavimento)' },
+  { key: 'rede.analise', label: 'Análise de rede e histórico de eventos' },
 ];
 
 export default function UserFormModal({ user, currentUserId, onClose, onSave }) {

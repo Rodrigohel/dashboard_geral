@@ -107,14 +107,18 @@ export const api = {
       return request('/gateway/rede/api/floors', { method: 'POST', body: form, isForm: true });
     },
     deleteFloor: (id) => request(`/gateway/rede/api/floors/${id}`, { method: 'DELETE' }),
+    networkHistory: (hours = 24) => request(`/gateway/rede/api/stats/network-history?hours=${hours}`),
+    flappiest: () => request('/gateway/rede/api/stats/flappiest?hours=24&limit=5'),
+    history: () => request('/gateway/rede/api/history?limit=30'),
   },
 
   branding: {
     get: () => request('/api/branding'),
-    save: ({ name, logoFile }) => {
+    save: ({ name, logoFile, accentColor }) => {
       const form = new FormData();
       form.append('name', name);
       if (logoFile) form.append('logo', logoFile);
+      if (accentColor !== undefined) form.append('accentColor', accentColor);
       return request('/api/branding', { method: 'PUT', body: form, isForm: true });
     },
   },

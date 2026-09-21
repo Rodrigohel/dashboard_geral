@@ -130,10 +130,12 @@ function BrandingCard() {
   const [name, setName] = useState('');
   const [logoFile, setLogoFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
+  const [accentColor, setAccentColor] = useState('#14b8a6');
   const [saving, setSaving] = useState(false);
   const toast = useToast();
 
   useEffect(() => setName(current.name), [current.name]);
+  useEffect(() => setAccentColor(current.accentColor || '#14b8a6'), [current.accentColor]);
 
   function handleFile(e) {
     const file = e.target.files?.[0] || null;
@@ -147,7 +149,7 @@ function BrandingCard() {
   async function handleSave() {
     setSaving(true);
     try {
-      await api.branding.save({ name, logoFile });
+      await api.branding.save({ name, logoFile, accentColor });
       toast('Marca atualizada.');
       setTimeout(() => window.location.reload(), 600);
     } catch (err) {
@@ -197,6 +199,23 @@ function BrandingCard() {
       <div className="field">
         <label className="field-label">Nome do sistema</label>
         <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Portal" />
+      </div>
+
+      <div className="field">
+        <label className="field-label">Cor de destaque (botões, menu ativo)</label>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <input
+            type="color"
+            value={accentColor}
+            onChange={(e) => setAccentColor(e.target.value)}
+            style={{ width: 44, height: 36, padding: 2, borderRadius: 8, border: '1px solid var(--border-subtle)', background: 'none' }}
+          />
+          <input className="input" style={{ maxWidth: 140 }} value={accentColor} onChange={(e) => setAccentColor(e.target.value)} />
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => setAccentColor('#14b8a6')}>
+            Padrão
+          </button>
+        </div>
+        <span className="field-hint">Escolha uma cor que combine com sua logo.</span>
       </div>
 
       <div>

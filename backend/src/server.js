@@ -66,6 +66,11 @@ const REDE_FEATURE_RULES = [
     feature: 'rede.dispositivos',
     message: 'Você não tem acesso ao cadastro de equipamentos.',
   },
+  {
+    test: (method, path) => /^\/api\/(stats\/network-history|stats\/flappiest|history)(\/|$|\?)/.test(path),
+    feature: 'rede.analise',
+    message: 'Você não tem acesso à análise de rede.',
+  },
 ];
 app.all('/gateway/rede/*', requireAuth, requireModule('rede'), gatewayProxy('rede', { featureRules: REDE_FEATURE_RULES }));
 app.all('/gateway/interfone/*', requireAuth, requireModule('interfone'), gatewayProxy('interfone'));

@@ -53,4 +53,4 @@ export const MODULE_KEYS = ['rede', 'interfone', 'acesso'];
 // na mesma tabela `permissions` do módulo (mesmo formato user_id+chave), só
 // com uma chave "namespaced" (ex.: "rede.dispositivos") em vez do nome do
 // módulo puro.
-export const FEATURE_KEYS = ['rede.dispositivos', 'rede.plantaBaixa'];
+export const FEATURE_KEYS = ['rede.dispositivos', 'rede.plantaBaixa', 'rede.analise'];
