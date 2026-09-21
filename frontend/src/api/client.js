@@ -87,6 +87,7 @@ export const api = {
 
   system: {
     health: () => request('/api/system/health'),
+    healthHistory: () => request('/api/system/health/history'),
   },
 
   branding: {
