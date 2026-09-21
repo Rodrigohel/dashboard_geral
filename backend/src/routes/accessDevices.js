@@ -185,3 +185,16 @@ accessDevicesRouter.post('/:deviceId/users/:userId/photo', requireDeviceAccess, 
     res.status(502).json({ error: `Não foi possível enviar a foto: ${err.message}` });
   }
 });
+
+accessDevicesRouter.get('/:deviceId/users/:userId/photo', requireDeviceAccess, async (req, res) => {
+  const device = getDeviceOr404({ params: { id: req.params.deviceId } }, res);
+  if (!device) return;
+  try {
+    const photo = await deviceApi.getUserPhoto(device, decryptSecret(device.device_password_enc), req.params.userId);
+    if (!photo) return res.status(404).json({ error: 'Este usuário não tem foto cadastrada.' });
+    res.set('Content-Type', 'image/jpeg');
+    res.send(photo);
+  } catch (err) {
+    res.status(502).json({ error: `Não foi possível buscar a foto: ${err.message}` });
+  }
+});

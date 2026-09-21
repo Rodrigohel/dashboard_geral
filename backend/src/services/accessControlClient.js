@@ -96,15 +96,20 @@ function toXpeCardCode(cardNumber) {
 }
 
 function xpeBuildItem(input) {
-  const item = {
+  // CardCode/PrivatePIN sempre presentes (mesmo vazios) de propósito: no
+  // update, isso é um "merge" com o item existente (ver xpeUpdateUser) —
+  // se esses campos só aparecessem quando preenchidos, limpar o cartão ou
+  // a senha no formulário (deixando o campo em branco) não tinha efeito
+  // nenhum, porque o valor antigo sobrevivia ao merge. Foi exatamente o
+  // bug relatado: excluir o cartão no Portal não excluía no equipamento.
+  return {
     UserID: input.registration || deriveRegistration(input.name),
     Name: input.name,
     Validity: '0',
     Relay: '1',
+    PrivatePIN: input.password || '',
+    CardCode: input.cardNumber ? toXpeCardCode(input.cardNumber) : '',
   };
-  if (input.password) item.PrivatePIN = input.password;
-  if (input.cardNumber) item.CardCode = toXpeCardCode(input.cardNumber);
-  return item;
 }
 
 async function xpeFindByUserId(device, password, userId) {
@@ -155,6 +160,12 @@ async function xpeSetUserPhoto(device, password, userId, fileBuffer) {
   }
   const merged = { ...existing, FaceImage: fileBuffer.toString('base64') };
   await xpeCall(device, password, 'user', 'set', { item: [merged] });
+}
+
+async function xpeGetUserPhoto(device, password, userId) {
+  const existing = await xpeFindById(device, password, userId);
+  if (!existing || !existing.FaceImage) return null;
+  return Buffer.from(existing.FaceImage, 'base64');
 }
 
 async function xpeTestConnection(device, password) {
@@ -313,6 +324,10 @@ async function biotSetUserPhoto(device, password, userId, fileBuffer) {
   if (!biotIsOk(text)) throw new Error(`Equipamento recusou a foto: ${text.slice(0, 200)}`);
 }
 
+async function biotGetUserPhoto() {
+  throw new Error('Ver a foto cadastrada ainda não é suportado para o modelo SS 3532 MF (sem endpoint de consulta documentado).');
+}
+
 async function biotTestConnection(device, password) {
   const text = await biotRequest(device, password, 'magicBox.cgi', 'getSoftwareVersion', { method: 'GET' });
   if (!text) throw new Error('Equipamento não respondeu como esperado.');
@@ -330,6 +345,7 @@ const CLIENTS = {
     updateUser: xpeUpdateUser,
     deleteUser: xpeDeleteUser,
     setUserPhoto: xpeSetUserPhoto,
+    getUserPhoto: xpeGetUserPhoto,
     testConnection: xpeTestConnection,
   },
   ss3532mf: {
@@ -338,6 +354,7 @@ const CLIENTS = {
     updateUser: biotUpdateUser,
     deleteUser: biotDeleteUser,
     setUserPhoto: biotSetUserPhoto,
+    getUserPhoto: biotGetUserPhoto,
     testConnection: biotTestConnection,
   },
 };
@@ -357,4 +374,5 @@ export const createUser = (device, password, input) => clientFor(device).createU
 export const updateUser = (device, password, userId, input) => clientFor(device).updateUser(device, password, userId, input);
 export const deleteUser = (device, password, userId) => clientFor(device).deleteUser(device, password, userId);
 export const setUserPhoto = (device, password, userId, fileBuffer) => clientFor(device).setUserPhoto(device, password, userId, fileBuffer);
+export const getUserPhoto = (device, password, userId) => clientFor(device).getUserPhoto(device, password, userId);
 export const testConnection = (device, password) => clientFor(device).testConnection(device, password);

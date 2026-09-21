@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import Icon from '../../components/Icon.jsx';
 import EmptyState from '../../components/EmptyState.jsx';
 import ConfirmDialog from '../../components/ConfirmDialog.jsx';
+import Modal from '../../components/Modal.jsx';
 import DeviceUserFormModal from './DeviceUserFormModal.jsx';
 import { api } from '../../api/client.js';
 import { useToast } from '../../hooks/useToast.jsx';
@@ -14,6 +15,8 @@ export default function DeviceUsers({ device, onBack }) {
   const [editing, setEditing] = useState(null);
   const [deleting, setDeleting] = useState(null);
   const [uploadingId, setUploadingId] = useState(null);
+  const [photoModal, setPhotoModal] = useState(null); // { name, url } | null
+  const [loadingPhotoId, setLoadingPhotoId] = useState(null);
   const fileInputRef = useRef(null);
   const toast = useToast();
 
@@ -67,6 +70,23 @@ export default function DeviceUsers({ device, onBack }) {
     } finally {
       setUploadingId(null);
     }
+  }
+
+  async function handleViewPhoto(u) {
+    setLoadingPhotoId(u.id);
+    try {
+      const url = await api.accessDevices.users.getPhotoBlobUrl(device.id, u.id);
+      setPhotoModal({ name: u.name, url });
+    } catch (err) {
+      toast(`Não foi possível carregar a foto: ${err.message}`, 'error');
+    } finally {
+      setLoadingPhotoId(null);
+    }
+  }
+
+  function closePhotoModal() {
+    if (photoModal?.url) URL.revokeObjectURL(photoModal.url);
+    setPhotoModal(null);
   }
 
   const filtered = users?.filter((u) => u.name.toLowerCase().includes(search.toLowerCase())) || [];
@@ -130,9 +150,15 @@ export default function DeviceUsers({ device, onBack }) {
                   <td>{u.registration || '—'}</td>
                   <td>
                     {u.hasFace ? (
-                      <span className="badge badge-success">
-                        <span className="badge-dot" /> cadastrada
-                      </span>
+                      <button
+                        className="badge badge-success"
+                        style={{ border: 'none', cursor: 'pointer' }}
+                        onClick={() => handleViewPhoto(u)}
+                        disabled={loadingPhotoId === u.id}
+                      >
+                        {loadingPhotoId === u.id ? <span className="spinner" style={{ width: 11, height: 11 }} /> : <span className="badge-dot" />}
+                        ver foto
+                      </button>
                     ) : (
                       <span className="badge badge-neutral">sem foto</span>
                     )}
@@ -174,6 +200,16 @@ export default function DeviceUsers({ device, onBack }) {
           onCancel={() => setDeleting(null)}
           onConfirm={handleDelete}
         />
+      )}
+
+      {photoModal && (
+        <Modal title={`Foto — ${photoModal.name}`} onClose={closePhotoModal}>
+          <img
+            src={photoModal.url}
+            alt={`Foto facial de ${photoModal.name}`}
+            style={{ width: '100%', borderRadius: 'var(--radius-md)', display: 'block' }}
+          />
+        </Modal>
       )}
     </>
   );
