@@ -125,7 +125,9 @@ Depois de instalado:
    já rodando nesta máquina, com uma conta de serviço criada em cada um.
 2. **Controle de acesso**: cadastre os porteiros Intelbras.
 3. **Usuários**: crie um login por cliente e escolha o que cada um vê.
-4. Configure o **Cloudflare Tunnel** apontando só para a porta do Portal.
+4. Configure o **Cloudflare Tunnel** apontando só para a porta do Portal —
+   passo a passo completo (sem depender de Tailscale/VPN) em
+   [`docs/publicar-sem-tailscale.md`](docs/publicar-sem-tailscale.md).
 
 ## Desenvolvimento local
 
