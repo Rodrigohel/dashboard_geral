@@ -46,3 +46,11 @@ export const config = {
 // Chaves válidas de módulo — usadas para validar permissões e rotas.
 // 'acesso' (controle de acesso facial) é nativo do Portal, não um gateway.
 export const MODULE_KEYS = ['rede', 'interfone', 'acesso'];
+
+// Permissões "de funcionalidade", mais finas que um módulo inteiro — hoje só
+// dentro de "rede", pra dar de liberar o monitoramento geral sem liberar
+// ações sensíveis (cadastro/exclusão de equipamento, planta baixa). Guardadas
+// na mesma tabela `permissions` do módulo (mesmo formato user_id+chave), só
+// com uma chave "namespaced" (ex.: "rede.dispositivos") em vez do nome do
+// módulo puro.
+export const FEATURE_KEYS = ['rede.dispositivos', 'rede.plantaBaixa'];

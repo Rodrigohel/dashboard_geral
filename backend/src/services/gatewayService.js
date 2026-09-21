@@ -98,7 +98,14 @@ export async function testGatewayConnection(moduleKey) {
 // http-proxy-middleware com reautenticação embutida. Encaminha
 // método/corpo/query, injeta o Bearer do token de serviço, e tenta de novo
 // uma vez se o painel de baixo responder 401 (token expirado).
-export function gatewayProxy(moduleKey) {
+//
+// `featureRules` (opcional): lista de { test(method, path), feature,
+// message? } — antes de encaminhar, se alguma regra bater com a
+// requisição, exige que o usuário do Portal (não a conta de serviço) tenha
+// essa permissão de funcionalidade, senão devolve 403 sem nem chamar o
+// painel de baixo. Dono sempre passa. Usado pra bloquear ações sensíveis
+// (ex.: cadastro de equipamento) mesmo com o módulo inteiro liberado.
+export function gatewayProxy(moduleKey, { featureRules = [] } = {}) {
   return async (req, res) => {
     const gw = getGatewayConfig(moduleKey);
     if (!gw.configured) {
@@ -110,14 +117,44 @@ export function gatewayProxy(moduleKey) {
     // reescrever de novo, senão vira "/api/api/..." (bug real, encontrado ao
     // usar este proxy pela primeira vez de verdade, com os painéis embutidos).
     const targetPath = req.originalUrl.replace(new RegExp(`^/gateway/${moduleKey}`), '');
+    const pathOnly = targetPath.split('?')[0];
+
+    if (req.user?.role !== 'owner') {
+      const rule = featureRules.find((r) => r.test(req.method, pathOnly));
+      if (rule) {
+        const allowed = db
+          .prepare('SELECT 1 FROM permissions WHERE user_id = ? AND module_key = ?')
+          .get(req.user.sub, rule.feature);
+        if (!allowed) {
+          return res.status(403).json({ error: rule.message || 'Você não tem acesso a esta função.' });
+        }
+      }
+    }
+
+    // express.json() global (server.js) só consome o corpo quando o
+    // Content-Type é application/json — upload de arquivo (ex.: imagem da
+    // planta baixa, CSV de importação) chega aqui com o stream intacto.
+    // Sem isso, qualquer upload viraria "{}" no painel de baixo.
+    const contentType = req.headers['content-type'] || '';
+    const isJson = contentType.includes('application/json');
+    let rawBody = null;
+    if (!['GET', 'HEAD'].includes(req.method) && !isJson) {
+      rawBody = await new Promise((resolve, reject) => {
+        const chunks = [];
+        req.on('data', (c) => chunks.push(c));
+        req.on('end', () => resolve(Buffer.concat(chunks)));
+        req.on('error', reject);
+      });
+    }
+
     const doRequest = async (token) =>
       fetch(`${gw.baseUrl}${targetPath}`, {
         method: req.method,
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': contentType || 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: ['GET', 'HEAD'].includes(req.method) ? undefined : JSON.stringify(req.body ?? {}),
+        body: ['GET', 'HEAD'].includes(req.method) ? undefined : isJson ? JSON.stringify(req.body ?? {}) : rawBody,
         signal: AbortSignal.timeout(15000),
       });
 
@@ -128,7 +165,10 @@ export function gatewayProxy(moduleKey) {
         token = await getServiceToken(moduleKey, { forceRefresh: true });
         response = await doRequest(token);
       }
-      const body = await response.text();
+      // arrayBuffer (não .text()) porque essa mesma rota também encaminha
+      // binário (ex.: imagem de planta baixa, PDF de relatório) — .text()
+      // decodifica como UTF-8 e corrompe qualquer coisa que não seja texto.
+      const body = Buffer.from(await response.arrayBuffer());
       res.status(response.status);
       res.set('Content-Type', response.headers.get('content-type') || 'application/json');
       res.send(body);

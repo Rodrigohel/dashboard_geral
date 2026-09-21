@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import { db } from '../db/sqlite.js';
-import { MODULE_KEYS } from '../config.js';
+import { MODULE_KEYS, FEATURE_KEYS } from '../config.js';
 
 export const usersRouter = Router();
 
@@ -30,8 +30,15 @@ function setPermissions(userId, modules, deviceIds) {
   db.prepare('DELETE FROM device_permissions WHERE user_id = ?').run(userId);
 
   const insertModule = db.prepare('INSERT OR IGNORE INTO permissions (user_id, module_key) VALUES (?, ?)');
-  for (const key of modules || []) {
-    if (MODULE_KEYS.includes(key)) insertModule.run(userId, key);
+  const requestedModules = modules || [];
+  for (const key of requestedModules) {
+    if (!MODULE_KEYS.includes(key) && !FEATURE_KEYS.includes(key)) continue;
+    // Uma permissão de funcionalidade (ex.: "rede.dispositivos") só faz
+    // sentido com o módulo pai também liberado — sem isso, sobra uma
+    // permissão órfã que nunca é checada (requireModule bloqueia antes).
+    const parentModule = key.includes('.') ? key.split('.')[0] : key;
+    if (!requestedModules.includes(parentModule)) continue;
+    insertModule.run(userId, key);
   }
 
   const insertDevice = db.prepare('INSERT OR IGNORE INTO device_permissions (user_id, device_id) VALUES (?, ?)');

@@ -115,6 +115,10 @@ export default function Home({ user, onNavigate, onOpenDevice }) {
           {linkModules.map((key) => {
             const meta = MODULE_META[key];
             const info = modules?.[key];
+            // Rede agora é nativo dentro do Portal — só depende do gateway estar
+            // configurado (endereço + conta de serviço), não de link público nem
+            // de build embutido (isso ainda vale só para Interfone, via iframe).
+            const canOpen = key === 'rede' ? Boolean(info?.configured) : Boolean(info?.embedded || info?.publicUrl);
 
             return (
               <div key={key} className="module-card surface" style={{ borderTop: `3px solid ${meta.color}` }}>
@@ -127,7 +131,7 @@ export default function Home({ user, onNavigate, onOpenDevice }) {
                 </div>
 
                 <div className="module-card-footer">
-                  {info?.embedded || info?.publicUrl ? (
+                  {canOpen ? (
                     <>
                       <span className="badge badge-success">
                         <span className="badge-dot" /> disponível

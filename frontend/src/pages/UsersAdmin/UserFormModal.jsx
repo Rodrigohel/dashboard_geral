@@ -8,6 +8,14 @@ const MODULES = [
   { key: 'acesso', label: 'Controle de acesso' },
 ];
 
+// Permissões mais finas dentro de "rede" — visível só quando o módulo
+// "rede" já está marcado acima. Quem não marcar aqui continua vendo o
+// monitoramento geral, só não vê essas ações/telas específicas.
+const REDE_FEATURES = [
+  { key: 'rede.dispositivos', label: 'Cadastro de equipamentos (criar, editar, excluir, importar, escanear)' },
+  { key: 'rede.plantaBaixa', label: 'Planta baixa (mapa dos equipamentos por pavimento)' },
+];
+
 export default function UserFormModal({ user, currentUserId, onClose, onSave }) {
   const [form, setForm] = useState({
     username: user?.username || '',
@@ -117,6 +125,21 @@ export default function UserFormModal({ user, currentUserId, onClose, onSave }) 
                 ))}
               </div>
             </div>
+
+            {form.modules.includes('rede') && (
+              <div className="field">
+                <label className="field-label">Dentro de Rede, também libera:</label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4, paddingLeft: 4 }}>
+                  {REDE_FEATURES.map((f) => (
+                    <label className="checkbox-row" key={f.key}>
+                      <input type="checkbox" checked={form.modules.includes(f.key)} onChange={() => toggleModule(f.key)} />
+                      {f.label}
+                    </label>
+                  ))}
+                </div>
+                <span className="field-hint">Sem marcar aqui, o usuário ainda vê o monitoramento geral da Rede — só não vê essas telas/ações.</span>
+              </div>
+            )}
 
             {form.modules.includes('acesso') && (
               <div className="field">

@@ -11,7 +11,11 @@ import { requireAuth, requireOwner } from '../middleware/auth.js';
 
 export const brandingRouter = Router();
 
-const LOGO_DIR = path.join(path.dirname(config.auth.sqlitePath), 'branding');
+// path.resolve antes do dirname: SQLITE_PATH pode vir relativo (é o padrão,
+// "./data/portal.db"), e res.sendFile() abaixo exige caminho absoluto — sem
+// isso ele lança e a rota devolve 500 no lugar da imagem (o navegador então
+// mostra o ícone de "imagem quebrada" com o alt por cima).
+const LOGO_DIR = path.join(path.dirname(path.resolve(config.auth.sqlitePath)), 'branding');
 const EXT_BY_MIME = {
   'image/png': '.png',
   'image/jpeg': '.jpg',

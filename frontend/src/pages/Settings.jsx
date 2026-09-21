@@ -243,13 +243,14 @@ export default function Settings() {
       <div className="surface" style={{ padding: 24, display: 'flex', gap: 16, alignItems: 'flex-start' }}>
         <Icon name="key" size={20} style={{ color: 'var(--accent-400)', flexShrink: 0, marginTop: 2 }} />
         <div style={{ fontSize: 13.5, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-          <strong style={{ color: 'var(--text-primary)' }}>O que cada campo faz hoje:</strong> o botão "Abrir painel"
-          na tela Início abre o painel dentro do próprio Portal (login único, sem pedir senha de novo) quando o
-          servidor tiver o build embutido configurado (<code>GATEWAY_*_FRONTEND_DIST</code> no <code>.env</code>) — sem
-          isso, abre o painel original numa aba nova usando a <strong>URL pública</strong>. Já o{' '}
-          <strong>endereço interno da API</strong> e a <strong>conta de serviço</strong> são o que faz esse login único
-          funcionar por trás — clique em "Testar conexão" pra confirmar que essa conta de serviço realmente consegue
-          logar naquele painel.
+          <strong style={{ color: 'var(--text-primary)' }}>O que cada campo faz hoje:</strong> o <strong>Rede</strong>{' '}
+          já é nativo do Portal — assim que <strong>endereço interno da API</strong> e{' '}
+          <strong>conta de serviço</strong> estiverem configurados e testados, o botão "Abrir painel" mostra as telas
+          de monitoramento direto aqui dentro, com o visual do Portal (sem link público nem build separado). Já o{' '}
+          <strong>Interfone</strong> ainda funciona como painel embutido: com o servidor tendo o build embutido
+          configurado (<code>GATEWAY_*_FRONTEND_DIST</code> no <code>.env</code>) ele abre dentro do Portal; sem isso,
+          abre o painel original numa aba nova usando a <strong>URL pública</strong>. Em ambos, "Testar conexão"
+          confirma que a conta de serviço realmente consegue logar no painel.
         </div>
       </div>
     </>
