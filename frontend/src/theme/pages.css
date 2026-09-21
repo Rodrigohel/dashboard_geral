@@ -27,7 +27,7 @@
 .login-screen::after {
   width: 420px;
   height: 420px;
-  background: var(--violet-500);
+  background: var(--accent-600);
   bottom: -140px;
   right: -100px;
   animation-delay: -6s;
