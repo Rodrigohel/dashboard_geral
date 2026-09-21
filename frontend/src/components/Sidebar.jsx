@@ -20,7 +20,7 @@ export default function Sidebar({ view, onNavigate, can, isOwner, open, onClose 
       <aside className={`sidebar ${open ? 'open' : ''}`}>
         <div className="brand">
           <div className="brand-mark">P</div>
-          <span className="brand-text">Portal</span>
+          <span className="nav-label brand-text">Portal</span>
         </div>
 
         <nav className="nav">
@@ -29,23 +29,25 @@ export default function Sidebar({ view, onNavigate, can, isOwner, open, onClose 
               key={item.key}
               className={`nav-item ${view === item.key ? 'active' : ''}`}
               onClick={() => onNavigate(item.key)}
+              title={item.label}
             >
               <Icon name={item.icon} size={18} />
-              {item.label}
+              <span className="nav-label">{item.label}</span>
             </button>
           ))}
 
           {isOwner && (
             <>
-              <div className="nav-section-label">Administração</div>
+              <div className="nav-section-label nav-label">Administração</div>
               {ADMIN_ITEMS.map((item) => (
                 <button
                   key={item.key}
                   className={`nav-item ${view === item.key ? 'active' : ''}`}
                   onClick={() => onNavigate(item.key)}
+                  title={item.label}
                 >
                   <Icon name={item.icon} size={18} />
-                  {item.label}
+                  <span className="nav-label">{item.label}</span>
                 </button>
               ))}
             </>

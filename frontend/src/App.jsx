@@ -63,7 +63,7 @@ export default function App() {
   return (
     <div className="shell">
       <Sidebar view={view} onNavigate={navigate} can={can} isOwner={isOwner} open={menuOpen} onClose={() => setMenuOpen(false)} />
-      <div>
+      <div className="shell-main">
         <TopBar view={view} user={user} onLogout={logout} theme={theme} setTheme={setTheme} onMenuClick={() => setMenuOpen(true)} />
         <main className="content">{renderView()}</main>
       </div>
