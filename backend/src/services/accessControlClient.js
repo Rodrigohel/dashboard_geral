@@ -108,16 +108,23 @@ async function xpeCall(device, password, target, action, data) {
   return json.data || {};
 }
 
+// Confirmado via captura real de `user/get`: quem não tem foto tem `FaceID`
+// terminando em "-1.jpg" (valor placeholder do equipamento); quem tem foto
+// de verdade tem um número real ali. Mais confiável que `FaceStatus`, que
+// demora a atualizar (ou nem atualiza) logo depois de trocar uma foto —
+// confirmado contra hardware real: upload funcionava mas FaceStatus
+// continuava reportando "sem foto" minutos depois.
+function xpeHasRealFace(item) {
+  return Boolean(item?.FaceID) && !/\/-1\.jpg$/i.test(item.FaceID);
+}
+
 function xpeFromItem(item) {
   return {
     id: item.ID,
     name: item.Name,
     registration: item.UserID,
     apartment: item.LiftFloorNum || '',
-    // Confirmado via captura real de `user/get`: não existe campo de foto em
-    // base64 nenhuma hora — o que existe é `FaceStatus` (0/1) + `FaceID`
-    // (URL da foto, servida pelo próprio equipamento).
-    hasFace: item.FaceStatus === 1,
+    hasFace: xpeHasRealFace(item),
     cardNumber: item.CardCode || null,
     // Validity aceita outros valores além de 0, mas o formato não está
     // confirmado — todo usuário cadastrado pela própria interface do
@@ -271,37 +278,22 @@ async function xpeSetUserPhoto(device, password, userId, fileBuffer, mimetype) {
   const url = `${relayBase.replace(/\/$/, '')}/api/access/face-relay/${token}.jpg`;
   const merged = { ...xpeSafeExisting(existing), ID: String(userId), FaceUrl: url };
   await xpeCall(device, password, 'user', 'set', { item: [merged] });
-
-  // O equipamento busca a foto de forma assíncrona depois do "OK" — retcode
-  // 0 não garante nada (já vimos campos que ele aceita e ignora), e a busca
-  // pode demorar mais que alguns segundos. Confirmado contra hardware real:
-  // ao TROCAR uma foto já existente, o equipamento reaproveita a mesma URL
-  // em FaceID (não muda), então comparar FaceID antes/depois dá falso
-  // negativo sempre que já havia foto — só dá pra confirmar por FaceStatus.
-  let updated = false;
-  for (let i = 0; i < 8 && !updated; i++) {
-    await new Promise((r) => setTimeout(r, 2500));
-    const after = await xpeFindById(device, password, userId);
-    updated = after?.FaceStatus === 1;
-  }
-  if (!updated) {
-    throw new Error(
-      `O equipamento não confirmou o cadastro da foto depois de esperar — confira se ele consegue alcançar ` +
-        `${relayBase} pela rede local (firewall ou porta bloqueada podem impedir a busca).`
-    );
-  }
+  // Confirmado repetidas vezes contra hardware real: o equipamento busca a
+  // foto e realmente cadastra, mas nem `FaceStatus` nem `FaceID` (que fica
+  // igual ao trocar uma foto já existente) confirmam isso de forma
+  // confiável logo em seguida — tentar reconferir só produzia falso
+  // negativo. Confia no retcode 0 do `user/set`, igual todo outro campo.
 }
 
 async function xpeGetUserPhoto(device, password, userId) {
   let existing = await xpeFindById(device, password, userId);
-  // FaceStatus pode ficar "atrasado" por alguns segundos logo depois de uma
-  // troca de foto (mesmo problema visto em xpeSetUserPhoto) — tenta mais
-  // algumas vezes antes de dizer que não tem foto.
-  for (let i = 0; i < 2 && existing && existing.FaceStatus !== 1; i++) {
-    await new Promise((r) => setTimeout(r, 1500));
+  // FaceID pode ficar "atrasado" por pouco tempo logo depois de uma troca —
+  // tenta mais uma vez antes de dizer que não tem foto.
+  if (existing && !xpeHasRealFace(existing)) {
+    await new Promise((r) => setTimeout(r, 2000));
     existing = await xpeFindById(device, password, userId);
   }
-  if (!existing || existing.FaceStatus !== 1 || !existing.FaceID) return null;
+  if (!existing || !xpeHasRealFace(existing)) return null;
   const auth = 'Basic ' + Buffer.from(`${device.device_username}:${password}`).toString('base64');
   return fetchDeviceBinary(existing.FaceID, auth);
 }
