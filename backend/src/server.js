@@ -67,9 +67,21 @@ const REDE_FEATURE_RULES = [
     message: 'Você não tem acesso ao cadastro de equipamentos.',
   },
   {
-    test: (method, path) => /^\/api\/(stats\/network-history|stats\/flappiest|history)(\/|$|\?)/.test(path),
+    test: (method, path) => /^\/api\/(stats\/network-history|stats\/flappiest|stats\/report\/executive|history)(\/|$|\?)/.test(path),
     feature: 'rede.analise',
     message: 'Você não tem acesso à análise de rede.',
+  },
+  {
+    test: (method, path) => method !== 'GET' && /^\/api\/devices\/\d+\/floor-position$/.test(path),
+    feature: 'rede.plantaBaixa',
+    message: 'Você não tem acesso à planta baixa.',
+  },
+  {
+    // Configurações gerais do painel de Rede (nome, Telegram, intervalos) —
+    // afeta todo mundo que usa aquele painel, então fica só com o dono.
+    test: (method, path) => method !== 'GET' && /^\/api\/settings(\/|$)/.test(path),
+    requireOwner: true,
+    message: 'Só o administrador pode alterar as configurações do painel de Rede.',
   },
 ];
 app.all('/gateway/rede/*', requireAuth, requireModule('rede'), gatewayProxy('rede', { featureRules: REDE_FEATURE_RULES }));
