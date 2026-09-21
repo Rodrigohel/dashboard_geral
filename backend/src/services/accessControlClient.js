@@ -26,10 +26,40 @@
 import crypto from 'node:crypto';
 import http from 'node:http';
 import https from 'node:https';
+import { config } from '../config.js';
 
 function baseUrlOf(device) {
   const scheme = device.use_https ? 'https' : 'http';
   return `${scheme}://${device.host}:${device.port}`;
+}
+
+// Retransmissão temporária de foto para a XPE 3200: descoberto que o campo
+// `FaceUrl` do `user/set` faz o próprio equipamento BUSCAR a foto de um link
+// (confirmado testando contra hardware real) — diferente de `FaceImage`
+// (nunca existiu de verdade) ou de mandar bytes direto (a API não aceita).
+// Guarda o arquivo em memória por pouco tempo, só até o equipamento buscar.
+const faceRelayTokens = new Map(); // token -> { buffer, mimetype, expiresAt }
+const FACE_RELAY_TTL_MS = 30_000;
+
+function cleanupExpiredFaceRelayTokens() {
+  const now = Date.now();
+  for (const [token, entry] of faceRelayTokens) {
+    if (entry.expiresAt < now) faceRelayTokens.delete(token);
+  }
+}
+
+export function registerFaceRelayToken(buffer, mimetype) {
+  cleanupExpiredFaceRelayTokens();
+  const token = crypto.randomBytes(24).toString('hex');
+  faceRelayTokens.set(token, { buffer, mimetype: mimetype || 'image/jpeg', expiresAt: Date.now() + FACE_RELAY_TTL_MS });
+  return token;
+}
+
+// Não remove no primeiro uso — o equipamento pode tentar buscar mais de uma
+// vez (retry de rede); o token expira sozinho pelo TTL.
+export function getFaceRelayToken(token) {
+  cleanupExpiredFaceRelayTokens();
+  return faceRelayTokens.get(token) || null;
 }
 
 function deriveRegistration(name) {
@@ -223,16 +253,37 @@ async function xpeDeleteUser(device, password, userId) {
   await xpeCall(device, password, 'user', 'del', { item: [{ ID: String(userId) }] });
 }
 
-// Confirmado via captura real de `user/get`: o JSON não tem NENHUM campo de
-// imagem (só `FaceID`, uma URL pra foto já cadastrada) — não existe onde
-// mandar bytes de foto pelo `user/set`. O cadastro de foto nesse equipamento
-// só foi confirmado funcionando pelo formulário legado da própria interface
-// web (upload multipart em `do?id=16...`), ainda não replicado aqui.
-async function xpeSetUserPhoto() {
-  throw new Error(
-    'Cadastrar/trocar foto por aqui ainda não é suportado neste equipamento — use a interface web do próprio ' +
-      'equipamento (seção Facial → Selecionar/Capturar) até isso ser implementado.'
-  );
+async function xpeSetUserPhoto(device, password, userId, fileBuffer, mimetype) {
+  if (fileBuffer.length > 200 * 1024) {
+    throw new Error('Foto maior que 200KB — reduza o tamanho do arquivo (limite do equipamento).');
+  }
+  const relayBase = config.accessPhotoRelayBaseUrl;
+  if (!relayBase) {
+    throw new Error(
+      'Cadastro de foto não está configurado — falta definir ACCESS_PHOTO_RELAY_BASE_URL no .env do Portal ' +
+        '(o endereço do próprio Portal na rede local, que o equipamento consegue alcançar — não é a URL pública).'
+    );
+  }
+  const existing = await xpeFindById(device, password, userId);
+  if (!existing) throw new Error('Usuário não encontrado no equipamento.');
+
+  const token = registerFaceRelayToken(fileBuffer, mimetype);
+  const url = `${relayBase.replace(/\/$/, '')}/api/access/face-relay/${token}.jpg`;
+  const merged = { ...xpeSafeExisting(existing), ID: String(userId), FaceUrl: url };
+  await xpeCall(device, password, 'user', 'set', { item: [merged] });
+
+  // O equipamento busca a foto de forma assíncrona depois do "OK" — retcode
+  // 0 não garante nada (já vimos campos que ele aceita e ignora), então
+  // espera um instante e confere se o registro mudou de verdade.
+  await new Promise((r) => setTimeout(r, 2500));
+  const after = await xpeFindById(device, password, userId);
+  const updated = existing.FaceStatus !== 1 ? after?.FaceStatus === 1 : after?.FaceID !== existing.FaceID;
+  if (!updated) {
+    throw new Error(
+      `O equipamento não confirmou o cadastro da foto — confira se ele consegue alcançar ${relayBase} pela rede ` +
+        'local (firewall ou porta bloqueada podem impedir a busca).'
+    );
+  }
 }
 
 async function xpeGetUserPhoto(device, password, userId) {

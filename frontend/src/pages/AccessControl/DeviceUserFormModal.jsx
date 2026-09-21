@@ -86,8 +86,7 @@ export default function DeviceUserFormModal({ user, onClose, onSave }) {
         </div>
 
         <span className="field-hint">
-          Cadastrar/trocar <strong>foto facial</strong> ainda não é suportado pelo Portal neste equipamento — use a
-          interface web do próprio porteiro. Já dá pra visualizar a foto cadastrada pela lista de usuários.
+          O cadastro da <strong>foto facial</strong> é feito depois de salvar, na própria linha do usuário na lista.
         </span>
       </form>
     </Modal>
