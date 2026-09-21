@@ -78,7 +78,11 @@ export default function DeviceUsers({ device, onBack }) {
       const url = await api.accessDevices.users.getPhotoBlobUrl(device.id, u.id);
       setPhotoModal({ name: u.name, url });
     } catch (err) {
-      toast(`Não foi possível carregar a foto: ${err.message}`, 'error');
+      if (/não tem foto|não é suportad/i.test(err.message)) {
+        toast(err.message);
+      } else {
+        toast(`Não foi possível carregar a foto: ${err.message}`, 'error');
+      }
     } finally {
       setLoadingPhotoId(null);
     }
@@ -107,14 +111,24 @@ export default function DeviceUsers({ device, onBack }) {
         </button>
       </div>
 
-      {error && (
-        <div className="surface" style={{ padding: 20, borderLeft: '3px solid var(--danger-500)' }}>
-          <strong style={{ color: 'var(--danger-500)' }}>Não foi possível falar com o equipamento.</strong>
-          <p style={{ color: 'var(--text-secondary)', marginTop: 6, fontSize: 13.5 }}>{error}</p>
-          <p style={{ color: 'var(--text-tertiary)', marginTop: 6, fontSize: 12.5 }}>
-            Confira host/porta/credenciais em "Editar equipamento" e se ele está acessível a partir deste servidor.
+      {error && /não é suportad/i.test(error) ? (
+        <div className="surface" style={{ padding: 20, borderLeft: '3px solid var(--warning-500)' }}>
+          <strong style={{ color: 'var(--warning-500)' }}>Listar usuários ainda não é suportado neste modelo.</strong>
+          <p style={{ color: 'var(--text-secondary)', marginTop: 6, fontSize: 13.5 }}>
+            A conexão com o equipamento está OK — só não é possível listar/editar/excluir pela tela ainda para este
+            modelo. Você já pode usar o botão <strong>"Novo usuário"</strong> acima para cadastrar.
           </p>
         </div>
+      ) : (
+        error && (
+          <div className="surface" style={{ padding: 20, borderLeft: '3px solid var(--danger-500)' }}>
+            <strong style={{ color: 'var(--danger-500)' }}>Não foi possível falar com o equipamento.</strong>
+            <p style={{ color: 'var(--text-secondary)', marginTop: 6, fontSize: 13.5 }}>{error}</p>
+            <p style={{ color: 'var(--text-tertiary)', marginTop: 6, fontSize: 12.5 }}>
+              Confira host/porta/credenciais em "Editar equipamento" e se ele está acessível a partir deste servidor.
+            </p>
+          </div>
+        )
       )}
 
       {!error && (
@@ -149,19 +163,16 @@ export default function DeviceUsers({ device, onBack }) {
                   <td style={{ fontWeight: 600 }}>{u.name}</td>
                   <td>{u.registration || '—'}</td>
                   <td>
-                    {u.hasFace ? (
-                      <button
-                        className="badge badge-success"
-                        style={{ border: 'none', cursor: 'pointer' }}
-                        onClick={() => handleViewPhoto(u)}
-                        disabled={loadingPhotoId === u.id}
-                      >
-                        {loadingPhotoId === u.id ? <span className="spinner" style={{ width: 11, height: 11 }} /> : <span className="badge-dot" />}
-                        ver foto
-                      </button>
-                    ) : (
-                      <span className="badge badge-neutral">sem foto</span>
-                    )}
+                    <button
+                      className="badge badge-neutral"
+                      style={{ border: 'none', cursor: 'pointer' }}
+                      onClick={() => handleViewPhoto(u)}
+                      disabled={loadingPhotoId === u.id}
+                      title="O equipamento não informa na listagem se tem foto — clique para checar"
+                    >
+                      {loadingPhotoId === u.id ? <span className="spinner" style={{ width: 11, height: 11 }} /> : <span className="badge-dot" />}
+                      ver foto
+                    </button>
                   </td>
                   <td>{u.cardNumber || '—'}</td>
                   <td>{u.expiration ? new Date(u.expiration).toLocaleDateString('pt-BR') : 'Sem prazo'}</td>

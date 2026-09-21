@@ -68,7 +68,10 @@ async function xpeCall(device, password, target, action, data) {
 
   if (res.status === 401) throw new Error('Usuário/senha do equipamento recusados (HTTP 401).');
   if (!res.ok || json.retcode !== 0) {
-    throw new Error(json.message || `Falha na chamada ${target}/${action} (HTTP ${res.status}, retcode ${json.retcode}).`);
+    // O equipamento às vezes só devolve "Failed" sem mais detalhe — inclui
+    // sempre a chamada e o retcode junto, senão a mensagem fica inútil.
+    const detail = json.message ? `"${json.message}"` : 'sem mensagem';
+    throw new Error(`Equipamento recusou ${target}/${action} (retcode ${json.retcode}, ${detail}).`);
   }
   return json.data || {};
 }
@@ -137,11 +140,32 @@ async function xpeCreateUser(device, password, input) {
   return created ? xpeFromItem(created) : { id: item.UserID, ...xpeFromItem({ ...item, ID: item.UserID }) };
 }
 
+// Só os campos que a própria API documenta para "user/set" (ver
+// xpeBuildItem) — em vez de reenviar o item inteiro exatamente como
+// "user/get" devolveu. Reenviar o registro cru de volta pode incluir
+// campos somente-leitura ou num formato que "set" não aceita de volta
+// (ex.: fica um "Failed" genérico do equipamento, sem detalhe nenhum).
+function xpeSafeExisting(existing) {
+  if (!existing) return {};
+  return {
+    UserID: existing.UserID,
+    Name: existing.Name,
+    Validity: existing.Validity ?? '0',
+    Relay: existing.Relay ?? '1',
+    PrivatePIN: existing.PrivatePIN ?? '',
+    CardCode: existing.CardCode ?? '',
+    // Só inclui se já existir — reenviar uma foto já cadastrada de volta é
+    // seguro (é o próprio valor que "get" acabou de devolver); não manda o
+    // campo vazio à toa quando não há foto.
+    ...(existing.FaceImage ? { FaceImage: existing.FaceImage } : {}),
+  };
+}
+
 async function xpeUpdateUser(device, password, userId, input) {
   // user/set substitui o item inteiro (não é PATCH) — busca o existente e
   // mescla, senão campos não enviados (ex.: FaceImage já cadastrada) somem.
   const existing = await xpeFindById(device, password, userId);
-  const merged = { ...(existing || {}), ...xpeBuildItem(input), ID: String(userId) };
+  const merged = { ...xpeSafeExisting(existing), ...xpeBuildItem(input), ID: String(userId) };
   await xpeCall(device, password, 'user', 'set', { item: [merged] });
   return xpeFromItem(merged);
 }
@@ -158,7 +182,7 @@ async function xpeSetUserPhoto(device, password, userId, fileBuffer) {
   if (fileBuffer.length > 200 * 1024) {
     throw new Error('Foto maior que 200KB — reduza o tamanho do arquivo (limite do equipamento).');
   }
-  const merged = { ...existing, FaceImage: fileBuffer.toString('base64') };
+  const merged = { ID: String(userId), ...xpeSafeExisting(existing), FaceImage: fileBuffer.toString('base64') };
   await xpeCall(device, password, 'user', 'set', { item: [merged] });
 }
 
