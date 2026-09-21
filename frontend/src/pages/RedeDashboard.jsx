@@ -1,9 +1,14 @@
 import { useEffect, useState } from 'react';
 import Icon from '../components/Icon.jsx';
 import Modal from '../components/Modal.jsx';
-import ConfirmDialog from '../components/ConfirmDialog.jsx';
 import { api } from '../api/client.js';
 import { useToast } from '../hooks/useToast.jsx';
+
+// Rede é só consulta no Portal — cadastro, edição, exclusão de
+// equipamento e tudo de planta baixa (criar pavimento, posicionar) são
+// feitos no painel de Rede original, e chegam aqui automaticamente (mesmo
+// backend por trás do gateway). Aqui só existe visualização + as
+// permissões que controlam O QUE cada usuário pode ver.
 
 const POLL_MS = 10000;
 
@@ -18,8 +23,6 @@ const SEVERITY_META = {
   critical: { label: 'crítico', badge: 'badge-danger' },
   warning: { label: 'atenção', badge: 'badge-warning' },
 };
-
-const DEVICE_TYPES = ['nvr', 'camera', 'porteiro', 'interfone', 'switch', 'ap', 'servidor', 'outro'];
 
 function StatusBadge({ status }) {
   const meta = STATUS_META[status] || STATUS_META.unknown;
@@ -56,163 +59,64 @@ function SummaryCard({ icon, title, value, sub, tone }) {
   );
 }
 
-function DeviceFormModal({ device, onClose, onSave }) {
-  const [form, setForm] = useState({
-    name: device?.name || '',
-    ip: device?.ip || '',
-    type: device?.type || 'outro',
-    location: device?.location || '',
-    notes: device?.notes || '',
-  });
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
+function DetailRow({ label, value }) {
+  if (value === undefined || value === null || value === '') return null;
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}>
+      <span className="field-hint">{label}</span>
+      <span style={{ textAlign: 'right' }}>{value}</span>
+    </div>
+  );
+}
 
-  function set(field, value) {
-    setForm((f) => ({ ...f, [field]: value }));
-  }
-
-  async function handleSubmit(e) {
-    e.preventDefault();
-    setError('');
-    if (!form.ip.trim()) {
-      setError('IP é obrigatório.');
-      return;
-    }
-    setSaving(true);
-    try {
-      await onSave(form);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setSaving(false);
-    }
-  }
-
+// Todos os dados do equipamento, para consulta — nenhum campo aqui é
+// editável. Usado tanto na lista de Equipamentos quanto ao clicar num
+// pino na planta baixa.
+function DeviceDetailModal({ device, onClose }) {
   return (
     <Modal
-      title={device ? 'Editar equipamento' : 'Novo equipamento'}
+      title={device.name}
       onClose={onClose}
       footer={
-        <>
-          <button className="btn btn-secondary" onClick={onClose} disabled={saving}>
-            Cancelar
-          </button>
-          <button className="btn btn-primary" onClick={handleSubmit} disabled={saving}>
-            {saving ? <span className="spinner" /> : 'Salvar'}
-          </button>
-        </>
+        <button className="btn btn-secondary" onClick={onClose}>
+          Fechar
+        </button>
       }
     >
-      <form className="modal-body" onSubmit={handleSubmit}>
-        {error && <div className="login-error">{error}</div>}
-
-        <div className="grid-2">
-          <div className="field">
-            <label className="field-label">Nome</label>
-            <input className="input" value={form.name} onChange={(e) => set('name', e.target.value)} placeholder="NVR Torre A" />
-          </div>
-          <div className="field">
-            <label className="field-label">IP</label>
-            <input className="input" value={form.ip} onChange={(e) => set('ip', e.target.value)} placeholder="192.168.1.10" />
-          </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: 14 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+          <span className="field-hint">Status</span>
+          <StatusBadge status={device.status} />
         </div>
-
-        <div className="grid-2">
-          <div className="field">
-            <label className="field-label">Tipo</label>
-            <select className="select" value={form.type} onChange={(e) => set('type', e.target.value)}>
-              {DEVICE_TYPES.map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="field">
-            <label className="field-label">Local</label>
-            <input className="input" value={form.location} onChange={(e) => set('location', e.target.value)} placeholder="Torre A - Térreo" />
-          </div>
-        </div>
-
-        <div className="field">
-          <label className="field-label">Notas</label>
-          <input className="input" value={form.notes} onChange={(e) => set('notes', e.target.value)} placeholder="Opcional" />
-        </div>
-      </form>
+        <DetailRow label="IP" value={<strong>{device.ip}</strong>} />
+        <DetailRow label="Tipo" value={device.type} />
+        <DetailRow label="Local" value={device.location} />
+        <DetailRow label="MAC" value={device.mac} />
+        <DetailRow label="Fabricante" value={device.vendor} />
+        <DetailRow label="Modelo" value={device.model} />
+        <DetailRow label="Notas" value={device.notes} />
+        <DetailRow label="Latência" value={device.latencyMs != null ? `${Math.round(device.latencyMs)} ms` : null} />
+        <DetailRow label="Última checagem" value={device.lastCheckAt ? new Date(device.lastCheckAt).toLocaleString('pt-BR') : null} />
+        <DetailRow label="Uptime (7 dias)" value={device.uptime7d != null ? `${device.uptime7d}%` : null} />
+        <DetailRow label="Em manutenção até" value={device.maintenanceUntil ? new Date(device.maintenanceUntil).toLocaleString('pt-BR') : null} />
+      </div>
     </Modal>
   );
 }
 
-function FloorFormModal({ onClose, onSave }) {
-  const [name, setName] = useState('');
-  const [imageFile, setImageFile] = useState(null);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
-
-  async function handleSubmit(e) {
-    e.preventDefault();
-    setError('');
-    if (!name.trim() || !imageFile) {
-      setError('Nome e imagem são obrigatórios.');
-      return;
-    }
-    setSaving(true);
-    try {
-      await onSave({ name, imageFile });
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <Modal
-      title="Novo pavimento"
-      onClose={onClose}
-      footer={
-        <>
-          <button className="btn btn-secondary" onClick={onClose} disabled={saving}>
-            Cancelar
-          </button>
-          <button className="btn btn-primary" onClick={handleSubmit} disabled={saving}>
-            {saving ? <span className="spinner" /> : 'Salvar'}
-          </button>
-        </>
-      }
-    >
-      <form className="modal-body" onSubmit={handleSubmit}>
-        {error && <div className="login-error">{error}</div>}
-        <div className="field">
-          <label className="field-label">Nome do pavimento</label>
-          <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Térreo, Torre A" />
-        </div>
-        <div className="field">
-          <label className="field-label">Imagem da planta baixa</label>
-          <input className="input" type="file" accept="image/*" onChange={(e) => setImageFile(e.target.files?.[0] || null)} />
-        </div>
-      </form>
-    </Modal>
-  );
-}
-
-function FloorPlanSection({ isOwner }) {
+function FloorPlanSection({ onViewDevice }) {
   const [floors, setFloors] = useState(null);
   const [devices, setDevices] = useState([]);
   const [imageUrls, setImageUrls] = useState({});
-  const [showForm, setShowForm] = useState(false);
-  const [deletingFloor, setDeletingFloor] = useState(null);
-  const [viewingDevice, setViewingDevice] = useState(null);
-  const toast = useToast();
 
-  function reload() {
+  useEffect(() => {
     Promise.all([api.rede.floors(), api.rede.devices()])
       .then(([f, d]) => {
         setFloors(f.data || []);
         setDevices(d.data || []);
       })
       .catch(() => setFloors([]));
-  }
+  }, []);
 
   // Imagem precisa de fetch autenticado (vira blob) — <img src> puro não
   // manda o Authorization exigido pelo gateway, ver client.js.
@@ -236,69 +140,13 @@ function FloorPlanSection({ isOwner }) {
       Object.values(urls).forEach((u) => URL.revokeObjectURL(u));
     };
   }, [floors]);
-  useEffect(reload, []);
-
-  async function handleCreateFloor(payload) {
-    await api.rede.createFloor(payload);
-    setShowForm(false);
-    toast('Pavimento adicionado.');
-    reload();
-  }
-
-  async function handleDeleteFloor() {
-    try {
-      await api.rede.deleteFloor(deletingFloor.id);
-      toast('Pavimento removido.');
-      setDeletingFloor(null);
-      reload();
-    } catch (err) {
-      toast(err.message, 'error');
-    }
-  }
-
-  const [placingDeviceId, setPlacingDeviceId] = useState('');
-
-  async function handlePlaceClick(floorId, e) {
-    if (!placingDeviceId) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = (e.clientX - rect.left) / rect.width;
-    const y = (e.clientY - rect.top) / rect.height;
-    try {
-      await api.rede.setFloorPosition(Number(placingDeviceId), floorId, x, y);
-      toast('Equipamento posicionado.');
-      setPlacingDeviceId('');
-      reload();
-    } catch (err) {
-      toast(err.message, 'error');
-    }
-  }
 
   return (
     <div className="surface" style={{ padding: 24 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-        <div style={{ fontWeight: 700 }}>Planta baixa</div>
-        {isOwner && (
-          <button className="btn btn-secondary btn-sm" onClick={() => setShowForm(true)}>
-            <Icon name="plus" size={14} /> Novo pavimento
-          </button>
-        )}
-      </div>
-      <p className="field-hint" style={{ marginBottom: 12 }}>Posição dos equipamentos por pavimento.</p>
-
-      {isOwner && floors?.length > 0 && (
-        <div className="field" style={{ maxWidth: 360, marginBottom: 16 }}>
-          <label className="field-label">Posicionar equipamento</label>
-          <select className="select" value={placingDeviceId} onChange={(e) => setPlacingDeviceId(e.target.value)}>
-            <option value="">Selecione um equipamento...</option>
-            {devices.map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.name}
-              </option>
-            ))}
-          </select>
-          <span className="field-hint">{placingDeviceId ? 'Agora clique no ponto certo na imagem do pavimento.' : 'Escolha um equipamento e clique na planta para posicioná-lo.'}</span>
-        </div>
-      )}
+      <div style={{ fontWeight: 700, marginBottom: 4 }}>Planta baixa</div>
+      <p className="field-hint" style={{ marginBottom: 16 }}>
+        Posição dos equipamentos por pavimento — consulta. Pavimentos e posições são gerenciados no painel de Rede original.
+      </p>
 
       {floors === null ? (
         <div className="skeleton" style={{ height: 200, borderRadius: 12 }} />
@@ -310,25 +158,8 @@ function FloorPlanSection({ isOwner }) {
             const pins = devices.filter((d) => d.floorId === floor.id && d.floorX != null && d.floorY != null);
             return (
               <div key={floor.id}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                  <div style={{ fontWeight: 600, fontSize: 14 }}>{floor.name}</div>
-                  {isOwner && (
-                    <button className="btn btn-ghost btn-sm" onClick={() => setDeletingFloor(floor)} style={{ color: 'var(--danger-500)' }}>
-                      <Icon name="trash" size={14} /> Excluir
-                    </button>
-                  )}
-                </div>
-                <div
-                  onClick={isOwner && placingDeviceId ? (e) => handlePlaceClick(floor.id, e) : undefined}
-                  style={{
-                    position: 'relative',
-                    width: '100%',
-                    borderRadius: 12,
-                    overflow: 'hidden',
-                    border: '1px solid var(--border-subtle)',
-                    cursor: isOwner && placingDeviceId ? 'crosshair' : 'default',
-                  }}
-                >
+                <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 8 }}>{floor.name}</div>
+                <div style={{ position: 'relative', width: '100%', borderRadius: 12, overflow: 'hidden', border: '1px solid var(--border-subtle)' }}>
                   {imageUrls[floor.id] ? (
                     <img src={imageUrls[floor.id]} alt={floor.name} style={{ width: '100%', display: 'block' }} />
                   ) : (
@@ -337,11 +168,8 @@ function FloorPlanSection({ isOwner }) {
                   {pins.map((d) => (
                     <div
                       key={d.id}
-                      title={`${d.name} (${d.status})`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setViewingDevice(d);
-                      }}
+                      title={`${d.name} (${d.status}) — clique para ver detalhes`}
+                      onClick={() => onViewDevice(d)}
                       style={{
                         position: 'absolute',
                         left: `${d.floorX * 100}%`,
@@ -363,54 +191,6 @@ function FloorPlanSection({ isOwner }) {
             );
           })}
         </div>
-      )}
-
-      {showForm && <FloorFormModal onClose={() => setShowForm(false)} onSave={handleCreateFloor} />}
-      {deletingFloor && (
-        <ConfirmDialog
-          title="Excluir pavimento"
-          message={`Excluir "${deletingFloor.name}"? Os equipamentos posicionados nele perdem a posição.`}
-          confirmLabel="Excluir"
-          danger
-          onConfirm={handleDeleteFloor}
-          onCancel={() => setDeletingFloor(null)}
-        />
-      )}
-      {viewingDevice && (
-        <Modal
-          title={viewingDevice.name}
-          onClose={() => setViewingDevice(null)}
-          footer={
-            <button className="btn btn-secondary" onClick={() => setViewingDevice(null)}>
-              Fechar
-            </button>
-          }
-        >
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: 14 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span className="field-hint">Status</span>
-              <StatusBadge status={viewingDevice.status} />
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span className="field-hint">IP</span>
-              <strong>{viewingDevice.ip}</strong>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span className="field-hint">Tipo</span>
-              <span>{viewingDevice.type}</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span className="field-hint">Local</span>
-              <span>{viewingDevice.location || '—'}</span>
-            </div>
-            {viewingDevice.latencyMs != null && (
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span className="field-hint">Latência</span>
-                <span>{Math.round(viewingDevice.latencyMs)} ms</span>
-              </div>
-            )}
-          </div>
-        </Modal>
       )}
     </div>
   );
@@ -530,85 +310,39 @@ function AnaliseSection() {
   );
 }
 
-export default function RedeDashboard({ can, isOwner }) {
+export default function RedeDashboard({ can }) {
   const [summary, setSummary] = useState(null);
   const [devices, setDevices] = useState([]);
   const [alerts, setAlerts] = useState([]);
   const [error, setError] = useState('');
-  const [editingDevice, setEditingDevice] = useState(null);
-  const [showAddDevice, setShowAddDevice] = useState(false);
-  const [deletingDevice, setDeletingDevice] = useState(null);
-  const [scanning, setScanning] = useState(false);
   const [deviceFilter, setDeviceFilter] = useState('');
   const [page, setPage] = useState(1);
+  const [viewingDevice, setViewingDevice] = useState(null);
   const PAGE_SIZE = 25;
-  const toast = useToast();
 
-  const canManageDevices = can('rede.dispositivos');
   const canSeeFloorPlan = can('rede.plantaBaixa');
   const canSeeAnalise = can('rede.analise');
 
-  function load() {
-    Promise.all([api.rede.summary(), api.rede.devices(), api.rede.alerts()])
-      .then(([s, d, a]) => {
-        setSummary(s);
-        setDevices(d.data || []);
-        setAlerts((a.data || []).filter((x) => x.status === 'active'));
-        setError('');
-      })
-      .catch((err) => setError(err.message));
-  }
-
   useEffect(() => {
     let cancelled = false;
-    function poll() {
-      if (cancelled) return;
-      load();
+    function load() {
+      Promise.all([api.rede.summary(), api.rede.devices(), api.rede.alerts()])
+        .then(([s, d, a]) => {
+          if (cancelled) return;
+          setSummary(s);
+          setDevices(d.data || []);
+          setAlerts((a.data || []).filter((x) => x.status === 'active'));
+          setError('');
+        })
+        .catch((err) => !cancelled && setError(err.message));
     }
-    poll();
-    const id = setInterval(poll, POLL_MS);
+    load();
+    const id = setInterval(load, POLL_MS);
     return () => {
       cancelled = true;
       clearInterval(id);
     };
   }, []);
-
-  async function handleSaveDevice(form) {
-    if (editingDevice) {
-      await api.rede.updateDevice(editingDevice.id, form);
-      toast('Equipamento atualizado.');
-      setEditingDevice(null);
-    } else {
-      await api.rede.createDevice(form);
-      toast('Equipamento cadastrado.');
-      setShowAddDevice(false);
-    }
-    load();
-  }
-
-  async function handleDeleteDevice() {
-    try {
-      await api.rede.deleteDevice(deletingDevice.id);
-      toast('Equipamento excluído.');
-      setDeletingDevice(null);
-      load();
-    } catch (err) {
-      toast(err.message, 'error');
-    }
-  }
-
-  async function handleScan() {
-    setScanning(true);
-    try {
-      const result = await api.rede.scanNetwork();
-      toast(`Varredura concluída: ${result.respondingCount} respondendo, ${result.createdCount} novo(s) cadastrado(s).`);
-      load();
-    } catch (err) {
-      toast(err.message, 'error');
-    } finally {
-      setScanning(false);
-    }
-  }
 
   const filteredDevices = devices.filter((d) => {
     const needle = deviceFilter.trim().toLowerCase();
@@ -624,7 +358,7 @@ export default function RedeDashboard({ can, isOwner }) {
       <div className="page-header">
         <div>
           <h1>Rede</h1>
-          <p>Monitoramento dos equipamentos de rede, direto aqui no Portal.</p>
+          <p>Monitoramento dos equipamentos de rede, direto aqui no Portal — só consulta.</p>
         </div>
       </div>
 
@@ -666,21 +400,9 @@ export default function RedeDashboard({ can, isOwner }) {
       </div>
 
       <div className="surface" style={{ padding: 24 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4, flexWrap: 'wrap', gap: 8 }}>
-          <div style={{ fontWeight: 700 }}>Equipamentos</div>
-          {canManageDevices && (
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button className="btn btn-secondary btn-sm" onClick={handleScan} disabled={scanning}>
-                {scanning ? <span className="spinner spinner-dark" /> : <Icon name="search" size={14} />} Escanear rede
-              </button>
-              <button className="btn btn-secondary btn-sm" onClick={() => setShowAddDevice(true)}>
-                <Icon name="plus" size={14} /> Novo equipamento
-              </button>
-            </div>
-          )}
-        </div>
+        <div style={{ fontWeight: 700, marginBottom: 4 }}>Equipamentos</div>
         <p className="field-hint" style={{ marginBottom: 12 }}>
-          {canManageDevices ? 'Cadastro completo — criar, editar, excluir e escanear a rede em busca de novos.' : 'Lista de leitura.'}
+          Consulta — clique num equipamento para ver todos os dados. Cadastro, edição e exclusão são feitos no painel de Rede original.
         </p>
         {devices.length === 0 ? (
           <div className="field-hint">Nenhum equipamento cadastrado ainda.</div>
@@ -709,36 +431,24 @@ export default function RedeDashboard({ can, isOwner }) {
                         <th style={{ padding: '8px 12px', fontWeight: 600 }}>Local</th>
                         <th style={{ padding: '8px 12px', fontWeight: 600 }}>Tipo</th>
                         <th style={{ padding: '8px 12px', fontWeight: 600 }}>Status</th>
-                        {canManageDevices && <th style={{ padding: '8px 12px', fontWeight: 600 }}></th>}
                       </tr>
                     </thead>
                     <tbody>
                       {pageDevices.map((d) => (
-                  <tr key={d.id} style={{ borderTop: '1px solid var(--border-subtle)' }}>
-                    <td style={{ padding: '10px 12px', fontWeight: 600 }}>{d.name}</td>
-                    <td style={{ padding: '10px 12px', color: 'var(--text-secondary)' }}>{d.ip}</td>
-                    <td style={{ padding: '10px 12px', color: 'var(--text-secondary)' }}>{d.location || '—'}</td>
-                    <td style={{ padding: '10px 12px', color: 'var(--text-secondary)' }}>{d.type}</td>
-                    <td style={{ padding: '10px 12px' }}>
-                      <StatusBadge status={d.status} />
-                    </td>
-                    {canManageDevices && (
-                      <td style={{ padding: '10px 12px', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                        <button className="btn btn-ghost btn-icon btn-sm" onClick={() => setEditingDevice(d)} aria-label="Editar">
-                          <Icon name="edit" size={15} />
-                        </button>
-                        <button
-                          className="btn btn-ghost btn-icon btn-sm"
-                          onClick={() => setDeletingDevice(d)}
-                          aria-label="Excluir"
-                          style={{ color: 'var(--danger-500)' }}
+                        <tr
+                          key={d.id}
+                          onClick={() => setViewingDevice(d)}
+                          style={{ borderTop: '1px solid var(--border-subtle)', cursor: 'pointer' }}
                         >
-                          <Icon name="trash" size={15} />
-                        </button>
-                      </td>
-                    )}
-                  </tr>
-                    ))}
+                          <td style={{ padding: '10px 12px', fontWeight: 600 }}>{d.name}</td>
+                          <td style={{ padding: '10px 12px', color: 'var(--text-secondary)' }}>{d.ip}</td>
+                          <td style={{ padding: '10px 12px', color: 'var(--text-secondary)' }}>{d.location || '—'}</td>
+                          <td style={{ padding: '10px 12px', color: 'var(--text-secondary)' }}>{d.type}</td>
+                          <td style={{ padding: '10px 12px' }}>
+                            <StatusBadge status={d.status} />
+                          </td>
+                        </tr>
+                      ))}
                     </tbody>
                   </table>
                 </div>
@@ -763,28 +473,9 @@ export default function RedeDashboard({ can, isOwner }) {
 
       {canSeeAnalise && <AnaliseSection />}
 
-      {canSeeFloorPlan && <FloorPlanSection isOwner={isOwner} />}
+      {canSeeFloorPlan && <FloorPlanSection onViewDevice={setViewingDevice} />}
 
-      {(showAddDevice || editingDevice) && (
-        <DeviceFormModal
-          device={editingDevice}
-          onClose={() => {
-            setShowAddDevice(false);
-            setEditingDevice(null);
-          }}
-          onSave={handleSaveDevice}
-        />
-      )}
-      {deletingDevice && (
-        <ConfirmDialog
-          title="Excluir equipamento"
-          message={`Excluir "${deletingDevice.name}"? Essa ação não pode ser desfeita.`}
-          confirmLabel="Excluir"
-          danger
-          onConfirm={handleDeleteDevice}
-          onCancel={() => setDeletingDevice(null)}
-        />
-      )}
+      {viewingDevice && <DeviceDetailModal device={viewingDevice} onClose={() => setViewingDevice(null)} />}
     </>
   );
 }

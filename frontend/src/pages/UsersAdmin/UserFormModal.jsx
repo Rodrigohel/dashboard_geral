@@ -9,10 +9,11 @@ const MODULES = [
 ];
 
 // Permissões mais finas dentro de "rede" — visível só quando o módulo
-// "rede" já está marcado acima. Quem não marcar aqui continua vendo o
-// monitoramento geral, só não vê essas ações/telas específicas.
+// "rede" já está marcado acima. Controlam só o que o usuário VÊ (o Portal
+// é só consulta de Rede; cadastro/edição de equipamento e planta baixa são
+// feitos no painel de Rede original). Quem não marcar aqui continua vendo
+// o monitoramento geral e a lista de equipamentos.
 const REDE_FEATURES = [
-  { key: 'rede.dispositivos', label: 'Cadastro de equipamentos (criar, editar, excluir, importar, escanear)' },
   { key: 'rede.plantaBaixa', label: 'Planta baixa (mapa dos equipamentos por pavimento)' },
   { key: 'rede.analise', label: 'Análise de rede e histórico de eventos' },
 ];
