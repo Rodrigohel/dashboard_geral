@@ -6,7 +6,19 @@ import UserFormModal from './UserFormModal.jsx';
 import { api } from '../../api/client.js';
 import { useToast } from '../../hooks/useToast.jsx';
 
-const MODULE_LABELS = { rede: 'Rede', interfone: 'Interfone', acesso: 'Acesso' };
+const MODULE_LABELS = {
+  rede: 'Rede',
+  interfone: 'Interfone',
+  acesso: 'Acesso',
+  'rede.dispositivos': 'Rede: cadastro',
+  'rede.plantaBaixa': 'Rede: planta baixa',
+  'rede.analise': 'Rede: análise',
+};
+// Lista fixa (não vem da API) só pra mostrar o "Tudo" do dono como uma
+// lista explícita de badges, igual a um usuário comum totalmente liberado
+// — o dono nunca tem essas linhas na tabela `permissions` (ele passa direto
+// por role), então não dá pra ler isso de `u.modules`.
+const ALL_PERMISSIONS = ['rede', 'rede.dispositivos', 'rede.plantaBaixa', 'rede.analise', 'interfone', 'acesso'];
 
 export default function UsersAdmin({ currentUserId }) {
   const [users, setUsers] = useState(null);
@@ -85,14 +97,12 @@ export default function UsersAdmin({ currentUserId }) {
                     )}
                   </td>
                   <td>
-                    {u.role === 'owner' ? (
-                      <span className="field-hint">Tudo</span>
-                    ) : u.modules.length === 0 ? (
+                    {(u.role === 'owner' ? ALL_PERMISSIONS : u.modules).length === 0 ? (
                       <span className="field-hint">Nenhum</span>
                     ) : (
                       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                        {u.modules.map((m) => (
-                          <span className="badge badge-neutral" key={m}>
+                        {(u.role === 'owner' ? ALL_PERMISSIONS : u.modules).map((m) => (
+                          <span className={`badge ${u.role === 'owner' ? 'badge-accent' : 'badge-neutral'}`} key={m}>
                             {MODULE_LABELS[m] || m}
                           </span>
                         ))}

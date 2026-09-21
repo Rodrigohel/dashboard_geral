@@ -119,9 +119,7 @@ export const api = {
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `Erro ${res.status}`);
       return res.blob();
     },
-    getSettings: () => request('/gateway/rede/api/settings'),
-    saveSettings: (payload) => request('/gateway/rede/api/settings', { method: 'PUT', body: payload }),
-    testTelegram: (payload) => request('/gateway/rede/api/settings/telegram/test', { method: 'POST', body: payload }),
+    scanNetwork: () => request('/gateway/rede/api/devices/scan', { method: 'POST', body: {} }),
   },
 
   branding: {
