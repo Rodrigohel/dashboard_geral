@@ -69,37 +69,208 @@ function DetailRow({ label, value }) {
   );
 }
 
+function SectionLabel({ children, action }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+      <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--text-tertiary)' }}>
+        {children}
+      </span>
+      {action}
+    </div>
+  );
+}
+
+function LatencySparkline({ checks }) {
+  const points = (checks || []).filter((c) => c.latencyMs != null);
+  if (points.length < 2) return <div className="field-hint">Sem dados de latência recentes.</div>;
+  const w = 480;
+  const h = 60;
+  const max = Math.max(...points.map((p) => p.latencyMs), 1);
+  const path = points
+    .map((p, i) => {
+      const x = (i / (points.length - 1)) * w;
+      const y = h - Math.min(1, p.latencyMs / max) * h;
+      return `${i === 0 ? 'M' : 'L'} ${x.toFixed(1)} ${y.toFixed(1)}`;
+    })
+    .join(' ');
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} width="100%" height={h} preserveAspectRatio="none">
+      <path d={path} fill="none" stroke="var(--accent-500)" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function uptimeCellColor(pct) {
+  if (pct == null) return 'var(--border-subtle)';
+  if (pct >= 99) return 'var(--success-500)';
+  if (pct >= 95) return 'var(--warning-500)';
+  return 'var(--danger-500)';
+}
+
+function UptimeHeatmap({ data }) {
+  if (!data || data.length === 0) return <div className="field-hint">Sem histórico suficiente ainda.</div>;
+  const first = new Date(`${data[0].date}T00:00:00Z`);
+  const firstDow = first.getUTCDay();
+  return (
+    <>
+      <div style={{ display: 'grid', gridTemplateRows: 'repeat(7, 12px)', gridAutoFlow: 'column', gridAutoColumns: '12px', gap: 3, overflowX: 'auto', paddingBottom: 4 }}>
+        {Array.from({ length: firstDow }).map((_, i) => (
+          <div key={`pad-${i}`} />
+        ))}
+        {data.map((d) => (
+          <div
+            key={d.date}
+            title={`${d.date}: ${d.uptimePercent != null ? `${d.uptimePercent}%` : 'sem dados'}`}
+            style={{ width: 12, height: 12, borderRadius: 3, background: uptimeCellColor(d.uptimePercent) }}
+          />
+        ))}
+      </div>
+      <div style={{ display: 'flex', gap: 14, marginTop: 8, fontSize: 12, color: 'var(--text-tertiary)', flexWrap: 'wrap' }}>
+        <span><span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 3, background: 'var(--success-500)', marginRight: 5 }} />≥ 99%</span>
+        <span><span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 3, background: 'var(--warning-500)', marginRight: 5 }} />≥ 95%</span>
+        <span><span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 3, background: 'var(--danger-500)', marginRight: 5 }} />&lt; 95%</span>
+        <span><span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 3, background: 'var(--border-subtle)', marginRight: 5 }} />sem dados</span>
+      </div>
+    </>
+  );
+}
+
+function CopyButton({ value }) {
+  const toast = useToast();
+  return (
+    <button
+      type="button"
+      className="btn btn-ghost btn-icon btn-sm"
+      onClick={() => {
+        navigator.clipboard?.writeText(value || '');
+        toast('Copiado.');
+      }}
+      aria-label="Copiar"
+    >
+      <Icon name="copy" size={14} />
+    </button>
+  );
+}
+
 // Todos os dados do equipamento, para consulta — nenhum campo aqui é
-// editável. Usado tanto na lista de Equipamentos quanto ao clicar num
-// pino na planta baixa.
-function DeviceDetailModal({ device, onClose }) {
+// editável (cadastro/edição são feitos no painel de Rede original). Usado
+// tanto na lista de Equipamentos quanto ao clicar num pino na planta baixa.
+function DeviceDetailModal({ deviceId, onClose }) {
+  const [device, setDevice] = useState(null);
+  const [heatmap, setHeatmap] = useState(null);
+  const [heatmapDays, setHeatmapDays] = useState(90);
+  const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    api.rede.device(deviceId).then(setDevice).catch((err) => setError(err.message));
+  }, [deviceId]);
+
+  useEffect(() => {
+    api.rede.uptimeHeatmap(deviceId, heatmapDays).then((r) => setHeatmap(r.data || [])).catch(() => setHeatmap([]));
+  }, [deviceId, heatmapDays]);
+
   return (
     <Modal
-      title={device.name}
+      title={device?.name || 'Equipamento'}
       onClose={onClose}
+      width={560}
       footer={
         <button className="btn btn-secondary" onClick={onClose}>
           Fechar
         </button>
       }
     >
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: 14 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-          <span className="field-hint">Status</span>
-          <StatusBadge status={device.status} />
+      {error && <div className="login-error">{error}</div>}
+      {!device ? (
+        <div className="skeleton" style={{ height: 200, borderRadius: 12 }} />
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20, fontSize: 14 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <StatusBadge status={device.status} />
+            <span className="field-hint">{device.ip}</span>
+            {device.uptime7d != null && <span className="field-hint">· Uptime 7 dias: <strong style={{ color: 'var(--text-primary)' }}>{device.uptime7d}%</strong></span>}
+          </div>
+
+          <div>
+            <SectionLabel>Latência recente</SectionLabel>
+            <LatencySparkline checks={device.recentChecks} />
+          </div>
+
+          <div>
+            <SectionLabel
+              action={
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button className={`btn btn-sm ${heatmapDays === 30 ? 'btn-secondary' : 'btn-ghost'}`} onClick={() => setHeatmapDays(30)}>
+                    30 dias
+                  </button>
+                  <button className={`btn btn-sm ${heatmapDays === 90 ? 'btn-secondary' : 'btn-ghost'}`} onClick={() => setHeatmapDays(90)}>
+                    90 dias
+                  </button>
+                </div>
+              }
+            >
+              Disponibilidade por dia
+            </SectionLabel>
+            {heatmap === null ? <div className="skeleton" style={{ height: 100, borderRadius: 8 }} /> : <UptimeHeatmap data={heatmap} />}
+          </div>
+
+          <div>
+            <SectionLabel>Identificação</SectionLabel>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <DetailRow label="MAC" value={device.mac} />
+              <DetailRow label="Fabricante" value={device.vendor} />
+              <DetailRow label="Modelo" value={device.model} />
+            </div>
+          </div>
+
+          <div>
+            <SectionLabel
+              action={
+                <a className="field-hint" href={`http://${device.ip}`} target="_blank" rel="noreferrer" style={{ color: 'var(--accent-500)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <Icon name="externalLink" size={13} /> Abrir interface web
+                </a>
+              }
+            >
+              Acesso do equipamento
+            </SectionLabel>
+            {device.username ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span className="field-hint">Usuário</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <span>{device.username}</span>
+                    <CopyButton value={device.username} />
+                  </div>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span className="field-hint">Senha</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <span>{showPassword ? device.password || '—' : '••••••'}</span>
+                    <button type="button" className="btn btn-ghost btn-icon btn-sm" onClick={() => setShowPassword((v) => !v)} aria-label="Mostrar senha">
+                      <Icon name={showPassword ? 'eyeOff' : 'eye'} size={14} />
+                    </button>
+                    <CopyButton value={device.password} />
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="field-hint">Nenhuma credencial cadastrada.</div>
+            )}
+          </div>
+
+          <div>
+            <SectionLabel>Cadastro</SectionLabel>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <DetailRow label="Tipo" value={device.type} />
+              <DetailRow label="Local" value={device.location} />
+              <DetailRow label="Notas" value={device.notes} />
+              <DetailRow label="Última checagem" value={device.lastCheckAt ? new Date(device.lastCheckAt).toLocaleString('pt-BR') : null} />
+              <DetailRow label="Em manutenção até" value={device.maintenanceUntil ? new Date(device.maintenanceUntil).toLocaleString('pt-BR') : null} />
+            </div>
+          </div>
         </div>
-        <DetailRow label="IP" value={<strong>{device.ip}</strong>} />
-        <DetailRow label="Tipo" value={device.type} />
-        <DetailRow label="Local" value={device.location} />
-        <DetailRow label="MAC" value={device.mac} />
-        <DetailRow label="Fabricante" value={device.vendor} />
-        <DetailRow label="Modelo" value={device.model} />
-        <DetailRow label="Notas" value={device.notes} />
-        <DetailRow label="Latência" value={device.latencyMs != null ? `${Math.round(device.latencyMs)} ms` : null} />
-        <DetailRow label="Última checagem" value={device.lastCheckAt ? new Date(device.lastCheckAt).toLocaleString('pt-BR') : null} />
-        <DetailRow label="Uptime (7 dias)" value={device.uptime7d != null ? `${device.uptime7d}%` : null} />
-        <DetailRow label="Em manutenção até" value={device.maintenanceUntil ? new Date(device.maintenanceUntil).toLocaleString('pt-BR') : null} />
-      </div>
+      )}
     </Modal>
   );
 }
@@ -169,7 +340,7 @@ function FloorPlanSection({ onViewDevice }) {
                     <div
                       key={d.id}
                       title={`${d.name} (${d.status}) — clique para ver detalhes`}
-                      onClick={() => onViewDevice(d)}
+                      onClick={() => onViewDevice(d.id)}
                       style={{
                         position: 'absolute',
                         left: `${d.floorX * 100}%`,
@@ -437,7 +608,7 @@ export default function RedeDashboard({ can }) {
                       {pageDevices.map((d) => (
                         <tr
                           key={d.id}
-                          onClick={() => setViewingDevice(d)}
+                          onClick={() => setViewingDevice(d.id)}
                           style={{ borderTop: '1px solid var(--border-subtle)', cursor: 'pointer' }}
                         >
                           <td style={{ padding: '10px 12px', fontWeight: 600 }}>{d.name}</td>
@@ -475,7 +646,7 @@ export default function RedeDashboard({ can }) {
 
       {canSeeFloorPlan && <FloorPlanSection onViewDevice={setViewingDevice} />}
 
-      {viewingDevice && <DeviceDetailModal device={viewingDevice} onClose={() => setViewingDevice(null)} />}
+      {viewingDevice && <DeviceDetailModal deviceId={viewingDevice} onClose={() => setViewingDevice(null)} />}
     </>
   );
 }

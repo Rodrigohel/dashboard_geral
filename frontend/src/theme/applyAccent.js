@@ -35,10 +35,18 @@ export function applyAccentColor(hex) {
     ['--accent-500', '--accent-400', '--accent-600', '--accent-glow'].forEach((v) => root.removeProperty(v));
     return;
   }
-  const [h, s, l] = hexToHsl(hex);
-  root.setProperty('--accent-500', hex);
-  root.setProperty('--accent-400', hslToHex(h, s, Math.min(0.92, l + 0.12)));
-  root.setProperty('--accent-600', hslToHex(h, s, Math.max(0.08, l - 0.12)));
-  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+  const [h, s, lRaw] = hexToHsl(hex);
+  // --accent-500 não é só fundo de botão — também é cor de TEXTO/borda em
+  // vários lugares (link ativo, foco de campo, ícone de destaque) sobre
+  // fundo escuro. Preto (ou qualquer cor extrema) nessa luminosidade fica
+  // invisível: texto quase preto sobre fundo quase preto. Trava a
+  // luminosidade numa faixa que continua legível como texto E como fundo
+  // de botão com letra branca, preservando o matiz escolhido.
+  const l = Math.min(0.62, Math.max(0.42, lRaw));
+  const base500 = hslToHex(h, s, l);
+  root.setProperty('--accent-500', base500);
+  root.setProperty('--accent-400', hslToHex(h, s, Math.min(0.92, l + 0.14)));
+  root.setProperty('--accent-600', hslToHex(h, s, Math.max(0.08, l - 0.14)));
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(base500.slice(i, i + 2), 16));
   root.setProperty('--accent-glow', `rgba(${r}, ${g}, ${b}, 0.35)`);
 }

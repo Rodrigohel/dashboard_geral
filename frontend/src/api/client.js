@@ -95,6 +95,11 @@ export const api = {
   rede: {
     summary: () => request('/gateway/rede/api/devices/summary'),
     devices: () => request('/gateway/rede/api/devices'),
+    // Detalhe completo (senha descriptografada, checagens recentes,
+    // uptime7d) só vem no GET de UM dispositivo — a listagem não traz isso
+    // de propósito (ver devicesService.js do painel de Rede).
+    device: (id) => request(`/gateway/rede/api/devices/${id}`),
+    uptimeHeatmap: (id, days = 90) => request(`/gateway/rede/api/devices/${id}/uptime-heatmap?days=${days}`),
     alerts: () => request('/gateway/rede/api/alerts'),
     floors: () => request('/gateway/rede/api/floors'),
     // Não dá pra usar <img src="/gateway/rede/..."> puro: o gateway exige
