@@ -136,7 +136,7 @@ accessDevicesRouter.get('/:deviceId/users', requireDeviceAccess, async (req, res
 accessDevicesRouter.post('/:deviceId/users', requireDeviceAccess, async (req, res) => {
   const device = getDeviceOr404({ params: { id: req.params.deviceId } }, res);
   if (!device) return;
-  const { name, registration, password, cardNumber, expiration } = req.body || {};
+  const { name, registration, password, cardNumber, expiration, apartment } = req.body || {};
   if (!name) return res.status(400).json({ error: 'Nome é obrigatório' });
   try {
     const user = await deviceApi.createUser(device, decryptSecret(device.device_password_enc), {
@@ -145,6 +145,7 @@ accessDevicesRouter.post('/:deviceId/users', requireDeviceAccess, async (req, re
       password,
       cardNumber,
       expiration,
+      apartment,
     });
     res.status(201).json(user);
   } catch (err) {

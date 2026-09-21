@@ -151,6 +151,7 @@ export default function DeviceUsers({ device, onBack }) {
               <tr>
                 <th>Nome</th>
                 <th>Matrícula</th>
+                <th>Apartamento</th>
                 <th>Facial</th>
                 <th>Cartão</th>
                 <th>Expira em</th>
@@ -162,6 +163,7 @@ export default function DeviceUsers({ device, onBack }) {
                 <tr key={u.id}>
                   <td style={{ fontWeight: 600 }}>{u.name}</td>
                   <td>{u.registration || '—'}</td>
+                  <td>{u.apartment || '—'}</td>
                   <td>
                     <button
                       className="badge badge-neutral"
@@ -178,9 +180,11 @@ export default function DeviceUsers({ device, onBack }) {
                   <td>{u.expiration ? new Date(u.expiration).toLocaleDateString('pt-BR') : 'Sem prazo'}</td>
                   <td>
                     <div className="row-actions">
-                      <button className="btn btn-ghost btn-icon btn-sm" title="Cadastrar/trocar foto" onClick={() => triggerPhotoUpload(u.id)}>
-                        {uploadingId === String(u.id) ? <span className="spinner spinner-dark" /> : <Icon name="camera" size={15} />}
-                      </button>
+                      {device.model !== 'xpe3200' && (
+                        <button className="btn btn-ghost btn-icon btn-sm" title="Cadastrar/trocar foto" onClick={() => triggerPhotoUpload(u.id)}>
+                          {uploadingId === String(u.id) ? <span className="spinner spinner-dark" /> : <Icon name="camera" size={15} />}
+                        </button>
+                      )}
                       <button className="btn btn-ghost btn-icon btn-sm" title="Editar" onClick={() => { setEditing(u); setShowForm(true); }}>
                         <Icon name="edit" size={15} />
                       </button>
