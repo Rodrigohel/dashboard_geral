@@ -105,7 +105,11 @@ export function gatewayProxy(moduleKey) {
       return res.status(503).json({ error: `Gateway "${moduleKey}" ainda não foi configurado nas Configurações.` });
     }
 
-    const targetPath = req.originalUrl.replace(new RegExp(`^/gateway/${moduleKey}`), '/api');
+    // Só tira o prefixo "/gateway/<moduleKey>" — o resto da URL (ex.:
+    // "/api/auth/me") já vem completo do cliente, não precisa (e não deve)
+    // reescrever de novo, senão vira "/api/api/..." (bug real, encontrado ao
+    // usar este proxy pela primeira vez de verdade, com os painéis embutidos).
+    const targetPath = req.originalUrl.replace(new RegExp(`^/gateway/${moduleKey}`), '');
     const doRequest = async (token) =>
       fetch(`${gw.baseUrl}${targetPath}`, {
         method: req.method,
