@@ -274,13 +274,15 @@ async function xpeSetUserPhoto(device, password, userId, fileBuffer, mimetype) {
 
   // O equipamento busca a foto de forma assíncrona depois do "OK" — retcode
   // 0 não garante nada (já vimos campos que ele aceita e ignora), e a busca
-  // pode demorar mais que alguns segundos — confirmado contra hardware real
-  // que uma espera curta (2,5s) dava falso negativo. Tenta por até ~20s.
+  // pode demorar mais que alguns segundos. Confirmado contra hardware real:
+  // ao TROCAR uma foto já existente, o equipamento reaproveita a mesma URL
+  // em FaceID (não muda), então comparar FaceID antes/depois dá falso
+  // negativo sempre que já havia foto — só dá pra confirmar por FaceStatus.
   let updated = false;
   for (let i = 0; i < 8 && !updated; i++) {
     await new Promise((r) => setTimeout(r, 2500));
     const after = await xpeFindById(device, password, userId);
-    updated = existing.FaceStatus !== 1 ? after?.FaceStatus === 1 : after?.FaceID !== existing.FaceID;
+    updated = after?.FaceStatus === 1;
   }
   if (!updated) {
     throw new Error(
@@ -291,7 +293,14 @@ async function xpeSetUserPhoto(device, password, userId, fileBuffer, mimetype) {
 }
 
 async function xpeGetUserPhoto(device, password, userId) {
-  const existing = await xpeFindById(device, password, userId);
+  let existing = await xpeFindById(device, password, userId);
+  // FaceStatus pode ficar "atrasado" por alguns segundos logo depois de uma
+  // troca de foto (mesmo problema visto em xpeSetUserPhoto) — tenta mais
+  // algumas vezes antes de dizer que não tem foto.
+  for (let i = 0; i < 2 && existing && existing.FaceStatus !== 1; i++) {
+    await new Promise((r) => setTimeout(r, 1500));
+    existing = await xpeFindById(device, password, userId);
+  }
   if (!existing || existing.FaceStatus !== 1 || !existing.FaceID) return null;
   const auth = 'Basic ' + Buffer.from(`${device.device_username}:${password}`).toString('base64');
   return fetchDeviceBinary(existing.FaceID, auth);
