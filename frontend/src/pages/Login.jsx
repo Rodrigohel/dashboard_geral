@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import Icon from '../components/Icon.jsx';
 
-export default function Login({ onLogin }) {
+export default function Login({ branding, onLogin }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -24,7 +24,11 @@ export default function Login({ onLogin }) {
   return (
     <div className="login-screen">
       <div className="login-card surface glass">
-        <div className="brand-mark">P</div>
+        {branding.logoUrl ? (
+          <img src={branding.logoUrl} alt={branding.name} className="brand-mark brand-logo-img" />
+        ) : (
+          <div className="brand-mark">{branding.name.charAt(0).toUpperCase()}</div>
+        )}
         <div className="login-title">Bem-vindo de volta</div>
         <div className="login-subtitle">Entre para acessar seus painéis</div>
 

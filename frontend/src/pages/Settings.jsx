@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import Icon from '../components/Icon.jsx';
 import { api } from '../api/client.js';
 import { useToast } from '../hooks/useToast.jsx';
+import { useBranding } from '../hooks/useBranding.js';
 
 const GATEWAYS = [
   {
@@ -124,6 +125,89 @@ function GatewayCard({ meta, value, onSave }) {
   );
 }
 
+function BrandingCard() {
+  const current = useBranding();
+  const [name, setName] = useState('');
+  const [logoFile, setLogoFile] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const toast = useToast();
+
+  useEffect(() => setName(current.name), [current.name]);
+
+  function handleFile(e) {
+    const file = e.target.files?.[0] || null;
+    setLogoFile(file);
+    setPreviewUrl((old) => {
+      if (old) URL.revokeObjectURL(old);
+      return file ? URL.createObjectURL(file) : null;
+    });
+  }
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      await api.branding.save({ name, logoFile });
+      toast('Marca atualizada.');
+      setTimeout(() => window.location.reload(), 600);
+    } catch (err) {
+      toast(err.message, 'error');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const shownLogo = previewUrl || current.logoUrl;
+
+  return (
+    <div className="surface" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div>
+        <div style={{ fontWeight: 700 }}>Marca</div>
+        <div className="field-hint">Nome e logo mostrados na tela de login e na barra lateral — troque pela marca do seu cliente.</div>
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+        <div
+          style={{
+            width: 56,
+            height: 56,
+            borderRadius: 14,
+            flexShrink: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            overflow: 'hidden',
+            background: shownLogo ? 'var(--bg-surface)' : 'linear-gradient(135deg, var(--accent-500), var(--violet-500))',
+            border: '1px solid var(--border-subtle)',
+            color: 'white',
+            fontWeight: 800,
+            fontSize: 20,
+            fontFamily: 'var(--font-display)',
+          }}
+        >
+          {shownLogo ? <img src={shownLogo} alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} /> : name.charAt(0).toUpperCase()}
+        </div>
+        <div className="field" style={{ flex: 1 }}>
+          <label className="field-label">Logo (opcional)</label>
+          <input className="input" type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp" onChange={handleFile} />
+          <span className="field-hint">PNG, JPG, SVG ou WEBP, até 2MB. Sem logo, mostra a inicial do nome.</span>
+        </div>
+      </div>
+
+      <div className="field">
+        <label className="field-label">Nome do sistema</label>
+        <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Portal" />
+      </div>
+
+      <div>
+        <button className="btn btn-primary" onClick={handleSave} disabled={saving || !name.trim()}>
+          {saving ? <span className="spinner" /> : 'Salvar marca'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function Settings() {
   const [gateways, setGateways] = useState(null);
 
@@ -146,6 +230,8 @@ export default function Settings() {
         </div>
       </div>
 
+      <BrandingCard />
+
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         {gateways === null ? (
           <div className="skeleton" style={{ height: 220, borderRadius: 20 }} />
@@ -158,10 +244,12 @@ export default function Settings() {
         <Icon name="key" size={20} style={{ color: 'var(--accent-400)', flexShrink: 0, marginTop: 2 }} />
         <div style={{ fontSize: 13.5, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
           <strong style={{ color: 'var(--text-primary)' }}>O que cada campo faz hoje:</strong> o botão "Abrir painel"
-          na tela Início usa só a <strong>URL pública</strong> — abre o painel original numa aba nova, com o login
-          dele mesmo (login único ainda não está pronto pra Rede/Interfone). Já o <strong>endereço interno da API</strong> e
-          a <strong>conta de serviço</strong> preparam a integração completa (uma tela só, sem login duplo) — clique em
-          "Testar conexão" pra confirmar que essa conta de serviço realmente consegue logar naquele painel.
+          na tela Início abre o painel dentro do próprio Portal (login único, sem pedir senha de novo) quando o
+          servidor tiver o build embutido configurado (<code>GATEWAY_*_FRONTEND_DIST</code> no <code>.env</code>) — sem
+          isso, abre o painel original numa aba nova usando a <strong>URL pública</strong>. Já o{' '}
+          <strong>endereço interno da API</strong> e a <strong>conta de serviço</strong> são o que faz esse login único
+          funcionar por trás — clique em "Testar conexão" pra confirmar que essa conta de serviço realmente consegue
+          logar naquele painel.
         </div>
       </div>
     </>

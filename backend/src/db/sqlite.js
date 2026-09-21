@@ -65,6 +65,16 @@ db.exec(`
     service_username TEXT NOT NULL DEFAULT '',
     service_password_enc TEXT NOT NULL DEFAULT ''
   );
+
+  -- Nome e logo mostrados na tela de login e na barra lateral — uma linha
+  -- só (id fixo = 1). Público de propósito (GET): a tela de login precisa
+  -- mostrar isso ANTES do usuário entrar.
+  CREATE TABLE IF NOT EXISTS branding (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    name TEXT NOT NULL DEFAULT 'Portal',
+    logo_filename TEXT NOT NULL DEFAULT ''
+  );
+  INSERT OR IGNORE INTO branding (id, name, logo_filename) VALUES (1, 'Portal', '');
 `);
 
 const gatewayColumns = db.prepare('PRAGMA table_info(module_gateways)').all().map((c) => c.name);

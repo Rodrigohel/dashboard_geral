@@ -89,6 +89,16 @@ export const api = {
     health: () => request('/api/system/health'),
   },
 
+  branding: {
+    get: () => request('/api/branding'),
+    save: ({ name, logoFile }) => {
+      const form = new FormData();
+      form.append('name', name);
+      if (logoFile) form.append('logo', logoFile);
+      return request('/api/branding', { method: 'PUT', body: form, isForm: true });
+    },
+  },
+
   settings: {
     getGateways: () => request('/api/settings/gateways'),
     saveGateway: (moduleKey, payload) => request(`/api/settings/gateways/${moduleKey}`, { method: 'PUT', body: payload }),
