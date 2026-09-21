@@ -62,6 +62,26 @@ export const api = {
         form.append('photo', file);
         return request(`/api/access/devices/${deviceId}/users/${userId}/photo`, { method: 'POST', body: form, isForm: true });
       },
+      // Não usa `request()`: a resposta é a imagem em si (binário), não
+      // JSON — e um <img src="..."> puro não manda o header Authorization,
+      // por isso buscamos com fetch manual e viramos um blob URL local.
+      getPhotoBlobUrl: async (deviceId, userId) => {
+        const token = getToken();
+        const res = await fetch(`/api/access/devices/${deviceId}/users/${userId}/photo`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (!res.ok) {
+          let message = `Erro ${res.status}`;
+          try {
+            message = (await res.json()).error || message;
+          } catch {
+            // resposta sem corpo JSON — mantém a mensagem genérica
+          }
+          throw new Error(message);
+        }
+        const blob = await res.blob();
+        return URL.createObjectURL(blob);
+      },
     },
   },
 
