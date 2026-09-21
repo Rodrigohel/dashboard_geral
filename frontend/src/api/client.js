@@ -107,6 +107,16 @@ export const api = {
       return request('/gateway/rede/api/floors', { method: 'POST', body: form, isForm: true });
     },
     deleteFloor: (id) => request(`/gateway/rede/api/floors/${id}`, { method: 'DELETE' }),
+    // Não dá pra usar <img src="/gateway/rede/..."> puro: o gateway exige
+    // Authorization, e um <img> comum não manda esse header — o link
+    // "quebra" (404/401, ícone de imagem quebrada). Busca autenticada com
+    // fetch e vira blob local, igual já fazemos com a foto do porteiro.
+    getFloorImageBlobUrl: async (imageUrl) => {
+      const token = getToken();
+      const res = await fetch(`/gateway/rede${imageUrl}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+      if (!res.ok) throw new Error(`Não foi possível carregar a imagem (erro ${res.status}).`);
+      return URL.createObjectURL(await res.blob());
+    },
     networkHistory: (hours = 24) => request(`/gateway/rede/api/stats/network-history?hours=${hours}`),
     flappiest: () => request('/gateway/rede/api/stats/flappiest?hours=24&limit=5'),
     history: () => request('/gateway/rede/api/history?limit=30'),
