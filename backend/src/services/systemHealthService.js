@@ -133,3 +133,31 @@ export async function getServerHealth() {
     services,
   };
 }
+
+// Histórico em memória (zera a cada reinício do processo, de propósito —
+// não é dado crítico o bastante pra justificar persistir em disco) pra
+// alimentar o gráfico de CPU/memória ao longo do tempo na tela Início.
+// Uma amostra por minuto, guarda as últimas 2h.
+const HISTORY_MAX = 120;
+const history = [];
+let samplerStarted = false;
+
+export function startHealthHistorySampler() {
+  if (samplerStarted) return;
+  samplerStarted = true;
+  const sampleOnce = async () => {
+    try {
+      const h = await getServerHealth();
+      history.push({ t: Date.now(), cpu: h.cpu.loadPercent, memory: h.memory.usedPercent });
+      if (history.length > HISTORY_MAX) history.shift();
+    } catch {
+      // falha pontual de amostra — só pula, não derruba o sampler
+    }
+  };
+  sampleOnce();
+  setInterval(sampleOnce, 60_000);
+}
+
+export function getHealthHistory() {
+  return history;
+}

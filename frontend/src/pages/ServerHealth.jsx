@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import Icon from '../components/Icon.jsx';
+import HealthHistoryChart from '../components/HealthHistoryChart.jsx';
 import { api } from '../api/client.js';
 
 const POLL_MS = 8000;
@@ -68,6 +69,7 @@ function ServiceStatusBadge({ status }) {
 export default function ServerHealth() {
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
+  const [history, setHistory] = useState([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -76,6 +78,10 @@ export default function ServerHealth() {
         .health()
         .then((d) => !cancelled && (setData(d), setError('')))
         .catch((err) => !cancelled && setError(err.message));
+      api.system
+        .healthHistory()
+        .then((h) => !cancelled && setHistory(h))
+        .catch(() => {});
     }
     load();
     const id = setInterval(load, POLL_MS);
@@ -142,6 +148,14 @@ export default function ServerHealth() {
               level={data.cpu.temperatureCelsius !== null ? levelFor(data.cpu.temperatureCelsius, { warn: 70, danger: 85 }) : undefined}
               sub={data.cpu.temperatureCelsius === null ? 'Sensor não exposto pelo sistema' : 'Aproximado — varia por hardware'}
             />
+          </div>
+
+          <div className="surface" style={{ padding: 24 }}>
+            <div style={{ fontWeight: 700, marginBottom: 2 }}>Últimas horas</div>
+            <p className="field-hint" style={{ marginBottom: 12 }}>
+              Uma amostra por minuto, desde que o Portal foi ligado pela última vez.
+            </p>
+            <HealthHistoryChart samples={history} />
           </div>
 
           <div className="surface" style={{ padding: 24 }}>
