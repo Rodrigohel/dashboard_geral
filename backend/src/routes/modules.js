@@ -3,11 +3,21 @@
 // contagem de equipamentos) — nada de credenciais, então não exige
 // requireOwner como /api/settings.
 import { Router } from 'express';
+import fs from 'node:fs';
+import path from 'node:path';
 import { db } from '../db/sqlite.js';
-import { MODULE_KEYS } from '../config.js';
+import { config, MODULE_KEYS } from '../config.js';
 import { getGatewayConfig } from '../services/gatewayService.js';
 
 export const modulesRouter = Router();
+
+// Mesma checagem que server.js usa pra decidir se serve o frontend embutido
+// em /apps/<key> — se o dist existir, o front pode abrir o painel dentro do
+// próprio Portal (iframe) em vez de link externo em nova aba.
+function hasEmbeddedFrontend(key) {
+  const dist = config.gateways[key]?.frontendDist;
+  return Boolean(dist && fs.existsSync(path.join(dist, 'index.html')));
+}
 
 modulesRouter.get('/', (req, res) => {
   const isOwner = req.user.role === 'owner';
@@ -19,7 +29,7 @@ modulesRouter.get('/', (req, res) => {
   for (const key of ['rede', 'interfone']) {
     if (!allowedModules.includes(key)) continue;
     const gw = getGatewayConfig(key);
-    result[key] = { publicUrl: gw.publicUrl, configured: gw.configured };
+    result[key] = { publicUrl: gw.publicUrl, configured: gw.configured, embedded: hasEmbeddedFrontend(key) };
   }
 
   if (allowedModules.includes('acesso')) {

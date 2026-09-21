@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import Icon from '../components/Icon.jsx';
 import { api } from '../api/client.js';
+import DevicesList from './AccessControl/DevicesList.jsx';
 
 function levelFor(percent, { warn = 60, danger = 85 } = {}) {
   if (percent === null || percent === undefined) return 'ok';
@@ -75,15 +76,11 @@ const MODULE_META = {
     icon: 'phone',
     desc: 'Ramais, chamadas ativas e saúde do PBX/Asterisk.',
   },
-  acesso: {
-    title: 'Controle de acesso',
-    icon: 'shieldFace',
-    desc: 'Inclua, edite e remova usuários dos porteiros com reconhecimento facial, de qualquer lugar.',
-  },
 };
 
-export default function Home({ user, onNavigate }) {
+export default function Home({ user, onNavigate, onOpenDevice }) {
   const [modules, setModules] = useState(null);
+  const isOwner = user.role === 'owner';
 
   useEffect(() => {
     api.modules().then(setModules).catch(() => setModules({}));
@@ -92,6 +89,9 @@ export default function Home({ user, onNavigate }) {
   const firstName = (user.displayName || user.username).split(' ')[0];
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Bom dia' : hour < 18 ? 'Boa tarde' : 'Boa noite';
+
+  const linkModules = user.modules?.filter((k) => MODULE_META[k]) || [];
+  const hasAcesso = user.modules?.includes('acesso');
 
   return (
     <>
@@ -104,71 +104,70 @@ export default function Home({ user, onNavigate }) {
         </div>
       </div>
 
-      {user.role === 'owner' && <ServerHealthWidget onNavigate={onNavigate} />}
+      {isOwner && <ServerHealthWidget onNavigate={onNavigate} />}
 
-      <div className="module-grid">
-        {user.modules?.map((key) => {
-          const meta = MODULE_META[key];
-          if (!meta) return null;
-          const info = modules?.[key];
+      {linkModules.length > 0 && (
+        <div className="module-grid">
+          {linkModules.map((key) => {
+            const meta = MODULE_META[key];
+            const info = modules?.[key];
 
-          return (
-            <div key={key} className="module-card surface">
-              <div className="module-card-icon badge-accent" style={{ background: 'var(--accent-glow)' }}>
-                <Icon name={meta.icon} size={22} className="module-card-icon-svg" />
-              </div>
-              <div>
-                <div className="module-card-title">{meta.title}</div>
-                <div className="module-card-desc">{meta.desc}</div>
-              </div>
+            return (
+              <div key={key} className="module-card surface">
+                <div className="module-card-icon badge-accent" style={{ background: 'var(--accent-glow)' }}>
+                  <Icon name={meta.icon} size={22} className="module-card-icon-svg" />
+                </div>
+                <div>
+                  <div className="module-card-title">{meta.title}</div>
+                  <div className="module-card-desc">{meta.desc}</div>
+                </div>
 
-              <div className="module-card-footer">
-                {key === 'acesso' ? (
-                  <>
-                    <span className="badge badge-neutral">
-                      {info?.deviceCount ?? '…'} equipamento{info?.deviceCount === 1 ? '' : 's'}
-                    </span>
-                    <button className="btn btn-secondary btn-sm" onClick={() => onNavigate('acesso')}>
-                      Gerenciar
-                    </button>
-                  </>
-                ) : info?.publicUrl ? (
-                  <>
-                    <span className="badge badge-success">
-                      <span className="badge-dot" /> disponível
-                    </span>
-                    <a className="btn btn-secondary btn-sm" href={info.publicUrl} target="_blank" rel="noreferrer">
-                      Abrir painel <Icon name="externalLink" size={14} />
-                    </a>
-                  </>
-                ) : info?.configured ? (
-                  <>
-                    <span className="badge badge-warning">
-                      <span className="badge-dot" /> falta o link público
-                    </span>
-                    {user.role === 'owner' && (
-                      <button className="btn btn-secondary btn-sm" onClick={() => onNavigate('configuracoes')}>
-                        Configurar
+                <div className="module-card-footer">
+                  {info?.embedded || info?.publicUrl ? (
+                    <>
+                      <span className="badge badge-success">
+                        <span className="badge-dot" /> disponível
+                      </span>
+                      <button className="btn btn-secondary btn-sm" onClick={() => onNavigate(key)}>
+                        Abrir painel
                       </button>
-                    )}
-                  </>
-                ) : (
-                  <>
-                    <span className="badge badge-warning">
-                      <span className="badge-dot" /> não configurado
-                    </span>
-                    {user.role === 'owner' && (
-                      <button className="btn btn-secondary btn-sm" onClick={() => onNavigate('configuracoes')}>
-                        Configurar
-                      </button>
-                    )}
-                  </>
-                )}
+                    </>
+                  ) : info?.configured ? (
+                    <>
+                      <span className="badge badge-warning">
+                        <span className="badge-dot" /> falta o link público
+                      </span>
+                      {isOwner && (
+                        <button className="btn btn-secondary btn-sm" onClick={() => onNavigate('configuracoes')}>
+                          Configurar
+                        </button>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <span className="badge badge-warning">
+                        <span className="badge-dot" /> não configurado
+                      </span>
+                      {isOwner && (
+                        <button className="btn btn-secondary btn-sm" onClick={() => onNavigate('configuracoes')}>
+                          Configurar
+                        </button>
+                      )}
+                    </>
+                  )}
+                </div>
               </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
+
+      {hasAcesso && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <h2 style={{ fontSize: 17, fontWeight: 700 }}>Porteiros</h2>
+          <DevicesList isOwner={isOwner} onOpenDevice={onOpenDevice} />
+        </div>
+      )}
 
       {(!user.modules || user.modules.length === 0) && (
         <div className="surface" style={{ padding: 32, textAlign: 'center', color: 'var(--text-secondary)' }}>

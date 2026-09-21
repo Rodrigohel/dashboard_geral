@@ -15,6 +15,14 @@ export default function ModuleLink({ moduleKey, isOwner, onNavigate }) {
     api.modules().then((data) => setInfo(data[moduleKey] || {}));
   }, [moduleKey]);
 
+  if (info?.embedded) {
+    return (
+      <div className="module-frame-wrap">
+        <iframe src={`/apps/${moduleKey}/`} title={meta.title} />
+      </div>
+    );
+  }
+
   return (
     <div
       className="surface"
