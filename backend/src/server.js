@@ -49,32 +49,33 @@ app.use('/api/system', requireAuth, requireOwner, systemRouter);
 // como se fossem API própria; por trás, isso vira uma chamada autenticada
 // para o backend real de cada painel (ver services/gatewayService.js).
 //
-// Dentro de "rede" duas ações ficam atrás de permissão extra, mesmo com o
-// módulo inteiro liberado: mexer no cadastro de equipamentos (criar, editar,
-// excluir, importar CSV, escanear a rede, identificar) e tudo de planta
-// baixa (o painel de Rede libera a LEITURA da planta baixa pra qualquer
-// usuário logado nele — ver floors.js do painel — então sem essa regra
-// aqui, quem só tem "rede" já enxergaria o mapa dos equipamentos).
+// Rede é só consulta no Portal: cadastro/edição/exclusão de equipamento e
+// tudo de planta baixa (criar pavimento, posicionar) são feitos no painel
+// de Rede original, não aqui — por isso toda escrita fica travada pro
+// dono (nem ele usa isso pelo Portal; é só rede de segurança caso alguém
+// tente chamar a API do gateway direto). Leitura da planta baixa e da
+// análise/histórico continuam atrás das permissões de funcionalidade
+// (controlam o que cada usuário VÊ, não o que ele pode mudar).
 const REDE_FEATURE_RULES = [
   {
-    test: (method, path) => /^\/api\/floors(\/|$)/.test(path) || /\/floor-position$/.test(path),
+    test: (method, path) => method === 'GET' && /^\/api\/floors(\/|$)/.test(path),
     feature: 'rede.plantaBaixa',
     message: 'Você não tem acesso à planta baixa.',
   },
   {
+    test: (method, path) => method !== 'GET' && (/^\/api\/floors(\/|$)/.test(path) || /\/floor-position$/.test(path)),
+    requireOwner: true,
+    message: 'Planta baixa é gerenciada no painel de Rede original.',
+  },
+  {
     test: (method, path) => method !== 'GET' && /^\/api\/devices(\/|$)/.test(path) && !/\/favorite$/.test(path),
-    feature: 'rede.dispositivos',
-    message: 'Você não tem acesso ao cadastro de equipamentos.',
+    requireOwner: true,
+    message: 'Cadastro de equipamentos é feito no painel de Rede original.',
   },
   {
     test: (method, path) => /^\/api\/(stats\/network-history|stats\/flappiest|stats\/report\/executive|history)(\/|$|\?)/.test(path),
     feature: 'rede.analise',
     message: 'Você não tem acesso à análise de rede.',
-  },
-  {
-    test: (method, path) => method !== 'GET' && /^\/api\/devices\/\d+\/floor-position$/.test(path),
-    feature: 'rede.plantaBaixa',
-    message: 'Você não tem acesso à planta baixa.',
   },
   {
     // Configurações gerais do painel de Rede (nome, Telegram, intervalos) —

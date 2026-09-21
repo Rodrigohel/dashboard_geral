@@ -96,17 +96,7 @@ export const api = {
     summary: () => request('/gateway/rede/api/devices/summary'),
     devices: () => request('/gateway/rede/api/devices'),
     alerts: () => request('/gateway/rede/api/alerts'),
-    createDevice: (payload) => request('/gateway/rede/api/devices', { method: 'POST', body: payload }),
-    updateDevice: (id, payload) => request(`/gateway/rede/api/devices/${id}`, { method: 'PUT', body: payload }),
-    deleteDevice: (id) => request(`/gateway/rede/api/devices/${id}`, { method: 'DELETE' }),
     floors: () => request('/gateway/rede/api/floors'),
-    createFloor: ({ name, imageFile }) => {
-      const form = new FormData();
-      form.append('name', name);
-      form.append('image', imageFile);
-      return request('/gateway/rede/api/floors', { method: 'POST', body: form, isForm: true });
-    },
-    deleteFloor: (id) => request(`/gateway/rede/api/floors/${id}`, { method: 'DELETE' }),
     // Não dá pra usar <img src="/gateway/rede/..."> puro: o gateway exige
     // Authorization, e um <img> comum não manda esse header — o link
     // "quebra" (404/401, ícone de imagem quebrada). Busca autenticada com

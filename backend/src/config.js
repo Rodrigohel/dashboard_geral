@@ -49,8 +49,10 @@ export const MODULE_KEYS = ['rede', 'interfone', 'acesso'];
 
 // Permissões "de funcionalidade", mais finas que um módulo inteiro — hoje só
 // dentro de "rede", pra dar de liberar o monitoramento geral sem liberar
-// ações sensíveis (cadastro/exclusão de equipamento, planta baixa). Guardadas
-// na mesma tabela `permissions` do módulo (mesmo formato user_id+chave), só
-// com uma chave "namespaced" (ex.: "rede.dispositivos") em vez do nome do
-// módulo puro.
-export const FEATURE_KEYS = ['rede.dispositivos', 'rede.plantaBaixa', 'rede.analise'];
+// telas extras (planta baixa, análise/histórico). Guardadas na mesma tabela
+// `permissions` do módulo (mesmo formato user_id+chave), só com uma chave
+// "namespaced" (ex.: "rede.plantaBaixa") em vez do nome do módulo puro.
+// Cadastro/edição/exclusão de equipamento não é feito pelo Portal (só
+// consulta) — por isso não existe "rede.dispositivos" aqui: isso é feito
+// direto no painel de Rede original.
+export const FEATURE_KEYS = ['rede.plantaBaixa', 'rede.analise'];
