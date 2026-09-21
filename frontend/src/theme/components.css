@@ -22,7 +22,7 @@
   transform: none;
 }
 .btn-primary {
-  background: linear-gradient(135deg, var(--accent-500), var(--violet-500));
+  background: linear-gradient(135deg, var(--accent-400), var(--accent-600));
   color: white;
   box-shadow: 0 8px 20px -6px var(--accent-glow);
 }
@@ -344,7 +344,7 @@ table.data-table {
   width: 38px;
   height: 38px;
   border-radius: 50%;
-  background: linear-gradient(135deg, var(--accent-500), var(--violet-500));
+  background: linear-gradient(135deg, var(--accent-400), var(--accent-600));
   color: white;
   font-weight: 700;
   font-size: 14px;

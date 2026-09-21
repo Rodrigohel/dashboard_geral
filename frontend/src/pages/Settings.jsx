@@ -179,7 +179,7 @@ function BrandingCard() {
             alignItems: 'center',
             justifyContent: 'center',
             overflow: 'hidden',
-            background: shownLogo ? 'var(--bg-surface)' : 'linear-gradient(135deg, var(--accent-500), var(--violet-500))',
+            background: shownLogo ? 'none' : 'linear-gradient(135deg, var(--accent-400), var(--accent-600))',
             border: '1px solid var(--border-subtle)',
             color: 'white',
             fontWeight: 800,
