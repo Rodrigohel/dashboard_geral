@@ -24,6 +24,8 @@
 //   - Não existe endpoint de listagem de usuários na implementação de
 //     referência — listar usuários não é suportado ainda para este modelo.
 import crypto from 'node:crypto';
+import http from 'node:http';
+import https from 'node:https';
 
 function baseUrlOf(device) {
   const scheme = device.use_https ? 'https' : 'http';
@@ -81,10 +83,46 @@ function xpeFromItem(item) {
     id: item.ID,
     name: item.Name,
     registration: item.UserID,
-    hasFace: Boolean(item.FaceImage),
+    apartment: item.LiftFloorNum || '',
+    // Confirmado via captura real de `user/get`: não existe campo de foto em
+    // base64 nenhuma hora — o que existe é `FaceStatus` (0/1) + `FaceID`
+    // (URL da foto, servida pelo próprio equipamento).
+    hasFace: item.FaceStatus === 1,
     cardNumber: item.CardCode || null,
-    expiration: null, // XPE não tem validade configurável por usuário (Validity é fixo)
+    // Validity aceita outros valores além de 0, mas o formato não está
+    // confirmado — todo usuário cadastrado pela própria interface do
+    // equipamento está com Validity=0 (sem prazo), então não editamos esse
+    // campo pelo Portal por enquanto.
+    expiration: null,
   };
+}
+
+// Busca o binário de uma URL absoluta que o próprio equipamento devolveu
+// (ex.: FaceID). Usa os módulos nativos (não `fetch`) porque essas URLs vêm
+// em HTTPS com certificado autoassinado do equipamento — precisa aceitar
+// sem validar (mesmo aparelho da rede local que já autenticamos via API).
+function fetchDeviceBinary(url, auth) {
+  return new Promise((resolve, reject) => {
+    const isHttps = url.startsWith('https:');
+    const mod = isHttps ? https : http;
+    const opts = {
+      headers: { Authorization: auth },
+      timeout: 8000,
+      ...(isHttps ? { agent: new https.Agent({ rejectUnauthorized: false }) } : {}),
+    };
+    const req = mod.get(url, opts, (res) => {
+      if (res.statusCode && res.statusCode >= 400) {
+        res.resume();
+        reject(new Error(`Equipamento recusou a foto (HTTP ${res.statusCode}).`));
+        return;
+      }
+      const chunks = [];
+      res.on('data', (c) => chunks.push(c));
+      res.on('end', () => resolve(Buffer.concat(chunks)));
+    });
+    req.on('timeout', () => req.destroy(new Error('Tempo esgotado ao baixar a foto do equipamento.')));
+    req.on('error', reject);
+  });
 }
 
 // NOTE: formato exato do CardCode não confirmado por documentação oficial
@@ -108,10 +146,17 @@ function xpeBuildItem(input) {
   return {
     UserID: input.registration || deriveRegistration(input.name),
     Name: input.name,
-    Validity: '0',
-    Relay: '1',
+    Validity: 0,
+    // O nome real desse campo é "WebRelay", não "Relay" — confirmado via
+    // captura real de `user/get` (todo usuário cadastrado pela própria
+    // interface do equipamento está com WebRelay="0"; "Relay" é um nome
+    // que a API simplesmente ignora, ficando com o padrão do equipamento).
+    WebRelay: '0',
     PrivatePIN: input.password || '',
     CardCode: input.cardNumber ? toXpeCardCode(input.cardNumber) : '',
+    // Campo que a interface do próprio equipamento chama de "Apartamento"
+    // (controla o andar liberado no elevador) — confirmado via captura real.
+    LiftFloorNum: input.apartment || '0',
   };
 }
 
@@ -150,20 +195,17 @@ function xpeSafeExisting(existing) {
   return {
     UserID: existing.UserID,
     Name: existing.Name,
-    Validity: existing.Validity ?? '0',
-    Relay: existing.Relay ?? '1',
+    Validity: existing.Validity ?? 0,
+    WebRelay: existing.WebRelay ?? '0',
     PrivatePIN: existing.PrivatePIN ?? '',
     CardCode: existing.CardCode ?? '',
-    // Só inclui se já existir — reenviar uma foto já cadastrada de volta é
-    // seguro (é o próprio valor que "get" acabou de devolver); não manda o
-    // campo vazio à toa quando não há foto.
-    ...(existing.FaceImage ? { FaceImage: existing.FaceImage } : {}),
+    LiftFloorNum: existing.LiftFloorNum ?? '0',
   };
 }
 
 async function xpeUpdateUser(device, password, userId, input) {
   // user/set substitui o item inteiro (não é PATCH) — busca o existente e
-  // mescla, senão campos não enviados (ex.: FaceImage já cadastrada) somem.
+  // mescla, senão campos não enviados no formulário (ex.: Apartamento) somem.
   const existing = await xpeFindById(device, password, userId);
   const merged = { ...xpeSafeExisting(existing), ...xpeBuildItem(input), ID: String(userId) };
   await xpeCall(device, password, 'user', 'set', { item: [merged] });
@@ -176,20 +218,23 @@ async function xpeDeleteUser(device, password, userId) {
   await xpeCall(device, password, 'user', 'del', { item: [{ ID: String(userId) }] });
 }
 
-async function xpeSetUserPhoto(device, password, userId, fileBuffer) {
-  const existing = await xpeFindById(device, password, userId);
-  if (!existing) throw new Error('Usuário não encontrado no equipamento.');
-  if (fileBuffer.length > 200 * 1024) {
-    throw new Error('Foto maior que 200KB — reduza o tamanho do arquivo (limite do equipamento).');
-  }
-  const merged = { ID: String(userId), ...xpeSafeExisting(existing), FaceImage: fileBuffer.toString('base64') };
-  await xpeCall(device, password, 'user', 'set', { item: [merged] });
+// Confirmado via captura real de `user/get`: o JSON não tem NENHUM campo de
+// imagem (só `FaceID`, uma URL pra foto já cadastrada) — não existe onde
+// mandar bytes de foto pelo `user/set`. O cadastro de foto nesse equipamento
+// só foi confirmado funcionando pelo formulário legado da própria interface
+// web (upload multipart em `do?id=16...`), ainda não replicado aqui.
+async function xpeSetUserPhoto() {
+  throw new Error(
+    'Cadastrar/trocar foto por aqui ainda não é suportado neste equipamento — use a interface web do próprio ' +
+      'equipamento (seção Facial → Selecionar/Capturar) até isso ser implementado.'
+  );
 }
 
 async function xpeGetUserPhoto(device, password, userId) {
   const existing = await xpeFindById(device, password, userId);
-  if (!existing || !existing.FaceImage) return null;
-  return Buffer.from(existing.FaceImage, 'base64');
+  if (!existing || existing.FaceStatus !== 1 || !existing.FaceID) return null;
+  const auth = 'Basic ' + Buffer.from(`${device.device_username}:${password}`).toString('base64');
+  return fetchDeviceBinary(existing.FaceID, auth);
 }
 
 async function xpeTestConnection(device, password) {

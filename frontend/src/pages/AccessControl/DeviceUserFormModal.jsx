@@ -5,6 +5,7 @@ export default function DeviceUserFormModal({ user, onClose, onSave }) {
   const [form, setForm] = useState({
     name: user?.name || '',
     registration: user?.registration || '',
+    apartment: user?.apartment || '',
     password: '',
     cardNumber: user?.cardNumber || '',
     expiration: user?.expiration ? user.expiration.slice(0, 10) : '',
@@ -56,9 +57,15 @@ export default function DeviceUserFormModal({ user, onClose, onSave }) {
           <input className="input" value={form.name} onChange={(e) => set('name', e.target.value)} placeholder="Ex.: João da Silva" autoFocus />
         </div>
 
-        <div className="field">
-          <label className="field-label">Matrícula / código</label>
-          <input className="input" value={form.registration} onChange={(e) => set('registration', e.target.value)} placeholder="Opcional — gerado automaticamente se vazio" />
+        <div className="grid-2">
+          <div className="field">
+            <label className="field-label">Matrícula / código</label>
+            <input className="input" value={form.registration} onChange={(e) => set('registration', e.target.value)} placeholder="Opcional — gerado automaticamente se vazio" />
+          </div>
+          <div className="field">
+            <label className="field-label">Apartamento (opcional)</label>
+            <input className="input" value={form.apartment} onChange={(e) => set('apartment', e.target.value)} placeholder="Ex.: 2502" />
+          </div>
         </div>
 
         <div className="grid-2">
@@ -79,7 +86,8 @@ export default function DeviceUserFormModal({ user, onClose, onSave }) {
         </div>
 
         <span className="field-hint">
-          O cadastro da <strong>foto facial</strong> é feito depois de salvar, na própria linha do usuário na lista.
+          Cadastrar/trocar <strong>foto facial</strong> ainda não é suportado pelo Portal neste equipamento — use a
+          interface web do próprio porteiro. Já dá pra visualizar a foto cadastrada pela lista de usuários.
         </span>
       </form>
     </Modal>
