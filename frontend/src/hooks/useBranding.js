@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api/client.js';
 
-const DEFAULT_BRANDING = { name: 'Portal', logoUrl: null };
+const DEFAULT_BRANDING = { name: 'Portal', logoUrl: null, accentColor: '' };
 
 // Nome/logo do sistema — endpoint público, usado tanto antes do login
 // (tela de Login) quanto depois (sidebar). Busca uma vez só por sessão do

@@ -304,6 +304,96 @@ function FloorPlanSection({ isOwner }) {
   );
 }
 
+function formatDuration(ms) {
+  if (!ms) return '—';
+  const mins = Math.round(ms / 60000);
+  if (mins < 60) return `${mins} min`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `${hours} h`;
+  return `${Math.round(hours / 24)} d`;
+}
+
+function AnaliseSection() {
+  const [snapshot, setSnapshot] = useState(null);
+  const [flappiest, setFlappiest] = useState([]);
+  const [history, setHistory] = useState([]);
+
+  useEffect(() => {
+    Promise.all([api.rede.networkHistory(24), api.rede.flappiest(), api.rede.history()])
+      .then(([nh, fl, hi]) => {
+        const rows = nh.data || [];
+        setSnapshot(rows[rows.length - 1] || null);
+        setFlappiest(fl.data || []);
+        setHistory(hi.data || []);
+      })
+      .catch(() => {});
+  }, []);
+
+  return (
+    <>
+      <div className="surface" style={{ padding: 24 }}>
+        <div style={{ fontWeight: 700, marginBottom: 4 }}>Análise de rede</div>
+        <p className="field-hint" style={{ marginBottom: 16 }}>Latência da última rodada de checagem e equipamentos mais instáveis (24h).</p>
+        <div style={{ display: 'flex', gap: 32, flexWrap: 'wrap', marginBottom: 20 }}>
+          <div>
+            <div className="field-hint">Latência média</div>
+            <div style={{ fontSize: 22, fontWeight: 700 }}>{snapshot?.avgLatencyMs != null ? `${Math.round(snapshot.avgLatencyMs)} ms` : '—'}</div>
+          </div>
+          <div>
+            <div className="field-hint">Latência p95</div>
+            <div style={{ fontSize: 22, fontWeight: 700 }}>{snapshot?.p95LatencyMs != null ? `${Math.round(snapshot.p95LatencyMs)} ms` : '—'}</div>
+          </div>
+        </div>
+        <div style={{ fontWeight: 600, fontSize: 13.5, marginBottom: 8 }}>Mais instáveis</div>
+        {flappiest.length === 0 ? (
+          <div className="field-hint">Nenhuma queda registrada nas últimas 24h.</div>
+        ) : (
+          flappiest.map((d) => (
+            <div className="service-row" key={d.id}>
+              <div>
+                <div style={{ fontWeight: 600, fontSize: 14 }}>{d.name}</div>
+                <div className="field-hint">{d.location || d.ip}</div>
+              </div>
+              <span className="badge badge-warning">{d.drops} queda(s)</span>
+            </div>
+          ))
+        )}
+      </div>
+
+      <div className="surface" style={{ padding: 24 }}>
+        <div style={{ fontWeight: 700, marginBottom: 4 }}>Histórico de eventos</div>
+        <p className="field-hint" style={{ marginBottom: 12 }}>Últimas quedas e recuperações registradas.</p>
+        {history.length === 0 ? (
+          <div className="field-hint">Nenhum evento registrado ainda.</div>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13.5 }}>
+              <thead>
+                <tr style={{ textAlign: 'left', color: 'var(--text-tertiary)' }}>
+                  <th style={{ padding: '8px 12px', fontWeight: 600 }}>Quando</th>
+                  <th style={{ padding: '8px 12px', fontWeight: 600 }}>Equipamento</th>
+                  <th style={{ padding: '8px 12px', fontWeight: 600 }}>Evento</th>
+                  <th style={{ padding: '8px 12px', fontWeight: 600 }}>Durou</th>
+                </tr>
+              </thead>
+              <tbody>
+                {history.map((e) => (
+                  <tr key={e.id} style={{ borderTop: '1px solid var(--border-subtle)' }}>
+                    <td style={{ padding: '10px 12px', color: 'var(--text-secondary)' }}>{new Date(e.at).toLocaleString('pt-BR')}</td>
+                    <td style={{ padding: '10px 12px', fontWeight: 600 }}>{e.device?.name}</td>
+                    <td style={{ padding: '10px 12px' }}>{e.eventLabel}</td>
+                    <td style={{ padding: '10px 12px', color: 'var(--text-secondary)' }}>{formatDuration(e.durationMs)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+
 export default function RedeDashboard({ can, isOwner }) {
   const [summary, setSummary] = useState(null);
   const [devices, setDevices] = useState([]);
@@ -316,6 +406,7 @@ export default function RedeDashboard({ can, isOwner }) {
 
   const canManageDevices = can('rede.dispositivos');
   const canSeeFloorPlan = can('rede.plantaBaixa');
+  const canSeeAnalise = can('rede.analise');
 
   function load() {
     Promise.all([api.rede.summary(), api.rede.devices(), api.rede.alerts()])
@@ -471,6 +562,8 @@ export default function RedeDashboard({ can, isOwner }) {
           </div>
         )}
       </div>
+
+      {canSeeAnalise && <AnaliseSection />}
 
       {canSeeFloorPlan && <FloorPlanSection isOwner={isOwner} />}
 

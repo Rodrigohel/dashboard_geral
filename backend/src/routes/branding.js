@@ -31,7 +31,7 @@ function getBranding() {
 
 brandingRouter.get('/', (req, res) => {
   const row = getBranding();
-  res.json({ name: row.name, logoUrl: row.logo_filename ? '/api/branding/logo' : null });
+  res.json({ name: row.name, logoUrl: row.logo_filename ? '/api/branding/logo' : null, accentColor: row.accent_color || '' });
 });
 
 brandingRouter.get('/logo', (req, res) => {
@@ -48,6 +48,14 @@ brandingRouter.put('/', requireAuth, requireOwner, upload.single('logo'), (req, 
   const name = (req.body?.name || '').trim() || row.name;
   let logoFilename = row.logo_filename;
 
+  let accentColor = row.accent_color || '';
+  if (req.body?.accentColor !== undefined) {
+    const raw = String(req.body.accentColor).trim();
+    if (raw === '') accentColor = '';
+    else if (/^#[0-9a-fA-F]{6}$/.test(raw)) accentColor = raw;
+    else return res.status(400).json({ error: 'Cor inválida — use o formato #RRGGBB.' });
+  }
+
   if (req.file) {
     const ext = EXT_BY_MIME[req.file.mimetype];
     if (!ext) return res.status(400).json({ error: 'Formato de imagem não suportado (use PNG, JPG, SVG ou WEBP).' });
@@ -61,6 +69,6 @@ brandingRouter.put('/', requireAuth, requireOwner, upload.single('logo'), (req, 
     fs.writeFileSync(path.join(LOGO_DIR, logoFilename), req.file.buffer);
   }
 
-  db.prepare('UPDATE branding SET name = ?, logo_filename = ? WHERE id = 1').run(name, logoFilename);
-  res.json({ name, logoUrl: logoFilename ? '/api/branding/logo' : null });
+  db.prepare('UPDATE branding SET name = ?, logo_filename = ?, accent_color = ? WHERE id = 1').run(name, logoFilename, accentColor);
+  res.json({ name, logoUrl: logoFilename ? '/api/branding/logo' : null, accentColor });
 });

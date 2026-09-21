@@ -81,3 +81,10 @@ const gatewayColumns = db.prepare('PRAGMA table_info(module_gateways)').all().ma
 if (!gatewayColumns.includes('public_url')) {
   db.exec("ALTER TABLE module_gateways ADD COLUMN public_url TEXT NOT NULL DEFAULT ''");
 }
+
+// Cor de destaque (botões, item ativo do menu) — separado do logo pra dar
+// pra ajustar sem precisar reenviar a imagem. Vazio = usa o padrão do tema.
+const brandingColumns = db.prepare('PRAGMA table_info(branding)').all().map((c) => c.name);
+if (!brandingColumns.includes('accent_color')) {
+  db.exec("ALTER TABLE branding ADD COLUMN accent_color TEXT NOT NULL DEFAULT ''");
+}

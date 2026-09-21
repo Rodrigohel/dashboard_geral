@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useAuth } from './hooks/useAuth.js';
 import { useTheme } from './hooks/useTheme.js';
 import { useBranding } from './hooks/useBranding.js';
+import { applyAccentColor } from './theme/applyAccent.js';
 import LoadingScreen from './components/LoadingScreen.jsx';
 import Sidebar from './components/Sidebar.jsx';
 import TopBar from './components/TopBar.jsx';
@@ -25,6 +26,10 @@ export default function App() {
   useEffect(() => {
     document.title = branding.name;
   }, [branding.name]);
+
+  useEffect(() => {
+    applyAccentColor(branding.accentColor);
+  }, [branding.accentColor]);
 
   if (checking) return <LoadingScreen />;
   if (!user) return <Login branding={branding} onLogin={login} />;
