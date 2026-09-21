@@ -39,7 +39,7 @@ function baseUrlOf(device) {
 // (nunca existiu de verdade) ou de mandar bytes direto (a API não aceita).
 // Guarda o arquivo em memória por pouco tempo, só até o equipamento buscar.
 const faceRelayTokens = new Map(); // token -> { buffer, mimetype, expiresAt }
-const FACE_RELAY_TTL_MS = 30_000;
+const FACE_RELAY_TTL_MS = 60_000;
 
 function cleanupExpiredFaceRelayTokens() {
   const now = Date.now();
@@ -273,15 +273,19 @@ async function xpeSetUserPhoto(device, password, userId, fileBuffer, mimetype) {
   await xpeCall(device, password, 'user', 'set', { item: [merged] });
 
   // O equipamento busca a foto de forma assíncrona depois do "OK" — retcode
-  // 0 não garante nada (já vimos campos que ele aceita e ignora), então
-  // espera um instante e confere se o registro mudou de verdade.
-  await new Promise((r) => setTimeout(r, 2500));
-  const after = await xpeFindById(device, password, userId);
-  const updated = existing.FaceStatus !== 1 ? after?.FaceStatus === 1 : after?.FaceID !== existing.FaceID;
+  // 0 não garante nada (já vimos campos que ele aceita e ignora), e a busca
+  // pode demorar mais que alguns segundos — confirmado contra hardware real
+  // que uma espera curta (2,5s) dava falso negativo. Tenta por até ~20s.
+  let updated = false;
+  for (let i = 0; i < 8 && !updated; i++) {
+    await new Promise((r) => setTimeout(r, 2500));
+    const after = await xpeFindById(device, password, userId);
+    updated = existing.FaceStatus !== 1 ? after?.FaceStatus === 1 : after?.FaceID !== existing.FaceID;
+  }
   if (!updated) {
     throw new Error(
-      `O equipamento não confirmou o cadastro da foto — confira se ele consegue alcançar ${relayBase} pela rede ` +
-        'local (firewall ou porta bloqueada podem impedir a busca).'
+      `O equipamento não confirmou o cadastro da foto depois de esperar — confira se ele consegue alcançar ` +
+        `${relayBase} pela rede local (firewall ou porta bloqueada podem impedir a busca).`
     );
   }
 }
