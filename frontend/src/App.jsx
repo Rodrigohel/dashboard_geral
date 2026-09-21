@@ -17,6 +17,7 @@ export default function App() {
   const { theme, setTheme } = useTheme();
   const [view, setView] = useState('home');
   const [menuOpen, setMenuOpen] = useState(false);
+  const [acessoDevice, setAcessoDevice] = useState(null);
 
   if (checking) return <LoadingScreen />;
   if (!user) return <Login onLogin={login} />;
@@ -28,6 +29,14 @@ export default function App() {
     setMenuOpen(false);
   }
 
+  // Clicou num equipamento direto na tela Início — abre ele já na tela de
+  // usuários do "Controle de acesso", sem precisar procurar de novo na lista.
+  function openDeviceFromHome(device) {
+    setAcessoDevice(device);
+    setView('acesso');
+    setMenuOpen(false);
+  }
+
   function renderView() {
     switch (view) {
       case 'rede':
@@ -35,7 +44,11 @@ export default function App() {
       case 'interfone':
         return can('interfone') ? <ModuleLink moduleKey="interfone" isOwner={isOwner} onNavigate={navigate} /> : <NoAccess />;
       case 'acesso':
-        return can('acesso') ? <AccessControl isOwner={isOwner} /> : <NoAccess />;
+        return can('acesso') ? (
+          <AccessControl isOwner={isOwner} initialDevice={acessoDevice} onInitialDeviceHandled={() => setAcessoDevice(null)} />
+        ) : (
+          <NoAccess />
+        );
       case 'usuarios':
         return isOwner ? <UsersAdmin currentUserId={user.id} /> : <NoAccess />;
       case 'servidor':
@@ -43,7 +56,7 @@ export default function App() {
       case 'configuracoes':
         return isOwner ? <Settings /> : <NoAccess />;
       default:
-        return <Home user={user} onNavigate={navigate} />;
+        return <Home user={user} onNavigate={navigate} onOpenDevice={openDeviceFromHome} />;
     }
   }
 
