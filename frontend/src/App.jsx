@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuth } from './hooks/useAuth.js';
 import { useTheme } from './hooks/useTheme.js';
+import { useBranding } from './hooks/useBranding.js';
 import LoadingScreen from './components/LoadingScreen.jsx';
 import Sidebar from './components/Sidebar.jsx';
 import TopBar from './components/TopBar.jsx';
@@ -15,12 +16,17 @@ import ServerHealth from './pages/ServerHealth.jsx';
 export default function App() {
   const { user, checking, login, logout, can } = useAuth();
   const { theme, setTheme } = useTheme();
+  const branding = useBranding();
   const [view, setView] = useState('home');
   const [menuOpen, setMenuOpen] = useState(false);
   const [acessoDevice, setAcessoDevice] = useState(null);
 
+  useEffect(() => {
+    document.title = branding.name;
+  }, [branding.name]);
+
   if (checking) return <LoadingScreen />;
-  if (!user) return <Login onLogin={login} />;
+  if (!user) return <Login branding={branding} onLogin={login} />;
 
   const isOwner = user.role === 'owner';
 
@@ -62,7 +68,7 @@ export default function App() {
 
   return (
     <div className="shell">
-      <Sidebar view={view} onNavigate={navigate} can={can} isOwner={isOwner} open={menuOpen} onClose={() => setMenuOpen(false)} />
+      <Sidebar branding={branding} view={view} onNavigate={navigate} can={can} isOwner={isOwner} open={menuOpen} onClose={() => setMenuOpen(false)} />
       <div className="shell-main">
         <TopBar view={view} user={user} onLogout={logout} theme={theme} setTheme={setTheme} onMenuClick={() => setMenuOpen(true)} />
         <main className="content">{renderView()}</main>

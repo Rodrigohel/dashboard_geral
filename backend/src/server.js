@@ -7,6 +7,7 @@ import { authRouter } from './routes/auth.js';
 import { usersRouter } from './routes/users.js';
 import { accessDevicesRouter } from './routes/accessDevices.js';
 import { getFaceRelayToken } from './services/accessControlClient.js';
+import { brandingRouter } from './routes/branding.js';
 import { settingsRouter } from './routes/settings.js';
 import { modulesRouter } from './routes/modules.js';
 import { systemRouter } from './routes/system.js';
@@ -31,6 +32,11 @@ app.get('/api/access/face-relay/:token', (req, res) => {
   res.set('Content-Type', entry.mimetype);
   res.send(entry.buffer);
 });
+
+// Sem requireAuth no mount — GET é público (tela de login precisa mostrar
+// nome/logo antes de autenticar); o PUT já exige dono dentro do próprio
+// router (ver branding.js).
+app.use('/api/branding', brandingRouter);
 
 app.use('/api/auth', authRouter);
 app.use('/api/modules', requireAuth, modulesRouter);

@@ -13,14 +13,18 @@ const ADMIN_ITEMS = [
   { key: 'configuracoes', label: 'Configurações', icon: 'settings' },
 ];
 
-export default function Sidebar({ view, onNavigate, can, isOwner, open, onClose }) {
+export default function Sidebar({ branding, view, onNavigate, can, isOwner, open, onClose }) {
   return (
     <>
       <div className={`sidebar-backdrop ${open ? 'open' : ''}`} onClick={onClose} />
       <aside className={`sidebar ${open ? 'open' : ''}`}>
         <div className="brand">
-          <div className="brand-mark">P</div>
-          <span className="nav-label brand-text">Portal</span>
+          {branding.logoUrl ? (
+            <img src={branding.logoUrl} alt={branding.name} className="brand-mark brand-logo-img" />
+          ) : (
+            <div className="brand-mark">{branding.name.charAt(0).toUpperCase()}</div>
+          )}
+          <span className="nav-label brand-text">{branding.name}</span>
         </div>
 
         <nav className="nav">
