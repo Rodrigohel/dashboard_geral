@@ -47,7 +47,7 @@ export default function App() {
   function renderView() {
     switch (view) {
       case 'rede':
-        return can('rede') ? <RedeDashboard /> : <NoAccess />;
+        return can('rede') ? <RedeDashboard can={can} isOwner={isOwner} /> : <NoAccess />;
       case 'interfone':
         return can('interfone') ? <ModuleLink moduleKey="interfone" isOwner={isOwner} onNavigate={navigate} /> : <NoAccess />;
       case 'acesso':

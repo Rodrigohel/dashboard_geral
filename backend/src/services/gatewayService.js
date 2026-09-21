@@ -131,14 +131,30 @@ export function gatewayProxy(moduleKey, { featureRules = [] } = {}) {
       }
     }
 
+    // express.json() global (server.js) só consome o corpo quando o
+    // Content-Type é application/json — upload de arquivo (ex.: imagem da
+    // planta baixa, CSV de importação) chega aqui com o stream intacto.
+    // Sem isso, qualquer upload viraria "{}" no painel de baixo.
+    const contentType = req.headers['content-type'] || '';
+    const isJson = contentType.includes('application/json');
+    let rawBody = null;
+    if (!['GET', 'HEAD'].includes(req.method) && !isJson) {
+      rawBody = await new Promise((resolve, reject) => {
+        const chunks = [];
+        req.on('data', (c) => chunks.push(c));
+        req.on('end', () => resolve(Buffer.concat(chunks)));
+        req.on('error', reject);
+      });
+    }
+
     const doRequest = async (token) =>
       fetch(`${gw.baseUrl}${targetPath}`, {
         method: req.method,
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': contentType || 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: ['GET', 'HEAD'].includes(req.method) ? undefined : JSON.stringify(req.body ?? {}),
+        body: ['GET', 'HEAD'].includes(req.method) ? undefined : isJson ? JSON.stringify(req.body ?? {}) : rawBody,
         signal: AbortSignal.timeout(15000),
       });
 
