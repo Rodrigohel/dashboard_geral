@@ -99,8 +99,11 @@ function xpeFromItem(item) {
 
 // Busca o binário de uma URL absoluta que o próprio equipamento devolveu
 // (ex.: FaceID). Usa os módulos nativos (não `fetch`) porque essas URLs vêm
-// em HTTPS com certificado autoassinado do equipamento — precisa aceitar
-// sem validar (mesmo aparelho da rede local que já autenticamos via API).
+// em HTTPS com certificado autoassinado do equipamento — precisa aceitar sem
+// validar (mesmo aparelho da rede local que já autenticamos via API) — e o
+// firmware usa uma chave Diffie-Hellman fraca que o OpenSSL moderno recusa
+// por padrão ("dh key too small"), por isso baixa o nível de segurança do
+// TLS só nessa chamada.
 function fetchDeviceBinary(url, auth) {
   return new Promise((resolve, reject) => {
     const isHttps = url.startsWith('https:');
@@ -108,7 +111,9 @@ function fetchDeviceBinary(url, auth) {
     const opts = {
       headers: { Authorization: auth },
       timeout: 8000,
-      ...(isHttps ? { agent: new https.Agent({ rejectUnauthorized: false }) } : {}),
+      ...(isHttps
+        ? { agent: new https.Agent({ rejectUnauthorized: false, ciphers: 'DEFAULT@SECLEVEL=1' }) }
+        : {}),
     };
     const req = mod.get(url, opts, (res) => {
       if (res.statusCode && res.statusCode >= 400) {
