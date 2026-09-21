@@ -202,6 +202,7 @@ function FloorPlanSection({ isOwner }) {
   const [imageUrls, setImageUrls] = useState({});
   const [showForm, setShowForm] = useState(false);
   const [deletingFloor, setDeletingFloor] = useState(null);
+  const [viewingDevice, setViewingDevice] = useState(null);
   const toast = useToast();
 
   function reload() {
@@ -337,16 +338,21 @@ function FloorPlanSection({ isOwner }) {
                     <div
                       key={d.id}
                       title={`${d.name} (${d.status})`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setViewingDevice(d);
+                      }}
                       style={{
                         position: 'absolute',
                         left: `${d.floorX * 100}%`,
                         top: `${d.floorY * 100}%`,
                         transform: 'translate(-50%, -50%)',
-                        width: 14,
-                        height: 14,
+                        width: 16,
+                        height: 16,
                         borderRadius: '50%',
                         border: '2px solid white',
                         boxShadow: '0 0 0 1px rgba(0,0,0,.3)',
+                        cursor: 'pointer',
                         background:
                           d.status === 'online' ? 'var(--success-500)' : d.status === 'degraded' ? 'var(--warning-500)' : 'var(--danger-500)',
                       }}
@@ -369,6 +375,42 @@ function FloorPlanSection({ isOwner }) {
           onConfirm={handleDeleteFloor}
           onCancel={() => setDeletingFloor(null)}
         />
+      )}
+      {viewingDevice && (
+        <Modal
+          title={viewingDevice.name}
+          onClose={() => setViewingDevice(null)}
+          footer={
+            <button className="btn btn-secondary" onClick={() => setViewingDevice(null)}>
+              Fechar
+            </button>
+          }
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: 14 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span className="field-hint">Status</span>
+              <StatusBadge status={viewingDevice.status} />
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span className="field-hint">IP</span>
+              <strong>{viewingDevice.ip}</strong>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span className="field-hint">Tipo</span>
+              <span>{viewingDevice.type}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span className="field-hint">Local</span>
+              <span>{viewingDevice.location || '—'}</span>
+            </div>
+            {viewingDevice.latencyMs != null && (
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span className="field-hint">Latência</span>
+                <span>{Math.round(viewingDevice.latencyMs)} ms</span>
+              </div>
+            )}
+          </div>
+        </Modal>
       )}
     </div>
   );
