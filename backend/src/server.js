@@ -48,7 +48,26 @@ app.use('/api/system', requireAuth, requireOwner, systemRouter);
 // Gateway: o front-end do Portal chama /gateway/rede/... e /gateway/interfone/...
 // como se fossem API própria; por trás, isso vira uma chamada autenticada
 // para o backend real de cada painel (ver services/gatewayService.js).
-app.all('/gateway/rede/*', requireAuth, requireModule('rede'), gatewayProxy('rede'));
+//
+// Dentro de "rede" duas ações ficam atrás de permissão extra, mesmo com o
+// módulo inteiro liberado: mexer no cadastro de equipamentos (criar, editar,
+// excluir, importar CSV, escanear a rede, identificar) e tudo de planta
+// baixa (o painel de Rede libera a LEITURA da planta baixa pra qualquer
+// usuário logado nele — ver floors.js do painel — então sem essa regra
+// aqui, quem só tem "rede" já enxergaria o mapa dos equipamentos).
+const REDE_FEATURE_RULES = [
+  {
+    test: (method, path) => /^\/api\/floors(\/|$)/.test(path) || /\/floor-position$/.test(path),
+    feature: 'rede.plantaBaixa',
+    message: 'Você não tem acesso à planta baixa.',
+  },
+  {
+    test: (method, path) => method !== 'GET' && /^\/api\/devices(\/|$)/.test(path) && !/\/favorite$/.test(path),
+    feature: 'rede.dispositivos',
+    message: 'Você não tem acesso ao cadastro de equipamentos.',
+  },
+];
+app.all('/gateway/rede/*', requireAuth, requireModule('rede'), gatewayProxy('rede', { featureRules: REDE_FEATURE_RULES }));
 app.all('/gateway/interfone/*', requireAuth, requireModule('interfone'), gatewayProxy('interfone'));
 
 // Opcional: se GATEWAY_*_FRONTEND_DIST apontar para o `frontend/dist` já

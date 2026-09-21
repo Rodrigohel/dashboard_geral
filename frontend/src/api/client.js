@@ -90,6 +90,14 @@ export const api = {
     healthHistory: () => request('/api/system/health/history'),
   },
 
+  // Painel de Rede consumido nativamente pelo Portal (sem iframe) via
+  // gateway — mesma origem, mesmo token, sem segunda tela de login.
+  rede: {
+    summary: () => request('/gateway/rede/api/devices/summary'),
+    devices: () => request('/gateway/rede/api/devices'),
+    alerts: () => request('/gateway/rede/api/alerts'),
+  },
+
   branding: {
     get: () => request('/api/branding'),
     save: ({ name, logoFile }) => {

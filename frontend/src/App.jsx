@@ -8,6 +8,7 @@ import TopBar from './components/TopBar.jsx';
 import Login from './pages/Login.jsx';
 import Home from './pages/Home.jsx';
 import ModuleLink from './pages/ModuleLink.jsx';
+import RedeDashboard from './pages/RedeDashboard.jsx';
 import AccessControl from './pages/AccessControl/index.jsx';
 import UsersAdmin from './pages/UsersAdmin/index.jsx';
 import Settings from './pages/Settings.jsx';
@@ -46,7 +47,7 @@ export default function App() {
   function renderView() {
     switch (view) {
       case 'rede':
-        return can('rede') ? <ModuleLink moduleKey="rede" isOwner={isOwner} onNavigate={navigate} /> : <NoAccess />;
+        return can('rede') ? <RedeDashboard /> : <NoAccess />;
       case 'interfone':
         return can('interfone') ? <ModuleLink moduleKey="interfone" isOwner={isOwner} onNavigate={navigate} /> : <NoAccess />;
       case 'acesso':
