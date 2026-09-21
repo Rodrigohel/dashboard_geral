@@ -6,6 +6,7 @@ import { config } from './config.js';
 import { authRouter } from './routes/auth.js';
 import { usersRouter } from './routes/users.js';
 import { accessDevicesRouter } from './routes/accessDevices.js';
+import { getFaceRelayToken } from './services/accessControlClient.js';
 import { settingsRouter } from './routes/settings.js';
 import { modulesRouter } from './routes/modules.js';
 import { systemRouter } from './routes/system.js';
@@ -18,6 +19,18 @@ app.use(cors({ origin: config.corsOrigin }));
 app.use(express.json());
 
 app.get('/health', (req, res) => res.json({ ok: true }));
+
+// Sem autenticação de propósito: é o equipamento de controle de acesso (não
+// um usuário do Portal) quem busca essa imagem, por um link temporário de
+// uso único gerado ao cadastrar uma foto facial (ver accessControlClient.js
+// e routes/accessDevices.js). Token aleatório + expira sozinho em segundos.
+app.get('/api/access/face-relay/:token', (req, res) => {
+  const token = req.params.token.replace(/\.jpg$/i, '');
+  const entry = getFaceRelayToken(token);
+  if (!entry) return res.status(404).end();
+  res.set('Content-Type', entry.mimetype);
+  res.send(entry.buffer);
+});
 
 app.use('/api/auth', authRouter);
 app.use('/api/modules', requireAuth, modulesRouter);

@@ -180,11 +180,9 @@ export default function DeviceUsers({ device, onBack }) {
                   <td>{u.expiration ? new Date(u.expiration).toLocaleDateString('pt-BR') : 'Sem prazo'}</td>
                   <td>
                     <div className="row-actions">
-                      {device.model !== 'xpe3200' && (
-                        <button className="btn btn-ghost btn-icon btn-sm" title="Cadastrar/trocar foto" onClick={() => triggerPhotoUpload(u.id)}>
-                          {uploadingId === String(u.id) ? <span className="spinner spinner-dark" /> : <Icon name="camera" size={15} />}
-                        </button>
-                      )}
+                      <button className="btn btn-ghost btn-icon btn-sm" title="Cadastrar/trocar foto" onClick={() => triggerPhotoUpload(u.id)}>
+                        {uploadingId === String(u.id) ? <span className="spinner spinner-dark" /> : <Icon name="camera" size={15} />}
+                      </button>
                       <button className="btn btn-ghost btn-icon btn-sm" title="Editar" onClick={() => { setEditing(u); setShowForm(true); }}>
                         <Icon name="edit" size={15} />
                       </button>

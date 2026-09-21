@@ -67,14 +67,23 @@ CRUD completo, upload de foto, mensagens de erro):
 mesmo dentro da própria XPE/SS:
 
 - **XPE 3200 IP Face** — `POST /api/{target}/{action}` com autenticação
-  HTTP Basic, validado contra as informações de uma implementação real em
-  produção de terceiros (não é documentação oficial pública — a Intelbras
-  não publica o PDF de integração livremente, só mediante contato com o
-  time de SDK). **Precisa habilitar antes**, na interface web do próprio
+  HTTP Basic. **Precisa habilitar antes**, na interface web do próprio
   equipamento: **Segurança → API HTTP** (vem desligada de fábrica) — sem
-  isso, toda chamada cai em 404. Testado nesta sessão contra um servidor
-  simulado reproduzindo o protocolo completo (criar/listar/editar/excluir
-  usuário, foto facial, preservação de campos ao atualizar).
+  isso, toda chamada cai em 404. Validado contra hardware real em produção
+  (criar/listar/editar/excluir usuário, cartão, apartamento, foto facial).
+  Alguns nomes de campo do schema real (`WebRelay`, `LiftFloorNum` = o
+  "Apartamento" da própria tela do equipamento, `FaceStatus`/`FaceID`/
+  `FaceUrl`) só foram descobertos capturando o JSON real de `user/get` num
+  equipamento em produção — não estão em nenhuma documentação pública.
+  **Foto facial**: a API não aceita bytes de imagem direto (não existe
+  campo pra isso) — o campo `FaceUrl` faz o próprio equipamento *buscar* a
+  foto de um link. O Portal hospeda a foto enviada por alguns segundos num
+  link temporário de uso único e manda esse link pro equipamento — por
+  isso precisa da variável `ACCESS_PHOTO_RELAY_BASE_URL` no `.env` (ver
+  `.env.example`): o endereço do próprio Portal **na rede local**,
+  alcançável pelo equipamento (não é a URL pública do Cloudflare Tunnel).
+  Sem essa variável configurada, o resto do controle de acesso funciona
+  normalmente — só cadastrar/trocar foto fica bloqueado com um erro claro.
 - **SS 3532 MF (Bio-T)** — protocolo bem diferente: `/cgi-bin/*.cgi` com
   autenticação HTTP Digest (RFC 2617) de verdade e respostas em texto puro
   ("OK" ou um código de erro), não JSON. **Ainda não validado contra um
