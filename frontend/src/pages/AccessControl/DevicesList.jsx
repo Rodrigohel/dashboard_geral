@@ -3,6 +3,7 @@ import Icon from '../../components/Icon.jsx';
 import EmptyState from '../../components/EmptyState.jsx';
 import ConfirmDialog from '../../components/ConfirmDialog.jsx';
 import DeviceFormModal from './DeviceFormModal.jsx';
+import MultiDeviceUserFormModal from './MultiDeviceUserFormModal.jsx';
 import { api } from '../../api/client.js';
 import { useToast } from '../../hooks/useToast.jsx';
 
@@ -14,6 +15,7 @@ export default function DevicesList({ isOwner, onOpenDevice }) {
   const [editing, setEditing] = useState(null);
   const [deleting, setDeleting] = useState(null);
   const [testing, setTesting] = useState(null);
+  const [showMultiUserForm, setShowMultiUserForm] = useState(false);
   const toast = useToast();
 
   function reload() {
@@ -59,6 +61,11 @@ export default function DevicesList({ isOwner, onOpenDevice }) {
         <p style={{ color: 'var(--text-secondary)', fontSize: 14 }}>
           Porteiros com reconhecimento facial cadastrados. Clique em um para gerenciar os usuários liberados.
         </p>
+        {isOwner && devices?.length > 0 && (
+          <button className="btn btn-secondary" onClick={() => setShowMultiUserForm(true)}>
+            <Icon name="users" size={16} /> Novo usuário em vários porteiros
+          </button>
+        )}
         {isOwner && (
           <button className="btn btn-primary" onClick={() => setShowForm(true)}>
             <Icon name="plus" size={16} /> Novo equipamento
@@ -124,6 +131,14 @@ export default function DevicesList({ isOwner, onOpenDevice }) {
           device={editing}
           onClose={() => { setShowForm(false); setEditing(null); }}
           onSave={handleSave}
+        />
+      )}
+
+      {showMultiUserForm && (
+        <MultiDeviceUserFormModal
+          devices={devices}
+          onClose={() => setShowMultiUserForm(false)}
+          onDone={() => toast('Usuário cadastrado.')}
         />
       )}
 
