@@ -69,8 +69,12 @@
   box-shadow: 0 8px 20px -6px var(--accent-glow);
 }
 /* Logo enviada pelo cliente: sem fundo/moldura — só a imagem, centralizada,
-   sem "quadrado" em volta (a logo já tem seu próprio visual). */
+   sem "quadrado" em volta (a logo já tem seu próprio visual). Maior que o
+   ícone de iniciais porque, sem um fundo colorido pra dar presença, uma
+   logo real fica minúscula na mesma caixa de 38px. */
 .brand-mark.brand-logo-img {
+  width: 48px;
+  height: 48px;
   background: none;
   box-shadow: none;
 }

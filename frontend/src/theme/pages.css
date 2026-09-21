@@ -57,6 +57,10 @@
   margin: 0 auto var(--space-4);
   border-radius: 16px;
 }
+.login-card .brand-mark.brand-logo-img {
+  width: 96px;
+  height: 96px;
+}
 .login-title {
   font-size: 24px;
   font-weight: 800;

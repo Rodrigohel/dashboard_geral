@@ -460,99 +460,6 @@ function AnaliseSection() {
   );
 }
 
-function RedeConfigSection() {
-  const [form, setForm] = useState(null);
-  const [saving, setSaving] = useState(false);
-  const [testing, setTesting] = useState(false);
-  const toast = useToast();
-
-  useEffect(() => {
-    api.rede.getSettings().then(setForm).catch(() => setForm({}));
-  }, []);
-
-  function set(field, value) {
-    setForm((f) => ({ ...f, [field]: value }));
-  }
-
-  async function handleSave() {
-    setSaving(true);
-    try {
-      const updated = await api.rede.saveSettings(form);
-      setForm(updated);
-      toast('Configurações do Rede salvas.');
-    } catch (err) {
-      toast(err.message, 'error');
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function handleTestTelegram() {
-    setTesting(true);
-    try {
-      await api.rede.testTelegram({ telegramBotToken: form.telegramBotToken, telegramChatId: form.telegramChatId });
-      toast('Mensagem de teste enviada ao Telegram.');
-    } catch (err) {
-      toast(err.message, 'error');
-    } finally {
-      setTesting(false);
-    }
-  }
-
-  if (!form) return <div className="skeleton" style={{ height: 220, borderRadius: 12 }} />;
-
-  return (
-    <div className="surface" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div>
-        <div style={{ fontWeight: 700 }}>Configurações do Rede</div>
-        <div className="field-hint">Nome, monitoramento e alertas por Telegram do painel de Rede.</div>
-      </div>
-
-      <div className="grid-2">
-        <div className="field">
-          <label className="field-label">Nome da empresa</label>
-          <input className="input" value={form.companyName || ''} onChange={(e) => set('companyName', e.target.value)} />
-        </div>
-        <div className="field">
-          <label className="field-label">Nome do site/local</label>
-          <input className="input" value={form.siteName || ''} onChange={(e) => set('siteName', e.target.value)} />
-        </div>
-      </div>
-
-      <div className="grid-2">
-        <div className="field">
-          <label className="field-label">Intervalo entre checagens (segundos)</label>
-          <input className="input" type="number" min={5} value={form.pingIntervalSeconds ?? ''} onChange={(e) => set('pingIntervalSeconds', Number(e.target.value))} />
-        </div>
-        <div className="field">
-          <label className="field-label">Falhas seguidas até marcar offline</label>
-          <input className="input" type="number" min={1} value={form.offlineThresholdFails ?? ''} onChange={(e) => set('offlineThresholdFails', Number(e.target.value))} />
-        </div>
-      </div>
-
-      <div className="grid-2">
-        <div className="field">
-          <label className="field-label">Telegram — Bot Token</label>
-          <input className="input" value={form.telegramBotToken || ''} onChange={(e) => set('telegramBotToken', e.target.value)} placeholder="Opcional" />
-        </div>
-        <div className="field">
-          <label className="field-label">Telegram — Chat ID</label>
-          <input className="input" value={form.telegramChatId || ''} onChange={(e) => set('telegramChatId', e.target.value)} placeholder="Opcional" />
-        </div>
-      </div>
-
-      <div style={{ display: 'flex', gap: 8 }}>
-        <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
-          {saving ? <span className="spinner" /> : 'Salvar'}
-        </button>
-        <button className="btn btn-secondary" onClick={handleTestTelegram} disabled={testing || !form.telegramBotToken || !form.telegramChatId}>
-          {testing ? <span className="spinner spinner-dark" /> : 'Testar Telegram'}
-        </button>
-      </div>
-    </div>
-  );
-}
-
 export default function RedeDashboard({ can, isOwner }) {
   const [summary, setSummary] = useState(null);
   const [devices, setDevices] = useState([]);
@@ -561,6 +468,10 @@ export default function RedeDashboard({ can, isOwner }) {
   const [editingDevice, setEditingDevice] = useState(null);
   const [showAddDevice, setShowAddDevice] = useState(false);
   const [deletingDevice, setDeletingDevice] = useState(null);
+  const [scanning, setScanning] = useState(false);
+  const [deviceFilter, setDeviceFilter] = useState('');
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 25;
   const toast = useToast();
 
   const canManageDevices = can('rede.dispositivos');
@@ -616,6 +527,28 @@ export default function RedeDashboard({ can, isOwner }) {
     }
   }
 
+  async function handleScan() {
+    setScanning(true);
+    try {
+      const result = await api.rede.scanNetwork();
+      toast(`Varredura concluída: ${result.respondingCount} respondendo, ${result.createdCount} novo(s) cadastrado(s).`);
+      load();
+    } catch (err) {
+      toast(err.message, 'error');
+    } finally {
+      setScanning(false);
+    }
+  }
+
+  const filteredDevices = devices.filter((d) => {
+    const needle = deviceFilter.trim().toLowerCase();
+    if (!needle) return true;
+    return d.name.toLowerCase().includes(needle) || d.ip.includes(needle) || (d.location || '').toLowerCase().includes(needle);
+  });
+  const totalPages = Math.max(1, Math.ceil(filteredDevices.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const pageDevices = filteredDevices.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+
   return (
     <>
       <div className="page-header">
@@ -663,34 +596,54 @@ export default function RedeDashboard({ can, isOwner }) {
       </div>
 
       <div className="surface" style={{ padding: 24 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4, flexWrap: 'wrap', gap: 8 }}>
           <div style={{ fontWeight: 700 }}>Equipamentos</div>
           {canManageDevices && (
-            <button className="btn btn-secondary btn-sm" onClick={() => setShowAddDevice(true)}>
-              <Icon name="plus" size={14} /> Novo equipamento
-            </button>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn btn-secondary btn-sm" onClick={handleScan} disabled={scanning}>
+                {scanning ? <span className="spinner spinner-dark" /> : <Icon name="search" size={14} />} Escanear rede
+              </button>
+              <button className="btn btn-secondary btn-sm" onClick={() => setShowAddDevice(true)}>
+                <Icon name="plus" size={14} /> Novo equipamento
+              </button>
+            </div>
           )}
         </div>
         <p className="field-hint" style={{ marginBottom: 12 }}>
-          {canManageDevices ? 'Cadastro completo — criar, editar e excluir.' : 'Lista de leitura.'}
+          {canManageDevices ? 'Cadastro completo — criar, editar, excluir e escanear a rede em busca de novos.' : 'Lista de leitura.'}
         </p>
         {devices.length === 0 ? (
           <div className="field-hint">Nenhum equipamento cadastrado ainda.</div>
         ) : (
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13.5 }}>
-              <thead>
-                <tr style={{ textAlign: 'left', color: 'var(--text-tertiary)' }}>
-                  <th style={{ padding: '8px 12px', fontWeight: 600 }}>Nome</th>
-                  <th style={{ padding: '8px 12px', fontWeight: 600 }}>IP</th>
-                  <th style={{ padding: '8px 12px', fontWeight: 600 }}>Local</th>
-                  <th style={{ padding: '8px 12px', fontWeight: 600 }}>Tipo</th>
-                  <th style={{ padding: '8px 12px', fontWeight: 600 }}>Status</th>
-                  {canManageDevices && <th style={{ padding: '8px 12px', fontWeight: 600 }}></th>}
-                </tr>
-              </thead>
-              <tbody>
-                {devices.map((d) => (
+          <>
+            <input
+              className="input"
+              style={{ marginBottom: 12, maxWidth: 320 }}
+              placeholder="Buscar por nome, IP ou local..."
+              value={deviceFilter}
+              onChange={(e) => {
+                setDeviceFilter(e.target.value);
+                setPage(1);
+              }}
+            />
+            {filteredDevices.length === 0 ? (
+              <div className="field-hint">Nenhum equipamento encontrado para "{deviceFilter}".</div>
+            ) : (
+              <>
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13.5 }}>
+                    <thead>
+                      <tr style={{ textAlign: 'left', color: 'var(--text-tertiary)' }}>
+                        <th style={{ padding: '8px 12px', fontWeight: 600 }}>Nome</th>
+                        <th style={{ padding: '8px 12px', fontWeight: 600 }}>IP</th>
+                        <th style={{ padding: '8px 12px', fontWeight: 600 }}>Local</th>
+                        <th style={{ padding: '8px 12px', fontWeight: 600 }}>Tipo</th>
+                        <th style={{ padding: '8px 12px', fontWeight: 600 }}>Status</th>
+                        {canManageDevices && <th style={{ padding: '8px 12px', fontWeight: 600 }}></th>}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pageDevices.map((d) => (
                   <tr key={d.id} style={{ borderTop: '1px solid var(--border-subtle)' }}>
                     <td style={{ padding: '10px 12px', fontWeight: 600 }}>{d.name}</td>
                     <td style={{ padding: '10px 12px', color: 'var(--text-secondary)' }}>{d.ip}</td>
@@ -715,18 +668,32 @@ export default function RedeDashboard({ can, isOwner }) {
                       </td>
                     )}
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                    ))}
+                    </tbody>
+                  </table>
+                </div>
+                {totalPages > 1 && (
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 10, marginTop: 12 }}>
+                    <span className="field-hint">
+                      Página {safePage} de {totalPages} · {filteredDevices.length} equipamento(s)
+                    </span>
+                    <button className="btn btn-secondary btn-sm" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={safePage <= 1}>
+                      Anterior
+                    </button>
+                    <button className="btn btn-secondary btn-sm" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={safePage >= totalPages}>
+                      Próxima
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
+          </>
         )}
       </div>
 
       {canSeeAnalise && <AnaliseSection />}
 
       {canSeeFloorPlan && <FloorPlanSection isOwner={isOwner} />}
-
-      {isOwner && <RedeConfigSection />}
 
       {(showAddDevice || editingDevice) && (
         <DeviceFormModal
