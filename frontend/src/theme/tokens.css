@@ -18,12 +18,21 @@
 
   --ease: cubic-bezier(0.16, 1, 0.3, 1);
 
-  /* Marca: azul elétrico -> violeta, sempre a mesma nos dois temas */
-  --accent-500: #4f7dff;
-  --accent-400: #6d93ff;
-  --accent-600: #3d5fe0;
-  --accent-glow: rgba(79, 125, 255, 0.35);
+  /* Marca: verde-azulado -> violeta, sempre a mesma nos dois temas */
+  --accent-500: #14b8a6;
+  --accent-400: #2dd4bf;
+  --accent-600: #0d9488;
+  --accent-glow: rgba(20, 184, 166, 0.35);
   --violet-500: #8b5cf6;
+
+  /* Uma cor de destaque por módulo — ajuda a reconhecer visualmente qual é
+     qual sem precisar ler o rótulo (sidebar, cards da Início). */
+  --module-rede: #0ea5e9;
+  --module-rede-glow: rgba(14, 165, 233, 0.35);
+  --module-interfone: #f59e0b;
+  --module-interfone-glow: rgba(245, 158, 11, 0.32);
+  --module-acesso: #8b5cf6;
+  --module-acesso-glow: rgba(139, 92, 246, 0.35);
 
   --success-500: #22c55e;
   --success-soft: rgba(34, 197, 94, 0.16);

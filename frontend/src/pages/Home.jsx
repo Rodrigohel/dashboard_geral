@@ -70,11 +70,15 @@ const MODULE_META = {
     title: 'Rede',
     icon: 'network',
     desc: 'Câmeras, NVRs, switches e porteiros monitorados em tempo real — status, alertas e histórico de queda.',
+    color: 'var(--module-rede)',
+    glow: 'var(--module-rede-glow)',
   },
   interfone: {
     title: 'Interfone',
     icon: 'phone',
     desc: 'Ramais, chamadas ativas e saúde do PBX/Asterisk.',
+    color: 'var(--module-interfone)',
+    glow: 'var(--module-interfone-glow)',
   },
 };
 
@@ -113,8 +117,8 @@ export default function Home({ user, onNavigate, onOpenDevice }) {
             const info = modules?.[key];
 
             return (
-              <div key={key} className="module-card surface">
-                <div className="module-card-icon badge-accent" style={{ background: 'var(--accent-glow)' }}>
+              <div key={key} className="module-card surface" style={{ borderTop: `3px solid ${meta.color}` }}>
+                <div className="module-card-icon" style={{ background: meta.glow, color: meta.color }}>
                   <Icon name={meta.icon} size={22} className="module-card-icon-svg" />
                 </div>
                 <div>
@@ -164,7 +168,10 @@ export default function Home({ user, onNavigate, onOpenDevice }) {
 
       {hasAcesso && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <h2 style={{ fontSize: 17, fontWeight: 700 }}>Porteiros</h2>
+          <h2 style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 17, fontWeight: 700, color: 'var(--module-acesso)' }}>
+            <Icon name="shieldFace" size={19} />
+            Porteiros
+          </h2>
           <DevicesList isOwner={isOwner} onOpenDevice={onOpenDevice} />
         </div>
       )}
