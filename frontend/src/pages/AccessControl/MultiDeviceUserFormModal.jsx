@@ -19,9 +19,10 @@ export default function MultiDeviceUserFormModal({ devices, onClose, onDone }) {
     expiration: '',
   });
   const [selected, setSelected] = useState([]);
+  const [photoFile, setPhotoFile] = useState(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const [results, setResults] = useState(null); // [{ device, ok, message }] | null
+  const [results, setResults] = useState(null); // [{ device, ok: true|'partial'|false, message }] | null
 
   function set(field, value) {
     setForm((f) => ({ ...f, [field]: value }));
@@ -29,6 +30,23 @@ export default function MultiDeviceUserFormModal({ devices, onClose, onDone }) {
 
   function toggleDevice(id) {
     setSelected((s) => (s.includes(id) ? s.filter((d) => d !== id) : [...s, id]));
+  }
+
+  async function createOnDevice(deviceId, payload) {
+    const device = devices.find((d) => d.id === deviceId);
+    let created;
+    try {
+      created = await api.accessDevices.users.create(deviceId, payload);
+    } catch (err) {
+      return { device, ok: false, message: `Não foi possível criar o usuário: ${err.message}` };
+    }
+    if (!photoFile) return { device, ok: true, message: 'Usuário criado.' };
+    try {
+      await api.accessDevices.users.setPhoto(deviceId, created.id, photoFile);
+      return { device, ok: true, message: 'Usuário criado e foto enviada.' };
+    } catch (err) {
+      return { device, ok: 'partial', message: `Usuário criado, mas a foto falhou: ${err.message}` };
+    }
   }
 
   async function handleSubmit(e) {
@@ -44,17 +62,8 @@ export default function MultiDeviceUserFormModal({ devices, onClose, onDone }) {
     }
     setSaving(true);
     const payload = { ...form, expiration: form.expiration ? new Date(form.expiration).toISOString() : undefined };
-    const outcomes = await Promise.allSettled(
-      selected.map((deviceId) => api.accessDevices.users.create(deviceId, payload))
-    );
-    setResults(
-      outcomes.map((outcome, i) => {
-        const device = devices.find((d) => d.id === selected[i]);
-        return outcome.status === 'fulfilled'
-          ? { device, ok: true }
-          : { device, ok: false, message: outcome.reason?.message || 'Falha desconhecida' };
-      })
-    );
+    const outcomes = await Promise.all(selected.map((deviceId) => createOnDevice(deviceId, payload)));
+    setResults(outcomes);
     setSaving(false);
   }
 
@@ -63,8 +72,12 @@ export default function MultiDeviceUserFormModal({ devices, onClose, onDone }) {
     onClose();
   }
 
+  const STATUS_COLOR = { true: 'var(--success-500)', partial: 'var(--warning-500)', false: 'var(--danger-500)' };
+  const STATUS_ICON = { true: 'check', partial: 'camera', false: 'x' };
+
   if (results) {
-    const okCount = results.filter((r) => r.ok).length;
+    const fullCount = results.filter((r) => r.ok === true).length;
+    const partialCount = results.filter((r) => r.ok === 'partial').length;
     return (
       <Modal
         title="Resultado do cadastro"
@@ -77,7 +90,9 @@ export default function MultiDeviceUserFormModal({ devices, onClose, onDone }) {
       >
         <div className="modal-body">
           <p style={{ color: 'var(--text-secondary)' }}>
-            <strong>{form.name}</strong> cadastrado em {okCount} de {results.length} equipamento{results.length === 1 ? '' : 's'}.
+            <strong>{form.name}</strong> cadastrado em {fullCount + partialCount} de {results.length} equipamento
+            {results.length === 1 ? '' : 's'}
+            {partialCount > 0 ? ` (${partialCount} sem a foto)` : ''}.
           </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {results.map(({ device, ok, message }) => (
@@ -89,15 +104,15 @@ export default function MultiDeviceUserFormModal({ devices, onClose, onDone }) {
                   display: 'flex',
                   alignItems: 'flex-start',
                   gap: 10,
-                  borderLeft: `3px solid ${ok ? 'var(--success-500)' : 'var(--danger-500)'}`,
+                  borderLeft: `3px solid ${STATUS_COLOR[ok]}`,
                 }}
               >
-                <span style={{ color: ok ? 'var(--success-500)' : 'var(--danger-500)', marginTop: 2, flexShrink: 0, display: 'flex' }}>
-                  <Icon name={ok ? 'check' : 'x'} size={16} />
+                <span style={{ color: STATUS_COLOR[ok], marginTop: 2, flexShrink: 0, display: 'flex' }}>
+                  <Icon name={STATUS_ICON[ok]} size={16} />
                 </span>
                 <div>
                   <div style={{ fontWeight: 600, fontSize: 14 }}>{device.name}</div>
-                  {!ok && <div style={{ fontSize: 12.5, color: 'var(--text-secondary)' }}>{message}</div>}
+                  <div style={{ fontSize: 12.5, color: 'var(--text-secondary)' }}>{message}</div>
                 </div>
               </div>
             ))}
@@ -160,6 +175,20 @@ export default function MultiDeviceUserFormModal({ devices, onClose, onDone }) {
         </div>
 
         <div className="field">
+          <label className="field-label">Foto facial (opcional)</label>
+          <input
+            className="input"
+            type="file"
+            accept="image/*"
+            onChange={(e) => setPhotoFile(e.target.files?.[0] || null)}
+          />
+          <span className="field-hint">
+            Enviada logo depois de criar o usuário em cada equipamento escolhido. Se algum equipamento recusar (ex.:
+            tamanho/formato), o resto continua normalmente — o resultado mostra equipamento por equipamento.
+          </span>
+        </div>
+
+        <div className="field">
           <label className="field-label">Cadastrar nestes equipamentos</label>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
             {devices.map((d) => (
@@ -170,10 +199,6 @@ export default function MultiDeviceUserFormModal({ devices, onClose, onDone }) {
             ))}
           </div>
         </div>
-
-        <span className="field-hint">
-          O cadastro da <strong>foto facial</strong> é feito depois, equipamento por equipamento, na própria linha do usuário na lista.
-        </span>
       </form>
     </Modal>
   );
