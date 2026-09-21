@@ -114,7 +114,7 @@ export const api = {
     },
     networkHistory: (hours = 24) => request(`/gateway/rede/api/stats/network-history?hours=${hours}`),
     flappiest: () => request('/gateway/rede/api/stats/flappiest?hours=24&limit=5'),
-    history: () => request('/gateway/rede/api/history?limit=30'),
+    history: () => request('/gateway/rede/api/history?limit=100'),
     setFloorPosition: (deviceId, floorId, x, y) =>
       request(`/gateway/rede/api/devices/${deviceId}/floor-position`, { method: 'POST', body: { floorId, x, y } }),
     executiveReportBlob: async (days = 7) => {

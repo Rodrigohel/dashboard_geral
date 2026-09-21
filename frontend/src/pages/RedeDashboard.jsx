@@ -264,7 +264,14 @@ function DeviceDetailModal({ deviceId, onClose }) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               <DetailRow label="Tipo" value={device.type} />
               <DetailRow label="Local" value={device.location} />
+              <DetailRow label="Portas TCP" value={device.ports?.length ? device.ports.join(', ') : null} />
               <DetailRow label="Notas" value={device.notes} />
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span className="field-hint">Monitoramento</span>
+                <span className={`badge ${device.enabled ? 'badge-success' : 'badge-neutral'}`}>
+                  <span className="badge-dot" /> {device.enabled ? 'ativo' : 'desativado'}
+                </span>
+              </div>
               <DetailRow label="Última checagem" value={device.lastCheckAt ? new Date(device.lastCheckAt).toLocaleString('pt-BR') : null} />
               <DetailRow label="Em manutenção até" value={device.maintenanceUntil ? new Date(device.maintenanceUntil).toLocaleString('pt-BR') : null} />
             </div>
@@ -379,17 +386,15 @@ function formatDuration(ms) {
 function AnaliseSection() {
   const [snapshot, setSnapshot] = useState(null);
   const [flappiest, setFlappiest] = useState([]);
-  const [history, setHistory] = useState([]);
   const [downloading, setDownloading] = useState(false);
   const toast = useToast();
 
   useEffect(() => {
-    Promise.all([api.rede.networkHistory(24), api.rede.flappiest(), api.rede.history()])
-      .then(([nh, fl, hi]) => {
+    Promise.all([api.rede.networkHistory(24), api.rede.flappiest()])
+      .then(([nh, fl]) => {
         const rows = nh.data || [];
         setSnapshot(rows[rows.length - 1] || null);
         setFlappiest(fl.data || []);
-        setHistory(hi.data || []);
       })
       .catch(() => {});
   }, []);
@@ -412,47 +417,66 @@ function AnaliseSection() {
   }
 
   return (
-    <>
-      <div className="surface" style={{ padding: 24 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-          <div style={{ fontWeight: 700 }}>Análise de rede</div>
-          <button className="btn btn-secondary btn-sm" onClick={handleDownloadReport} disabled={downloading}>
-            {downloading ? <span className="spinner spinner-dark" /> : <Icon name="copy" size={14} />} Relatório executivo (PDF)
-          </button>
-        </div>
-        <p className="field-hint" style={{ marginBottom: 16 }}>Latência da última rodada de checagem e equipamentos mais instáveis (24h).</p>
-        <div style={{ display: 'flex', gap: 32, flexWrap: 'wrap', marginBottom: 20 }}>
-          <div>
-            <div className="field-hint">Latência média</div>
-            <div style={{ fontSize: 22, fontWeight: 700 }}>{snapshot?.avgLatencyMs != null ? `${Math.round(snapshot.avgLatencyMs)} ms` : '—'}</div>
-          </div>
-          <div>
-            <div className="field-hint">Latência p95</div>
-            <div style={{ fontSize: 22, fontWeight: 700 }}>{snapshot?.p95LatencyMs != null ? `${Math.round(snapshot.p95LatencyMs)} ms` : '—'}</div>
-          </div>
-        </div>
-        <div style={{ fontWeight: 600, fontSize: 13.5, marginBottom: 8 }}>Mais instáveis</div>
-        {flappiest.length === 0 ? (
-          <div className="field-hint">Nenhuma queda registrada nas últimas 24h.</div>
-        ) : (
-          flappiest.map((d) => (
-            <div className="service-row" key={d.id}>
-              <div>
-                <div style={{ fontWeight: 600, fontSize: 14 }}>{d.name}</div>
-                <div className="field-hint">{d.location || d.ip}</div>
-              </div>
-              <span className="badge badge-warning">{d.drops} queda(s)</span>
-            </div>
-          ))
-        )}
+    <div className="surface" style={{ padding: 24 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+        <div style={{ fontWeight: 700 }}>Análise de rede</div>
+        <button className="btn btn-secondary btn-sm" onClick={handleDownloadReport} disabled={downloading}>
+          {downloading ? <span className="spinner spinner-dark" /> : <Icon name="copy" size={14} />} Relatório executivo (PDF)
+        </button>
       </div>
+      <p className="field-hint" style={{ marginBottom: 16 }}>Latência da última rodada de checagem e equipamentos mais instáveis (24h).</p>
+      <div style={{ display: 'flex', gap: 32, flexWrap: 'wrap', marginBottom: 20 }}>
+        <div>
+          <div className="field-hint">Latência média</div>
+          <div style={{ fontSize: 22, fontWeight: 700 }}>{snapshot?.avgLatencyMs != null ? `${Math.round(snapshot.avgLatencyMs)} ms` : '—'}</div>
+        </div>
+        <div>
+          <div className="field-hint">Latência p95</div>
+          <div style={{ fontSize: 22, fontWeight: 700 }}>{snapshot?.p95LatencyMs != null ? `${Math.round(snapshot.p95LatencyMs)} ms` : '—'}</div>
+        </div>
+      </div>
+      <div style={{ fontWeight: 600, fontSize: 13.5, marginBottom: 8 }}>Mais instáveis</div>
+      {flappiest.length === 0 ? (
+        <div className="field-hint">Nenhuma queda registrada nas últimas 24h.</div>
+      ) : (
+        flappiest.map((d) => (
+          <div className="service-row" key={d.id}>
+            <div>
+              <div style={{ fontWeight: 600, fontSize: 14 }}>{d.name}</div>
+              <div className="field-hint">{d.location || d.ip}</div>
+            </div>
+            <span className="badge badge-warning">{d.drops} queda(s)</span>
+          </div>
+        ))
+      )}
+    </div>
+  );
+}
 
-      <div className="surface" style={{ padding: 24 }}>
-        <div style={{ fontWeight: 700, marginBottom: 4 }}>Histórico de eventos</div>
-        <p className="field-hint" style={{ marginBottom: 12 }}>Últimas quedas e recuperações registradas.</p>
-        {history.length === 0 ? (
-          <div className="field-hint">Nenhum evento registrado ainda.</div>
-        ) : (
+const HISTORY_PAGE_SIZE = 10;
+
+function HistoricoSection() {
+  const [history, setHistory] = useState(null);
+  const [page, setPage] = useState(1);
+
+  useEffect(() => {
+    api.rede.history().then((hi) => setHistory(hi.data || [])).catch(() => setHistory([]));
+  }, []);
+
+  const totalPages = Math.max(1, Math.ceil((history?.length || 0) / HISTORY_PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const pageHistory = (history || []).slice((safePage - 1) * HISTORY_PAGE_SIZE, safePage * HISTORY_PAGE_SIZE);
+
+  return (
+    <div className="surface" style={{ padding: 24 }}>
+      <div style={{ fontWeight: 700, marginBottom: 4 }}>Histórico de eventos</div>
+      <p className="field-hint" style={{ marginBottom: 12 }}>Últimas quedas e recuperações registradas.</p>
+      {history === null ? (
+        <div className="skeleton" style={{ height: 160, borderRadius: 12 }} />
+      ) : history.length === 0 ? (
+        <div className="field-hint">Nenhum evento registrado ainda.</div>
+      ) : (
+        <>
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13.5 }}>
               <thead>
@@ -464,7 +488,7 @@ function AnaliseSection() {
                 </tr>
               </thead>
               <tbody>
-                {history.map((e) => (
+                {pageHistory.map((e) => (
                   <tr key={e.id} style={{ borderTop: '1px solid var(--border-subtle)' }}>
                     <td style={{ padding: '10px 12px', color: 'var(--text-secondary)' }}>{new Date(e.at).toLocaleString('pt-BR')}</td>
                     <td style={{ padding: '10px 12px', fontWeight: 600 }}>{e.device?.name}</td>
@@ -475,9 +499,22 @@ function AnaliseSection() {
               </tbody>
             </table>
           </div>
-        )}
-      </div>
-    </>
+          {totalPages > 1 && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 10, marginTop: 12 }}>
+              <span className="field-hint">
+                Página {safePage} de {totalPages} · {history.length} evento(s)
+              </span>
+              <button className="btn btn-secondary btn-sm" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={safePage <= 1}>
+                Anterior
+              </button>
+              <button className="btn btn-secondary btn-sm" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={safePage >= totalPages}>
+                Próxima
+              </button>
+            </div>
+          )}
+        </>
+      )}
+    </div>
   );
 }
 
@@ -489,7 +526,7 @@ export default function RedeDashboard({ can }) {
   const [deviceFilter, setDeviceFilter] = useState('');
   const [page, setPage] = useState(1);
   const [viewingDevice, setViewingDevice] = useState(null);
-  const PAGE_SIZE = 25;
+  const PAGE_SIZE = 10;
 
   const canSeeFloorPlan = can('rede.plantaBaixa');
   const canSeeAnalise = can('rede.analise');
@@ -540,18 +577,19 @@ export default function RedeDashboard({ can }) {
       )}
 
       {!summary ? (
-        <div className="stat-grid">
-          {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="skeleton" style={{ height: 130, borderRadius: 20 }} />
-          ))}
-        </div>
+        <div className="skeleton" style={{ height: 130, borderRadius: 20 }} />
       ) : (
-        <div className="stat-grid">
+        <>
           <SummaryCard icon="network" title="Equipamentos" value={summary.total} sub="monitorados" />
-          <SummaryCard icon="wifi" title="Online" value={summary.online || 0} tone="success" />
-          <SummaryCard icon="wifi" title="Degradado" value={summary.degraded || 0} tone="warning" />
-          <SummaryCard icon="wifi" title="Offline" value={summary.offline || 0} tone="danger" />
-        </div>
+          {/* Sempre 3 colunas fixas (nunca empilha, nem no celular) — são os
+              três números que precisam ficar lado a lado pra comparar de
+              relance. */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+            <SummaryCard icon="wifi" title="Online" value={summary.online || 0} tone="success" />
+            <SummaryCard icon="wifi" title="Degradado" value={summary.degraded || 0} tone="warning" />
+            <SummaryCard icon="wifi" title="Offline" value={summary.offline || 0} tone="danger" />
+          </div>
+        </>
       )}
 
       <div className="surface" style={{ padding: 24 }}>
@@ -645,6 +683,8 @@ export default function RedeDashboard({ can }) {
       {canSeeAnalise && <AnaliseSection />}
 
       {canSeeFloorPlan && <FloorPlanSection onViewDevice={setViewingDevice} />}
+
+      {canSeeAnalise && <HistoricoSection />}
 
       {viewingDevice && <DeviceDetailModal deviceId={viewingDevice} onClose={() => setViewingDevice(null)} />}
     </>
