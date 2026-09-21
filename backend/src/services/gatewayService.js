@@ -119,15 +119,17 @@ export function gatewayProxy(moduleKey, { featureRules = [] } = {}) {
     const targetPath = req.originalUrl.replace(new RegExp(`^/gateway/${moduleKey}`), '');
     const pathOnly = targetPath.split('?')[0];
 
-    if (req.user?.role !== 'owner') {
-      const rule = featureRules.find((r) => r.test(req.method, pathOnly));
-      if (rule) {
-        const allowed = db
-          .prepare('SELECT 1 FROM permissions WHERE user_id = ? AND module_key = ?')
-          .get(req.user.sub, rule.feature);
-        if (!allowed) {
-          return res.status(403).json({ error: rule.message || 'Você não tem acesso a esta função.' });
-        }
+    const rule = featureRules.find((r) => r.test(req.method, pathOnly));
+    if (rule) {
+      // requireOwner: ação restrita ao dono do Portal, não uma permissão de
+      // funcionalidade liberável (ex.: configurações gerais do painel de
+      // Rede/Telegram) — o backend de baixo nem sempre protege isso sozinho.
+      const allowed = rule.requireOwner
+        ? req.user?.role === 'owner'
+        : req.user?.role === 'owner' ||
+          db.prepare('SELECT 1 FROM permissions WHERE user_id = ? AND module_key = ?').get(req.user.sub, rule.feature);
+      if (!allowed) {
+        return res.status(403).json({ error: rule.message || 'Você não tem acesso a esta função.' });
       }
     }
 

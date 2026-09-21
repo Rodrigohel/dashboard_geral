@@ -110,6 +110,18 @@ export const api = {
     networkHistory: (hours = 24) => request(`/gateway/rede/api/stats/network-history?hours=${hours}`),
     flappiest: () => request('/gateway/rede/api/stats/flappiest?hours=24&limit=5'),
     history: () => request('/gateway/rede/api/history?limit=30'),
+    setFloorPosition: (deviceId, floorId, x, y) =>
+      request(`/gateway/rede/api/devices/${deviceId}/floor-position`, { method: 'POST', body: { floorId, x, y } }),
+    executiveReportBlob: async (days = 7) => {
+      const res = await fetch(`/gateway/rede/api/stats/report/executive?days=${days}`, {
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `Erro ${res.status}`);
+      return res.blob();
+    },
+    getSettings: () => request('/gateway/rede/api/settings'),
+    saveSettings: (payload) => request('/gateway/rede/api/settings', { method: 'PUT', body: payload }),
+    testTelegram: (payload) => request('/gateway/rede/api/settings/telegram/test', { method: 'POST', body: payload }),
   },
 
   branding: {

@@ -231,6 +231,23 @@ function FloorPlanSection({ isOwner }) {
     }
   }
 
+  const [placingDeviceId, setPlacingDeviceId] = useState('');
+
+  async function handlePlaceClick(floorId, e) {
+    if (!placingDeviceId) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / rect.width;
+    const y = (e.clientY - rect.top) / rect.height;
+    try {
+      await api.rede.setFloorPosition(Number(placingDeviceId), floorId, x, y);
+      toast('Equipamento posicionado.');
+      setPlacingDeviceId('');
+      reload();
+    } catch (err) {
+      toast(err.message, 'error');
+    }
+  }
+
   return (
     <div className="surface" style={{ padding: 24 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
@@ -241,7 +258,22 @@ function FloorPlanSection({ isOwner }) {
           </button>
         )}
       </div>
-      <p className="field-hint" style={{ marginBottom: 12 }}>Posição dos equipamentos por pavimento — leitura.</p>
+      <p className="field-hint" style={{ marginBottom: 12 }}>Posição dos equipamentos por pavimento.</p>
+
+      {isOwner && floors?.length > 0 && (
+        <div className="field" style={{ maxWidth: 360, marginBottom: 16 }}>
+          <label className="field-label">Posicionar equipamento</label>
+          <select className="select" value={placingDeviceId} onChange={(e) => setPlacingDeviceId(e.target.value)}>
+            <option value="">Selecione um equipamento...</option>
+            {devices.map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.name}
+              </option>
+            ))}
+          </select>
+          <span className="field-hint">{placingDeviceId ? 'Agora clique no ponto certo na imagem do pavimento.' : 'Escolha um equipamento e clique na planta para posicioná-lo.'}</span>
+        </div>
+      )}
 
       {floors === null ? (
         <div className="skeleton" style={{ height: 200, borderRadius: 12 }} />
@@ -261,7 +293,17 @@ function FloorPlanSection({ isOwner }) {
                     </button>
                   )}
                 </div>
-                <div style={{ position: 'relative', width: '100%', borderRadius: 12, overflow: 'hidden', border: '1px solid var(--border-subtle)' }}>
+                <div
+                  onClick={isOwner && placingDeviceId ? (e) => handlePlaceClick(floor.id, e) : undefined}
+                  style={{
+                    position: 'relative',
+                    width: '100%',
+                    borderRadius: 12,
+                    overflow: 'hidden',
+                    border: '1px solid var(--border-subtle)',
+                    cursor: isOwner && placingDeviceId ? 'crosshair' : 'default',
+                  }}
+                >
                   <img src={`/gateway/rede${floor.imageUrl}`} alt={floor.name} style={{ width: '100%', display: 'block' }} />
                   {pins.map((d) => (
                     <div
@@ -317,6 +359,8 @@ function AnaliseSection() {
   const [snapshot, setSnapshot] = useState(null);
   const [flappiest, setFlappiest] = useState([]);
   const [history, setHistory] = useState([]);
+  const [downloading, setDownloading] = useState(false);
+  const toast = useToast();
 
   useEffect(() => {
     Promise.all([api.rede.networkHistory(24), api.rede.flappiest(), api.rede.history()])
@@ -329,10 +373,32 @@ function AnaliseSection() {
       .catch(() => {});
   }, []);
 
+  async function handleDownloadReport() {
+    setDownloading(true);
+    try {
+      const blob = await api.rede.executiveReportBlob(7);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'relatorio-executivo-rede.pdf';
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      toast(err.message, 'error');
+    } finally {
+      setDownloading(false);
+    }
+  }
+
   return (
     <>
       <div className="surface" style={{ padding: 24 }}>
-        <div style={{ fontWeight: 700, marginBottom: 4 }}>Análise de rede</div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+          <div style={{ fontWeight: 700 }}>Análise de rede</div>
+          <button className="btn btn-secondary btn-sm" onClick={handleDownloadReport} disabled={downloading}>
+            {downloading ? <span className="spinner spinner-dark" /> : <Icon name="copy" size={14} />} Relatório executivo (PDF)
+          </button>
+        </div>
         <p className="field-hint" style={{ marginBottom: 16 }}>Latência da última rodada de checagem e equipamentos mais instáveis (24h).</p>
         <div style={{ display: 'flex', gap: 32, flexWrap: 'wrap', marginBottom: 20 }}>
           <div>
@@ -391,6 +457,99 @@ function AnaliseSection() {
         )}
       </div>
     </>
+  );
+}
+
+function RedeConfigSection() {
+  const [form, setForm] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const toast = useToast();
+
+  useEffect(() => {
+    api.rede.getSettings().then(setForm).catch(() => setForm({}));
+  }, []);
+
+  function set(field, value) {
+    setForm((f) => ({ ...f, [field]: value }));
+  }
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      const updated = await api.rede.saveSettings(form);
+      setForm(updated);
+      toast('Configurações do Rede salvas.');
+    } catch (err) {
+      toast(err.message, 'error');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleTestTelegram() {
+    setTesting(true);
+    try {
+      await api.rede.testTelegram({ telegramBotToken: form.telegramBotToken, telegramChatId: form.telegramChatId });
+      toast('Mensagem de teste enviada ao Telegram.');
+    } catch (err) {
+      toast(err.message, 'error');
+    } finally {
+      setTesting(false);
+    }
+  }
+
+  if (!form) return <div className="skeleton" style={{ height: 220, borderRadius: 12 }} />;
+
+  return (
+    <div className="surface" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div>
+        <div style={{ fontWeight: 700 }}>Configurações do Rede</div>
+        <div className="field-hint">Nome, monitoramento e alertas por Telegram do painel de Rede.</div>
+      </div>
+
+      <div className="grid-2">
+        <div className="field">
+          <label className="field-label">Nome da empresa</label>
+          <input className="input" value={form.companyName || ''} onChange={(e) => set('companyName', e.target.value)} />
+        </div>
+        <div className="field">
+          <label className="field-label">Nome do site/local</label>
+          <input className="input" value={form.siteName || ''} onChange={(e) => set('siteName', e.target.value)} />
+        </div>
+      </div>
+
+      <div className="grid-2">
+        <div className="field">
+          <label className="field-label">Intervalo entre checagens (segundos)</label>
+          <input className="input" type="number" min={5} value={form.pingIntervalSeconds ?? ''} onChange={(e) => set('pingIntervalSeconds', Number(e.target.value))} />
+        </div>
+        <div className="field">
+          <label className="field-label">Falhas seguidas até marcar offline</label>
+          <input className="input" type="number" min={1} value={form.offlineThresholdFails ?? ''} onChange={(e) => set('offlineThresholdFails', Number(e.target.value))} />
+        </div>
+      </div>
+
+      <div className="grid-2">
+        <div className="field">
+          <label className="field-label">Telegram — Bot Token</label>
+          <input className="input" value={form.telegramBotToken || ''} onChange={(e) => set('telegramBotToken', e.target.value)} placeholder="Opcional" />
+        </div>
+        <div className="field">
+          <label className="field-label">Telegram — Chat ID</label>
+          <input className="input" value={form.telegramChatId || ''} onChange={(e) => set('telegramChatId', e.target.value)} placeholder="Opcional" />
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
+          {saving ? <span className="spinner" /> : 'Salvar'}
+        </button>
+        <button className="btn btn-secondary" onClick={handleTestTelegram} disabled={testing || !form.telegramBotToken || !form.telegramChatId}>
+          {testing ? <span className="spinner spinner-dark" /> : 'Testar Telegram'}
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -566,6 +725,8 @@ export default function RedeDashboard({ can, isOwner }) {
       {canSeeAnalise && <AnaliseSection />}
 
       {canSeeFloorPlan && <FloorPlanSection isOwner={isOwner} />}
+
+      {isOwner && <RedeConfigSection />}
 
       {(showAddDevice || editingDevice) && (
         <DeviceFormModal
