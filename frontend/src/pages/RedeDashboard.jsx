@@ -199,6 +199,7 @@ function FloorFormModal({ onClose, onSave }) {
 function FloorPlanSection({ isOwner }) {
   const [floors, setFloors] = useState(null);
   const [devices, setDevices] = useState([]);
+  const [imageUrls, setImageUrls] = useState({});
   const [showForm, setShowForm] = useState(false);
   const [deletingFloor, setDeletingFloor] = useState(null);
   const toast = useToast();
@@ -211,6 +212,29 @@ function FloorPlanSection({ isOwner }) {
       })
       .catch(() => setFloors([]));
   }
+
+  // Imagem precisa de fetch autenticado (vira blob) — <img src> puro não
+  // manda o Authorization exigido pelo gateway, ver client.js.
+  useEffect(() => {
+    if (!floors) return;
+    let cancelled = false;
+    const urls = {};
+    Promise.all(
+      floors.map(async (floor) => {
+        try {
+          urls[floor.id] = await api.rede.getFloorImageBlobUrl(floor.imageUrl);
+        } catch {
+          // uma imagem específica falhou — segue sem ela, não trava as outras
+        }
+      })
+    ).then(() => {
+      if (!cancelled) setImageUrls(urls);
+    });
+    return () => {
+      cancelled = true;
+      Object.values(urls).forEach((u) => URL.revokeObjectURL(u));
+    };
+  }, [floors]);
   useEffect(reload, []);
 
   async function handleCreateFloor(payload) {
@@ -304,7 +328,11 @@ function FloorPlanSection({ isOwner }) {
                     cursor: isOwner && placingDeviceId ? 'crosshair' : 'default',
                   }}
                 >
-                  <img src={`/gateway/rede${floor.imageUrl}`} alt={floor.name} style={{ width: '100%', display: 'block' }} />
+                  {imageUrls[floor.id] ? (
+                    <img src={imageUrls[floor.id]} alt={floor.name} style={{ width: '100%', display: 'block' }} />
+                  ) : (
+                    <div className="skeleton" style={{ height: 240, borderRadius: 0 }} />
+                  )}
                   {pins.map((d) => (
                     <div
                       key={d.id}
