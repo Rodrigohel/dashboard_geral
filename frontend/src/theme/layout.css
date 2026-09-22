@@ -73,8 +73,8 @@
    ícone de iniciais porque, sem um fundo colorido pra dar presença, uma
    logo real fica minúscula na mesma caixa de 38px. */
 .brand-mark.brand-logo-img {
-  width: 48px;
-  height: 48px;
+  width: 58px;
+  height: 58px;
   background: none;
   box-shadow: none;
 }
