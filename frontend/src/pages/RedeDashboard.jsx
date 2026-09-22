@@ -294,7 +294,9 @@ function FullscreenFloorViewer({ floor, imageUrl, pins, onViewDevice, onClose })
         position: 'fixed',
         inset: 0,
         background: 'rgba(5, 7, 16, 0.94)',
-        zIndex: 200,
+        zIndex: 90, // abaixo do .modal-overlay padrão (z-index 100) — o modal de
+        // detalhe do equipamento, aberto por cima ao clicar num pino, precisa
+        // ficar visível e não atrás da planta em tela cheia.
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
