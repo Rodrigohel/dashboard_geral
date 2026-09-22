@@ -77,14 +77,6 @@ async function xpeCall(device, password, target, action, data) {
 
   let res;
   try {
-
-  console.log('\n========== XPE API CALL ==========');
-  console.log('URL:', url);
-  console.log('TARGET:', target);
-  console.log('ACTION:', action);
-  console.log('DATA:', JSON.stringify(data, null, 2));
-  console.log('===================================\n');
-    
     res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: auth },
@@ -114,6 +106,90 @@ async function xpeCall(device, password, target, action, data) {
     throw new Error(`Equipamento recusou ${target}/${action} (retcode ${json.retcode}, ${detail}).`);
   }
   return json.data || {};
+}
+
+/**
+ * Salva usuário pela mesma interface FCGI usada pelo XPE Web.
+ *
+ * A interface web do XPE 3200 IP Face grava "Sempre" com:
+ *   ValidityTerm = 0
+ *   Frequency    = 0
+ *
+ * Formato observado no hardware:
+ *   cUserEdit=UserID/Name/PIN/CardCode/Reserved/WebRelay/Validity/Frequency/FaceID/
+ *
+ * O endpoint FCGI usa application/x-www-form-urlencoded.
+ * Tentamos HTTP Basic com as mesmas credenciais do equipamento.
+ */
+async function xpeFcgEditUser(device, password, existing, input) {
+  const base = baseUrlOf(device);
+  const userId = input.registration || existing.UserID || '';
+  const name = input.name ?? existing.Name ?? '';
+  const pin = input.password ?? existing.PrivatePIN ?? '';
+  const cardCode = input.cardNumber
+    ? toXpeCardCode(input.cardNumber)
+    : (existing.CardCode ?? '');
+
+  const webRelay = existing.WebRelay ?? '0';
+  const faceId = existing.FaceID
+    ? String(existing.FaceID).match(/\/([^/]+)\.jpg(?:\?.*)?$/i)?.[1] || ''
+    : '';
+
+  // Os campos abaixo reproduzem a sequência observada na interface web.
+  // O campo reservado permanece vazio.
+  const cUserEdit = [
+    userId,
+    name,
+    pin,
+    cardCode,
+    '',
+    webRelay,
+    '0', // Termo de validade = Sempre
+    '0', // Qtde de acessos = ilimitado
+    faceId,
+    '',
+  ].join('/');
+
+  const submitData =
+    `begin&Operation=Submit&cUserEdit=${encodeURIComponent(cUserEdit)}&SubmitData=end`;
+
+  const auth =
+    'Basic ' +
+    Buffer.from(`${device.device_username}:${password}`).toString('base64');
+
+  const url =
+    `${base}/fcgi/do?id=16&id=5&RefRand=${Math.floor(Math.random() * 100000000)}`;
+
+  let res;
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        Authorization: auth,
+      },
+      body: `SubmitData=${encodeURIComponent(submitData)}`,
+      signal: AbortSignal.timeout(8000),
+    });
+  } catch (err) {
+    throw new Error(`Não consegui salvar o usuário pelo FCGI do XPE (${err.message}).`);
+  }
+
+  const responseText = await res.text();
+
+  if (res.status === 401) {
+    throw new Error(
+      'O XPE recusou a autenticação do FCGI (HTTP 401). A API JSON continua funcionando, mas o login da interface Web do XPE precisa ser usado para o FCGI.'
+    );
+  }
+
+  if (!res.ok) {
+    throw new Error(
+      `XPE recusou o salvamento pelo FCGI (HTTP ${res.status}): ${responseText.slice(0, 200)}`
+    );
+  }
+
+  return responseText;
 }
 
 // Confirmado via captura real de `user/get`: quem não tem foto tem `FaceID`
@@ -221,8 +297,8 @@ async function xpeFindByUserId(device, password, userId) {
 }
 
 async function xpeFindById(device, password, id) {
-const data = await xpeCall(device, password, 'user', 'get');
-return (data.item || []).find((it) => String(it.ID) === String(id)) || null;
+  const data = await xpeCall(device, password, 'user', 'get');
+  return (data.item || []).find((it) => String(it.ID) === String(id)) || null;
 }
 
 async function xpeListUsers(device, password) {
@@ -238,14 +314,13 @@ async function xpeCreateUser(device, password, input) {
   // (set/del) exigem.
   const created = await xpeFindByUserId(device, password, item.UserID);
   if (created) {
-    // Confirmado contra hardware real: "add" ignora Frequency/Validity (cria
-    // sempre com -1/-1, "sem acesso"), mesmo mandando 0/0 — só "set" respeita
-    // esses dois campos. Por isso, força um "set" de confirmação logo após
-    // criar, agora que já temos o ID interno, senão todo usuário nasce sem
-    // acesso e só um "editar" manual depois corrige.
-    const fixed = { ...xpeSafeExisting(created), ...item, ID: String(created.ID) };
-    await xpeCall(device, password, 'user', 'set', { item: [fixed] });
-    return xpeFromItem(fixed);
+    // O endpoint JSON `user/add` cria o usuário, mas o firmware deixa
+    // Frequency/Validity em -1/-1. Finaliza pelo mesmo FCGI usado pelo
+    // botão Salvar da interface web, que grava Sempre como 0/0.
+    await xpeFcgEditUser(device, password, created, item);
+
+    const updated = await xpeFindById(device, password, created.ID);
+    return xpeFromItem(updated || created);
   }
   return { id: item.UserID, ...xpeFromItem({ ...item, ID: item.UserID }) };
 }
@@ -264,8 +339,8 @@ function xpeSafeExisting(existing) {
     // pelo envio de foto (xpeSetUserPhoto), que NÃO passa por xpeBuildItem;
     // sem preservar Frequency aqui, subir uma foto depois de cadastrar o
     // usuário derrubava o acesso de novo (voltava pra -1/-1).
-    Frequency: 0,
-    Validity: 0,
+    Frequency: existing.Frequency ?? 0,
+    Validity: existing.Validity ?? 0,
     WebRelay: existing.WebRelay ?? '0',
     PrivatePIN: existing.PrivatePIN ?? '',
     CardCode: existing.CardCode ?? '',
@@ -274,12 +349,20 @@ function xpeSafeExisting(existing) {
 }
 
 async function xpeUpdateUser(device, password, userId, input) {
-  // user/set substitui o item inteiro (não é PATCH) — busca o existente e
-  // mescla, senão campos não enviados no formulário (ex.: Apartamento) somem.
   const existing = await xpeFindById(device, password, userId);
-  const merged = { ...xpeSafeExisting(existing), ...xpeBuildItem(input), ID: String(userId) };
-  await xpeCall(device, password, 'user', 'set', { item: [merged] });
-  return xpeFromItem(merged);
+  if (!existing) throw new Error('Usuário não encontrado no equipamento.');
+
+  // O salvamento dos campos de acesso passa pelo mesmo FCGI da interface
+  // Web do XPE. Isso é necessário porque `user/set` aceita 0/0, mas o
+  // firmware continua materializando o usuário como -1/-1.
+  await xpeFcgEditUser(device, password, existing, {
+    ...input,
+    registration: input.registration || existing.UserID,
+    name: input.name ?? existing.Name,
+  });
+
+  const updated = await xpeFindById(device, password, userId);
+  return xpeFromItem(updated || existing);
 }
 
 async function xpeDeleteUser(device, password, userId) {
