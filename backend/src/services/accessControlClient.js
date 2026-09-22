@@ -236,6 +236,9 @@ async function xpeCreateUser(device, password, input) {
     // criar, agora que já temos o ID interno, senão todo usuário nasce sem
     // acesso e só um "editar" manual depois corrige.
     const fixed = { ...xpeSafeExisting(created), ...item, ID: String(created.ID) };
+
+    console.log('XPE USER SET:', JSON.stringify(fixed, null, 2)); // ESSA LINHA DEVE SER APAGADA DEPOIS
+    
     await xpeCall(device, password, 'user', 'set', { item: [fixed] });
     return xpeFromItem(fixed);
   }
