@@ -108,6 +108,78 @@ async function xpeCall(device, password, target, action, data) {
   return json.data || {};
 }
 
+function xpeFcgFaceId(existing) {
+  const faceId = String(existing?.FaceID || '');
+  const match = faceId.match(/\/([^/]+)\.jpg(?:\?.*)?$/i);
+  return match ? match[1] : '';
+}
+
+async function xpeFcgEditUser(device, password, existing, input) {
+  const base = baseUrlOf(device);
+  const userId = String(input.registration || existing?.UserID || '');
+  const name = String(input.name ?? existing?.Name ?? '');
+  const pin = String(input.password ?? existing?.PrivatePIN ?? '');
+  const cardCode = input.cardNumber
+    ? toXpeCardCode(input.cardNumber)
+    : String(existing?.CardCode ?? '');
+  const webRelay = String(existing?.WebRelay ?? '0');
+
+  // A interface Web do XPE grava "Sempre" como Validity=0 e Frequency=0.
+  // O endpoint /api/user/set aceita os campos, mas o firmware 116.0.3.43
+  // observado no equipamento os devolve como -1. Por isso, para estes dois
+  // campos, reproduzimos o POST usado pela própria interface Web.
+  const validity = '0';
+  const frequency = '0';
+  const faceId = xpeFcgFaceId(existing);
+
+  // A rotina CommitEditUser() do firmware monta:
+  // UserID / Name / PIN / campo RF-card / WebRelay / Validity / Frequency
+  // e termina com os campos internos usados pela página.
+  const cUserEdit = [
+    userId,
+    name,
+    pin,
+    cardCode,
+    '',
+    webRelay,
+    validity,
+    frequency,
+    faceId,
+    '',
+  ].join('/');
+
+  const refRand = String(Math.floor(Math.random() * 90000000) + 10000000);
+  const url =
+    `${base}/fcgi/do?id=16&id=5&RefRand=${refRand}` +
+    `&UserName=${encodeURIComponent(device.device_username)}` +
+    `&Password=${encodeURIComponent(password)}`;
+
+  const submitData =
+    `begin&Operation=Submit&cUserEdit=${encodeURIComponent(cUserEdit)}&SubmitData=end`;
+
+  let res;
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        Accept: 'text/html, */*',
+      },
+      body: `SubmitData=${encodeURIComponent(submitData)}`,
+      signal: AbortSignal.timeout(8000),
+    });
+  } catch (err) {
+    throw new Error(`Não consegui enviar a atualização Web ao XPE (${err.message}).`);
+  }
+
+  const responseText = await res.text();
+  if (!res.ok) {
+    throw new Error(`XPE recusou a atualização Web (HTTP ${res.status}): ${responseText.slice(0, 200)}`);
+  }
+
+  return responseText;
+}
+
 // Confirmado via captura real de `user/get`: quem não tem foto tem `FaceID`
 // terminando em "-1.jpg" (valor placeholder do equipamento); quem tem foto
 // de verdade tem um número real ali. Mais confiável que `FaceStatus`, que
@@ -236,23 +308,21 @@ async function xpeCreateUser(device, password, input) {
     // criar, agora que já temos o ID interno, senão todo usuário nasce sem
     // acesso e só um "editar" manual depois corrige.
     const fixed = { ...xpeSafeExisting(created), ...item, ID: String(created.ID) };
+    await xpeCall(device, password, 'user', 'set', { item: [fixed] });
 
-    console.log('XPE USER SET:', JSON.stringify(fixed, null, 2)); // ESSA LINHA DEVE SER APAGADA DEPOIS
-    
-   await xpeCall(device, password, 'user', 'set', { item: [fixed] });
+    // O /api/user/set não grava Frequency/Validity neste firmware.
+    // O POST FCGI é o mesmo usado pelo botão Salvar da interface Web.
+    await xpeFcgEditUser(device, password, created, item);
 
-const conferido = await xpeFindByUserId(device, password, item.UserID);
+    const conferido = await xpeFindByUserId(device, password, item.UserID);
+    if (conferido?.Frequency !== 0 || conferido?.Validity !== 0) {
+      throw new Error(
+        `XPE não confirmou Termo de validade "Sempre": ` +
+        `Frequency=${conferido?.Frequency}, Validity=${conferido?.Validity}.`
+      );
+    }
 
-console.log(
-  'XPE APOS SET:',
-  JSON.stringify({
-    UserID: conferido?.UserID,
-    Frequency: conferido?.Frequency,
-    Validity: conferido?.Validity,
-  }, null, 2)
-);
-
-return xpeFromItem(conferido || fixed);
+    return xpeFromItem(conferido);
   }
   return { id: item.UserID, ...xpeFromItem({ ...item, ID: item.UserID }) };
 }
@@ -271,8 +341,8 @@ function xpeSafeExisting(existing) {
     // pelo envio de foto (xpeSetUserPhoto), que NÃO passa por xpeBuildItem;
     // sem preservar Frequency aqui, subir uma foto depois de cadastrar o
     // usuário derrubava o acesso de novo (voltava pra -1/-1).
-    Frequency: 0,
-    Validity: 0,
+    Frequency: existing.Frequency ?? 0,
+    Validity: existing.Validity ?? 0,
     WebRelay: existing.WebRelay ?? '0',
     PrivatePIN: existing.PrivatePIN ?? '',
     CardCode: existing.CardCode ?? '',
@@ -286,7 +356,19 @@ async function xpeUpdateUser(device, password, userId, input) {
   const existing = await xpeFindById(device, password, userId);
   const merged = { ...xpeSafeExisting(existing), ...xpeBuildItem(input), ID: String(userId) };
   await xpeCall(device, password, 'user', 'set', { item: [merged] });
-  return xpeFromItem(merged);
+
+  // Corrige Frequency/Validity pelo mesmo POST usado pela interface Web.
+  await xpeFcgEditUser(device, password, existing, input);
+
+  const conferido = await xpeFindById(device, password, userId);
+  if (conferido?.Frequency !== 0 || conferido?.Validity !== 0) {
+    throw new Error(
+      `XPE não confirmou Termo de validade "Sempre": ` +
+      `Frequency=${conferido?.Frequency}, Validity=${conferido?.Validity}.`
+    );
+  }
+
+  return xpeFromItem(conferido);
 }
 
 async function xpeDeleteUser(device, password, userId) {
@@ -313,6 +395,15 @@ async function xpeSetUserPhoto(device, password, userId, fileBuffer, mimetype) {
   const url = `${relayBase.replace(/\/$/, '')}/api/access/face-relay/${token}.jpg`;
   const merged = { ...xpeSafeExisting(existing), ID: String(userId), FaceUrl: url };
   await xpeCall(device, password, 'user', 'set', { item: [merged] });
+
+  // user/set pode devolver Frequency/Validity para -1 novamente no firmware.
+  // Reaplica "Sempre" pelo mesmo mecanismo da interface Web.
+  await xpeFcgEditUser(device, password, existing, {
+    registration: existing.UserID,
+    name: existing.Name,
+    password: existing.PrivatePIN,
+    cardNumber: existing.CardCode,
+  });
   // Confirmado repetidas vezes contra hardware real: o equipamento busca a
   // foto e realmente cadastra, mas nem `FaceStatus` nem `FaceID` (que fica
   // igual ao trocar uma foto já existente) confirmam isso de forma
