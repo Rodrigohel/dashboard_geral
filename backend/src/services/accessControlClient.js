@@ -77,6 +77,14 @@ async function xpeCall(device, password, target, action, data) {
 
   let res;
   try {
+
+  console.log('\n========== XPE API CALL ==========');
+  console.log('URL:', url);
+  console.log('TARGET:', target);
+  console.log('ACTION:', action);
+  console.log('DATA:', JSON.stringify(data, null, 2));
+  console.log('===================================\n');
+    
     res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: auth },
