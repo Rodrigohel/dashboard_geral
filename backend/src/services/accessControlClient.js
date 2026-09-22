@@ -229,7 +229,17 @@ async function xpeCreateUser(device, password, input) {
   // criado pelo UserID pra descobrir o ID interno que os outros métodos
   // (set/del) exigem.
   const created = await xpeFindByUserId(device, password, item.UserID);
-  return created ? xpeFromItem(created) : { id: item.UserID, ...xpeFromItem({ ...item, ID: item.UserID }) };
+  if (created) {
+    // Confirmado contra hardware real: "add" ignora Frequency/Validity (cria
+    // sempre com -1/-1, "sem acesso"), mesmo mandando 0/0 — só "set" respeita
+    // esses dois campos. Por isso, força um "set" de confirmação logo após
+    // criar, agora que já temos o ID interno, senão todo usuário nasce sem
+    // acesso e só um "editar" manual depois corrige.
+    const fixed = { ...xpeSafeExisting(created), ...item, ID: String(created.ID) };
+    await xpeCall(device, password, 'user', 'set', { item: [fixed] });
+    return xpeFromItem(fixed);
+  }
+  return { id: item.UserID, ...xpeFromItem({ ...item, ID: item.UserID }) };
 }
 
 // Só os campos que a própria API documenta para "user/set" (ver
