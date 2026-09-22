@@ -125,16 +125,11 @@ async function xpeFcgEditUser(device, password, existing, input) {
   const webRelay = String(existing?.WebRelay ?? '0');
 
   // A interface Web do XPE grava "Sempre" como Validity=0 e Frequency=0.
-  // O endpoint /api/user/set aceita os campos, mas o firmware 116.0.3.43
-  // observado no equipamento os devolve como -1. Por isso, para estes dois
-  // campos, reproduzimos o POST usado pela própria interface Web.
   const validity = '0';
   const frequency = '0';
   const faceId = xpeFcgFaceId(existing);
 
-  // A rotina CommitEditUser() do firmware monta:
-  // UserID / Name / PIN / campo RF-card / WebRelay / Validity / Frequency
-  // e termina com os campos internos usados pela página.
+  // CommitEditUser() do firmware monta exatamente esta sequência.
   const cUserEdit = [
     userId,
     name,
@@ -149,13 +144,46 @@ async function xpeFcgEditUser(device, password, existing, input) {
   ].join('/');
 
   const refRand = String(Math.floor(Math.random() * 90000000) + 10000000);
-  const url =
-    `${base}/fcgi/do?id=16&id=5&RefRand=${refRand}` +
-    `&UserName=${encodeURIComponent(device.device_username)}` +
+  const authParams =
+    `UserName=${encodeURIComponent(device.device_username)}` +
     `&Password=${encodeURIComponent(password)}`;
 
   const submitData =
     `begin&Operation=Submit&cUserEdit=${encodeURIComponent(cUserEdit)}&SubmitData=end`;
+
+  // O /fcgi/do usado pela interface Web trabalha com sessão/cookie. O
+  // UserName/Password na URL é aceito pelo firmware para autenticação CGI,
+  // mas em algumas versões não cria a sessão necessária para Operation=Submit.
+  // Primeiro abrimos a raiz /fcgi/ com as credenciais e aproveitamos qualquer
+  // Set-Cookie que o firmware fornecer.
+  let cookie = '';
+  try {
+    const loginRes = await fetch(
+      `${base}/fcgi/?${authParams}`,
+      {
+        method: 'GET',
+        headers: { Accept: 'text/html, */*' },
+        signal: AbortSignal.timeout(8000),
+      }
+    );
+    const setCookie = loginRes.headers.get('set-cookie') || '';
+    if (setCookie) {
+      cookie = setCookie
+        .split(/,(?=[^;,]+=)/)
+        .map((v) => v.split(';')[0].trim())
+        .filter(Boolean)
+        .join('; ');
+    }
+    await loginRes.arrayBuffer();
+  } catch (err) {
+    throw new Error(`Não consegui iniciar a sessão Web do XPE (${err.message}).`);
+  }
+
+  // Algumas versões só aceitam o POST de gravação quando os parâmetros de
+  // autenticação continuam na URL; outras usam a sessão criada acima.
+  // Enviamos ambos: URL + Cookie.
+  const url =
+    `${base}/fcgi/do?id=16&id=5&RefRand=${refRand}&${authParams}`;
 
   let res;
   try {
@@ -164,6 +192,8 @@ async function xpeFcgEditUser(device, password, existing, input) {
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
         Accept: 'text/html, */*',
+        ...(cookie ? { Cookie: cookie } : {}),
+        Referer: `${base}/fcgi/do?id=16&id=5&RefRand=${refRand}`,
       },
       body: `SubmitData=${encodeURIComponent(submitData)}`,
       signal: AbortSignal.timeout(8000),
@@ -178,105 +208,6 @@ async function xpeFcgEditUser(device, password, existing, input) {
   }
 
   return responseText;
-}
-
-// Confirmado via captura real de `user/get`: quem não tem foto tem `FaceID`
-// terminando em "-1.jpg" (valor placeholder do equipamento); quem tem foto
-// de verdade tem um número real ali. Mais confiável que `FaceStatus`, que
-// demora a atualizar (ou nem atualiza) logo depois de trocar uma foto —
-// confirmado contra hardware real: upload funcionava mas FaceStatus
-// continuava reportando "sem foto" minutos depois.
-function xpeHasRealFace(item) {
-  return Boolean(item?.FaceID) && !/\/-1\.jpg$/i.test(item.FaceID);
-}
-
-function xpeFromItem(item) {
-  return {
-    id: item.ID,
-    name: item.Name,
-    registration: item.UserID,
-    apartment: item.LiftFloorNum || '',
-    hasFace: xpeHasRealFace(item),
-    cardNumber: item.CardCode || null,
-    // Validity/Frequency aceitam outros valores, mas o formato não está
-    // confirmado além de 0/0 = sem prazo (ver xpeBuildItem) — o Portal
-    // sempre cadastra como "sempre", sem UI pra editar isso por enquanto.
-    expiration: null,
-  };
-}
-
-// Busca o binário de uma URL absoluta que o próprio equipamento devolveu
-// (ex.: FaceID). Usa os módulos nativos (não `fetch`) porque essas URLs vêm
-// em HTTPS com certificado autoassinado do equipamento — precisa aceitar sem
-// validar (mesmo aparelho da rede local que já autenticamos via API) — e o
-// firmware usa uma chave Diffie-Hellman fraca que o OpenSSL moderno recusa
-// por padrão ("dh key too small"), por isso baixa o nível de segurança do
-// TLS só nessa chamada.
-function fetchDeviceBinary(url, auth) {
-  return new Promise((resolve, reject) => {
-    const isHttps = url.startsWith('https:');
-    const mod = isHttps ? https : http;
-    const opts = {
-      headers: { Authorization: auth },
-      timeout: 8000,
-      ...(isHttps
-        ? { agent: new https.Agent({ rejectUnauthorized: false, ciphers: 'DEFAULT@SECLEVEL=1' }) }
-        : {}),
-    };
-    const req = mod.get(url, opts, (res) => {
-      if (res.statusCode && res.statusCode >= 400) {
-        res.resume();
-        reject(new Error(`Equipamento recusou a foto (HTTP ${res.statusCode}).`));
-        return;
-      }
-      const chunks = [];
-      res.on('data', (c) => chunks.push(c));
-      res.on('end', () => resolve(Buffer.concat(chunks)));
-    });
-    req.on('timeout', () => req.destroy(new Error('Tempo esgotado ao baixar a foto do equipamento.')));
-    req.on('error', reject);
-  });
-}
-
-// NOTE: formato exato do CardCode não confirmado por documentação oficial
-// (só sabemos que é hex de 4 bytes com ordem de bytes invertida) — valide
-// contra um cartão real antes de depender disso em produção.
-function toXpeCardCode(cardNumber) {
-  const num = Number(cardNumber);
-  if (!Number.isFinite(num)) return String(cardNumber);
-  const hex = Math.trunc(num).toString(16).padStart(8, '0').toUpperCase();
-  const bytes = hex.match(/.{2}/g) || [];
-  return bytes.reverse().join(',');
-}
-
-function xpeBuildItem(input) {
-  // CardCode/PrivatePIN sempre presentes (mesmo vazios) de propósito: no
-  // update, isso é um "merge" com o item existente (ver xpeUpdateUser) —
-  // se esses campos só aparecessem quando preenchidos, limpar o cartão ou
-  // a senha no formulário (deixando o campo em branco) não tinha efeito
-  // nenhum, porque o valor antigo sobrevivia ao merge. Foi exatamente o
-  // bug relatado: excluir o cartão no Portal não excluía no equipamento.
-  return {
-    UserID: input.registration || deriveRegistration(input.name),
-    Name: input.name,
-    // "Sempre" (sem prazo) exige os dois campos, confirmados via captura
-    // real: usuário cadastrado pela própria interface do equipamento tinha
-    // Frequency=0 E Validity=0. Mandar só Validity=0 sem Frequency fazia o
-    // equipamento gravar os dois como -1 (inválido/expirado) — era esse o
-    // bug real de acesso negado depois de cadastrar/editar pelo Portal.
-    Frequency: 0,
-    Validity: 0,
-    // O nome real desse campo é "WebRelay", não "Relay" — confirmado via
-    // captura real de `user/get` (todo usuário cadastrado pela própria
-    // interface do equipamento está com WebRelay="0"; "Relay" é um nome
-    // que a API simplesmente ignora, ficando com o padrão do equipamento).
-    WebRelay: '0',
-    PrivatePIN: input.password || '',
-    CardCode: input.cardNumber ? toXpeCardCode(input.cardNumber) : '',
-    // Campo que a interface do próprio equipamento chama de "Apartamento"
-    // (controla o andar liberado no elevador) — confirmado via captura real.
-    LiftFloorNum: input.apartment || '0',
-  };
 }
 
 async function xpeFindByUserId(device, password, userId) {
@@ -315,7 +246,7 @@ async function xpeCreateUser(device, password, input) {
     await xpeFcgEditUser(device, password, created, item);
 
     const conferido = await xpeFindByUserId(device, password, item.UserID);
-    if (conferido?.Frequency !== 0 || conferido?.Validity !== 0) {
+    if (Number(conferido?.Frequency) !== 0 || Number(conferido?.Validity) !== 0) {
       throw new Error(
         `XPE não confirmou Termo de validade "Sempre": ` +
         `Frequency=${conferido?.Frequency}, Validity=${conferido?.Validity}.`
@@ -361,7 +292,7 @@ async function xpeUpdateUser(device, password, userId, input) {
   await xpeFcgEditUser(device, password, existing, input);
 
   const conferido = await xpeFindById(device, password, userId);
-  if (conferido?.Frequency !== 0 || conferido?.Validity !== 0) {
+  if (Number(conferido?.Frequency) !== 0 || Number(conferido?.Validity) !== 0) {
     throw new Error(
       `XPE não confirmou Termo de validade "Sempre": ` +
       `Frequency=${conferido?.Frequency}, Validity=${conferido?.Validity}.`
