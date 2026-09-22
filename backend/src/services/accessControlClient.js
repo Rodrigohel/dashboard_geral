@@ -125,48 +125,115 @@ async function xpeFcgEditUser(device, password, existing, input) {
   const frequency = '0';
   const faceId = xpeFcgFaceId(existing);
   const cUserEdit = [userId, name, pin, cardCode, '', webRelay, validity, frequency, faceId, ''].join('/');
-  const refRand = String(Math.floor(Math.random() * 90000000) + 10000000);
-  const authParams = `UserName=${encodeURIComponent(device.device_username)}&Password=${encodeURIComponent(password)}`;
-  const submitData = `begin&Operation=Submit&cUserEdit=${encodeURIComponent(cUserEdit)}&SubmitData=end`;
 
-  // A interface Web usa sessão/cookie para Operation=Submit.
-  let cookie = '';
+  const cookiesFrom = (res) => {
+    const values = typeof res.headers.getSetCookie === 'function'
+      ? res.headers.getSetCookie()
+      : ((res.headers.get('set-cookie') || '').match(/(?:^|,)\s*[^,;]+=[^;]*(?:;[^,]*)?/g) || []);
+    return values.map(v => v.split(';')[0].trim()).filter(Boolean);
+  };
+  const mergeCookies = (jar, values) => {
+    for (const value of values) {
+      const i = value.indexOf('=');
+      if (i > 0) jar.set(value.slice(0, i), value.slice(i + 1));
+    }
+    return [...jar.entries()].map(([k, v]) => `${k}=${v}`).join('; ');
+  };
+
+  const jar = new Map();
+  const refRand = String(Math.floor(Math.random() * 90000000) + 10000000);
+  const pageUrl = `${base}/fcgi/do?id=1&RefRand=${refRand}`;
+
+  // O Web do XPE primeiro abre a página /fcgi/do?id=1 e recebe SessionId.
+  let pageText;
   try {
-    const loginRes = await fetch(`${base}/fcgi/?${authParams}`, {
-      method: 'GET', headers: { Accept: 'text/html, */*' }, signal: AbortSignal.timeout(8000),
+    const pageRes = await fetch(pageUrl, {
+      method: 'GET',
+      headers: { Accept: 'text/html, */*' },
+      signal: AbortSignal.timeout(8000),
     });
-    const setCookie = loginRes.headers.get('set-cookie') || '';
-    if (setCookie) cookie = setCookie.split(/,(?=[^;,]+=)/).map(v => v.split(';')[0].trim()).filter(Boolean).join('; ');
-    await loginRes.arrayBuffer();
+    if (!pageRes.ok) throw new Error(`HTTP ${pageRes.status}`);
+    for (const c of cookiesFrom(pageRes)) mergeCookies(jar, [c]);
+    pageText = await pageRes.text();
   } catch (err) {
-    throw new Error(`Não consegui iniciar a sessão Web do XPE (${err.message}).`);
+    throw new Error(`Não consegui abrir a sessão Web do XPE (${err.message}).`);
   }
 
-  const url = `${base}/fcgi/do?id=16&id=5&RefRand=${refRand}&${authParams}`;
-  let res;
+  const userName = String(device.device_username || '');
+  // O JavaScript original do XPE chama /fcgi/do?action=Encrypt antes de
+  // CreateSession. A resposta contém hcSingleResult (senha criptografada)
+  // e hcDestURL, usados pelo próprio formulário Web.
+  let encryptedPassword = '';
+  let destUrl = '';
   try {
-    res = await fetch(url, {
+    const encryptUrl = `${base}/fcgi/do?action=Encrypt&UserName=${encodeURIComponent(userName)}&Password=${encodeURIComponent(password)}`;
+    const encRes = await fetch(encryptUrl, {
+      method: 'GET',
+      headers: {
+        Accept: 'text/html, */*',
+        ...(jar.size ? { Cookie: [...jar.entries()].map(([k, v]) => `${k}=${v}`).join('; ') } : {}),
+      },
+      signal: AbortSignal.timeout(8000),
+    });
+    for (const c of cookiesFrom(encRes)) mergeCookies(jar, [c]);
+    const html = await encRes.text();
+    const resultMatch = html.match(/id=["']hcSingleResult["'][^>]*value=["']([^"']*)/i) ||
+      html.match(/name=["']hcSingleResult["'][^>]*value=["']([^"']*)/i);
+    const destMatch = html.match(/id=["']hcDestURL["'][^>]*value=["']([^"']*)/i) ||
+      html.match(/name=["']hcDestURL["'][^>]*value=["']([^"']*)/i);
+    encryptedPassword = resultMatch ? resultMatch[1] : '';
+    destUrl = destMatch ? destMatch[1] : '';
+    if (!encryptedPassword) throw new Error('XPE não retornou hcSingleResult.');
+  } catch (err) {
+    throw new Error(`Não consegui criptografar a senha para a sessão Web do XPE (${err.message}).`);
+  }
+
+  // O formulário da própria página executa Operation=CreateSession.
+  const createSessionData = `begin&Operation=CreateSession&DestURL=${encodeURIComponent(destUrl)}&SubmitData=end`;
+  try {
+    const sessionRes = await fetch(pageUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
         Accept: 'text/html, */*',
-        ...(cookie ? { Cookie: cookie } : {}),
-        Referer: `${base}/fcgi/do?id=16&id=5&RefRand=${refRand}`,
+        Cookie: mergeCookies(jar, []),
+        Referer: pageUrl,
+      },
+      body: `SubmitData=${encodeURIComponent(createSessionData)}&UserName=${encodeURIComponent(userName)}&Password=${encodeURIComponent(encryptedPassword)}`,
+      signal: AbortSignal.timeout(8000),
+    });
+    for (const c of cookiesFrom(sessionRes)) mergeCookies(jar, [c]);
+    const sessionText = await sessionRes.text();
+    if (!sessionRes.ok || !jar.has('SessionId')) {
+      throw new Error(`HTTP ${sessionRes.status}; SessionId não foi criado. ${sessionText.slice(0, 120)}`);
+    }
+  } catch (err) {
+    throw new Error(`Não consegui criar a sessão Web do XPE (${err.message}).`);
+  }
+
+  const submitData = `begin&Operation=Submit&cUserEdit=${encodeURIComponent(cUserEdit)}&SubmitData=end`;
+  const editUrl = `${base}/fcgi/do?id=16&id=5&RefRand=${Math.floor(Math.random() * 90000000) + 10000000}`;
+  try {
+    const res = await fetch(editUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        Accept: 'text/html, */*',
+        Cookie: mergeCookies(jar, []),
+        Referer: editUrl,
       },
       body: `SubmitData=${encodeURIComponent(submitData)}`,
       signal: AbortSignal.timeout(8000),
     });
+    const responseText = await res.text();
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}: ${responseText.slice(0, 200)}`);
+    }
+    return responseText;
   } catch (err) {
     throw new Error(`Não consegui enviar a atualização Web ao XPE (${err.message}).`);
   }
-
-  const responseText = await res.text();
-  if (!res.ok) {
-    throw new Error(`XPE recusou a atualização Web (HTTP ${res.status}): ${responseText.slice(0, 200)}`);
-  }
-  return responseText;
 }
-
 
 
 
