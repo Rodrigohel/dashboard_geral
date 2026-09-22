@@ -212,23 +212,9 @@ async function xpeFindByUserId(device, password, userId) {
   return (data.item || []).find((it) => it.UserID === userId) || null;
 }
 
-// async function xpeFindById(device, password, id) {
-  // const data = await xpeCall(device, password, 'user', 'get');
-//  return (data.item || []).find((it) => String(it.ID) === String(id)) || null;
-// } até a linha 232
-
 async function xpeFindById(device, password, id) {
-  const data = await xpeCall(device, password, 'user', 'get');
-
-  const user = (data.item || []).find(
-    (it) => String(it.ID) === String(id)
-  );
-
-  console.log('================ XPE USER GET ================');
-  console.log(JSON.stringify(user, null, 2));
-  console.log('================================================');
-
-  return user || null;
+const data = await xpeCall(device, password, 'user', 'get');
+return (data.item || []).find((it) => String(it.ID) === String(id)) || null;
 }
 
 async function xpeListUsers(device, password) {
