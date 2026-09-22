@@ -108,151 +108,12 @@ async function xpeCall(device, password, target, action, data) {
   return json.data || {};
 }
 
-function xpeFcgFaceId(existing) {
-  const faceId = String(existing?.FaceID || '');
-  const match = faceId.match(/\/([^/]+)\.jpg(?:\?.*)?$/i);
-  return match ? match[1] : '';
-}
-
-async function xpeFcgEditUser(device, password, existing, input) {
-  const base = baseUrlOf(device);
-  const userId = String(input.registration || existing?.UserID || '');
-  const name = String(input.name ?? existing?.Name ?? '');
-  const pin = String(input.password ?? existing?.PrivatePIN ?? '');
-  const cardCode = input.cardNumber ? toXpeCardCode(input.cardNumber) : String(existing?.CardCode ?? '');
-  const webRelay = String(existing?.WebRelay ?? '0');
-  const validity = '0';
-  const frequency = '0';
-  const faceId = xpeFcgFaceId(existing);
-  const cUserEdit = [userId, name, pin, cardCode, '', webRelay, validity, frequency, faceId, ''].join('/');
-
-  const cookiesFrom = (res) => {
-    const values = typeof res.headers.getSetCookie === 'function'
-      ? res.headers.getSetCookie()
-      : ((res.headers.get('set-cookie') || '').match(/(?:^|,)\s*[^,;]+=[^;]*(?:;[^,]*)?/g) || []);
-    return values.map(v => v.split(';')[0].trim()).filter(Boolean);
-  };
-  const mergeCookies = (jar, values) => {
-    for (const value of values) {
-      const i = value.indexOf('=');
-      if (i > 0) jar.set(value.slice(0, i), value.slice(i + 1));
-    }
-    return [...jar.entries()].map(([k, v]) => `${k}=${v}`).join('; ');
-  };
-
-  const jar = new Map();
-  const refRand = String(Math.floor(Math.random() * 90000000) + 10000000);
-  const pageUrl = `${base}/fcgi/do?id=1&RefRand=${refRand}`;
-
-  // O Web do XPE primeiro abre a página /fcgi/do?id=1 e recebe SessionId.
-  let pageText;
-  try {
-    const pageRes = await fetch(pageUrl, {
-      method: 'GET',
-      headers: { Accept: 'text/html, */*' },
-      signal: AbortSignal.timeout(8000),
-    });
-    if (!pageRes.ok) throw new Error(`HTTP ${pageRes.status}`);
-    for (const c of cookiesFrom(pageRes)) mergeCookies(jar, [c]);
-    pageText = await pageRes.text();
-  } catch (err) {
-    throw new Error(`Não consegui abrir a sessão Web do XPE (${err.message}).`);
-  }
-
-  const userName = String(device.device_username || '');
-  // O JavaScript original do XPE chama /fcgi/do?action=Encrypt antes de
-  // CreateSession. A resposta contém hcSingleResult (senha criptografada)
-  // e hcDestURL, usados pelo próprio formulário Web.
-  let encryptedPassword = '';
-  let destUrl = '';
-  try {
-    const encryptUrl = `${base}/fcgi/do?action=Encrypt&UserName=${encodeURIComponent(userName)}&Password=${encodeURIComponent(password)}`;
-    const encRes = await fetch(encryptUrl, {
-      method: 'GET',
-      headers: {
-        Accept: 'text/html, */*',
-        ...(jar.size ? { Cookie: [...jar.entries()].map(([k, v]) => `${k}=${v}`).join('; ') } : {}),
-      },
-      signal: AbortSignal.timeout(8000),
-    });
-    for (const c of cookiesFrom(encRes)) mergeCookies(jar, [c]);
-    const html = await encRes.text();
-    const resultMatch = html.match(/id=["']hcSingleResult["'][^>]*value=["']([^"']*)/i) ||
-      html.match(/name=["']hcSingleResult["'][^>]*value=["']([^"']*)/i);
-    const destMatch = html.match(/id=["']hcDestURL["'][^>]*value=["']([^"']*)/i) ||
-      html.match(/name=["']hcDestURL["'][^>]*value=["']([^"']*)/i);
-    encryptedPassword = resultMatch ? resultMatch[1] : '';
-    destUrl = destMatch ? destMatch[1] : '';
-    if (!encryptedPassword) throw new Error('XPE não retornou hcSingleResult.');
-  } catch (err) {
-    throw new Error(`Não consegui criptografar a senha para a sessão Web do XPE (${err.message}).`);
-  }
-
-  // O formulário da própria página executa Operation=CreateSession.
-  const createSessionData = `begin&Operation=CreateSession&DestURL=${encodeURIComponent(destUrl)}&SubmitData=end`;
-  try {
-    const sessionRes = await fetch(pageUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        Accept: 'text/html, */*',
-        Cookie: mergeCookies(jar, []),
-        Referer: pageUrl,
-      },
-      body: `SubmitData=${encodeURIComponent(createSessionData)}&UserName=${encodeURIComponent(userName)}&Password=${encodeURIComponent(encryptedPassword)}`,
-      signal: AbortSignal.timeout(8000),
-    });
-    for (const c of cookiesFrom(sessionRes)) mergeCookies(jar, [c]);
-    const sessionText = await sessionRes.text();
-    if (!sessionRes.ok || !jar.has('SessionId')) {
-      throw new Error(`HTTP ${sessionRes.status}; SessionId não foi criado. ${sessionText.slice(0, 120)}`);
-    }
-  } catch (err) {
-    throw new Error(`Não consegui criar a sessão Web do XPE (${err.message}).`);
-  }
-
-  const submitData = `begin&Operation=Submit&cUserEdit=${encodeURIComponent(cUserEdit)}&SubmitData=end`;
-  const editUrl = `${base}/fcgi/do?id=16&id=5&RefRand=${Math.floor(Math.random() * 90000000) + 10000000}`;
-  try {
-    const res = await fetch(editUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        Accept: 'text/html, */*',
-        Cookie: mergeCookies(jar, []),
-        Referer: editUrl,
-      },
-      body: `SubmitData=${encodeURIComponent(submitData)}`,
-      signal: AbortSignal.timeout(8000),
-    });
-    const responseText = await res.text();
-    if (!res.ok) {
-      throw new Error(`HTTP ${res.status}: ${responseText.slice(0, 200)}`);
-    }
-    return responseText;
-  } catch (err) {
-    throw new Error(`Não consegui enviar a atualização Web ao XPE (${err.message}).`);
-  }
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+// Confirmado via captura real de `user/get`: quem não tem foto tem `FaceID`
+// terminando em "-1.jpg" (valor placeholder do equipamento); quem tem foto
+// de verdade tem um número real ali. Mais confiável que `FaceStatus`, que
+// demora a atualizar (ou nem atualiza) logo depois de trocar uma foto —
+// confirmado contra hardware real: upload funcionava mas FaceStatus
+// continuava reportando "sem foto" minutos depois.
 function xpeHasRealFace(item) {
   return Boolean(item?.FaceID) && !/\/-1\.jpg$/i.test(item.FaceID);
 }
@@ -361,37 +222,102 @@ async function xpeListUsers(device, password) {
   return (data.item || []).map(xpeFromItem);
 }
 
+
+function xpeFcgCookies(setCookieHeaders) {
+  const list = Array.isArray(setCookieHeaders) ? setCookieHeaders : (setCookieHeaders ? [setCookieHeaders] : []);
+  return list.map(v => String(v).split(';')[0].trim()).filter(Boolean).join('; ');
+}
+
+async function xpeFcgRequest(base, path, opts = {}) {
+  const res = await fetch(`${base}${path}`, {
+    ...opts,
+    headers: { Accept: 'text/html, */*', ...(opts.headers || {}) },
+    signal: opts.signal || AbortSignal.timeout(8000),
+  });
+  const text = await res.text();
+  if (!res.ok) throw new Error(`XPE Web respondeu HTTP ${res.status}: ${text.slice(0, 200)}`);
+  return { res, text };
+}
+
+async function xpeFcgCreateSession(device, password) {
+  const base = baseUrlOf(device);
+  const refRand = String(Math.floor(Math.random() * 90000000) + 10000000);
+  const first = await xpeFcgRequest(base, `/fcgi/do?id=1&RefRand=${refRand}`);
+  let cookie = xpeFcgCookies(first.res.headers.getSetCookie ? first.res.headers.getSetCookie() : first.res.headers.get('set-cookie'));
+  if (!cookie) throw new Error('XPE Web não criou a sessão inicial (SessionId ausente).');
+
+  const userName = String(device.device_username || '');
+  const encUrl = `/fcgi/do?action=Encrypt&UserName=${encodeURIComponent(userName)}&Password=${encodeURIComponent(password)}`;
+  const encrypted = await xpeFcgRequest(base, encUrl, { headers: { Cookie: cookie, Referer: `${base}/fcgi/do?id=1&RefRand=${refRand}` } });
+  const m = encrypted.text.match(/id=["']hcSingleResult["'][^>]*value=["']([^"']*)["']/i)
+    || encrypted.text.match(/value=["']([^"']*)["'][^>]*id=["']hcSingleResult["']/i);
+  if (!m || !m[1] || m[1] === '-1') throw new Error('XPE Web não retornou hcSingleResult válido ao criptografar a senha.');
+  const encryptedPassword = m[1];
+  cookie = `${cookie}; UserName=${encodeURIComponent(userName)}; Password=${encodeURIComponent(encryptedPassword)}`;
+
+  const submitData = 'begin&Operation=CreateSession&DestURL=%2Ffcgi%2Fdo%3Fid%3D1%26RefRand%3D' + encodeURIComponent(refRand) + '&SubmitData=end';
+  const session = await xpeFcgRequest(base, `/fcgi/do?id=1&RefRand=${refRand}`, {
+    method: 'POST',
+    headers: {
+      Cookie: cookie,
+      Referer: `${base}/fcgi/do?id=1&RefRand=${refRand}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: `SubmitData=${encodeURIComponent(submitData)}`,
+  });
+  const newCookies = xpeFcgCookies(session.res.headers.getSetCookie ? session.res.headers.getSetCookie() : session.res.headers.get('set-cookie'));
+  if (newCookies) cookie = `${cookie}; ${newCookies}`;
+  const sessionMatch = cookie.match(/(?:^|;\s*)SessionId=([^;]+)/i);
+  if (!sessionMatch) throw new Error('XPE Web não confirmou SessionId após CreateSession.');
+  return { cookie, refRand };
+}
+
+function xpeFcgFaceId(existing) {
+  const faceId = String(existing?.FaceID || '');
+  const match = faceId.match(/\/([^/]+)\.jpg(?:\?.*)?$/i);
+  return match ? match[1] : '';
+}
+
+async function xpeFcgEditUser(device, password, existing, input) {
+  const base = baseUrlOf(device);
+  const userId = String(input.registration || existing?.UserID || '');
+  const name = String(input.name ?? existing?.Name ?? '');
+  const pin = String(input.password ?? existing?.PrivatePIN ?? '');
+  const cardCode = input.cardNumber ? toXpeCardCode(input.cardNumber) : String(existing?.CardCode ?? '');
+  const webRelay = String(existing?.WebRelay ?? '0');
+  const validity = '0';
+  const frequency = '0';
+  const faceId = xpeFcgFaceId(existing);
+  const cUserEdit = [userId, name, pin, cardCode, '', webRelay, validity, frequency, faceId, ''].join('/');
+  const { cookie, refRand } = await xpeFcgCreateSession(device, password);
+  const submitData = `begin&Operation=Submit&cUserEdit=${encodeURIComponent(cUserEdit)}&SubmitData=end`;
+  const result = await xpeFcgRequest(base, `/fcgi/do?id=16&id=5&RefRand=${refRand}`, {
+    method: 'POST',
+    headers: {
+      Cookie: cookie,
+      Referer: `${base}/fcgi/do?id=16&id=5&RefRand=${refRand}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: `SubmitData=${encodeURIComponent(submitData)}`,
+  });
+  return result.text;
+}
+
 async function xpeCreateUser(device, password, input) {
   const item = xpeBuildItem(input);
   await xpeCall(device, password, 'user', 'add', { item: [item] });
-  // A resposta de "add" não tem formato confirmado — busca o item recém
-  // criado pelo UserID pra descobrir o ID interno que os outros métodos
-  // (set/del) exigem.
   const created = await xpeFindByUserId(device, password, item.UserID);
-  if (created) {
-    // Confirmado contra hardware real: "add" ignora Frequency/Validity (cria
-    // sempre com -1/-1, "sem acesso"), mesmo mandando 0/0 — só "set" respeita
-    // esses dois campos. Por isso, força um "set" de confirmação logo após
-    // criar, agora que já temos o ID interno, senão todo usuário nasce sem
-    // acesso e só um "editar" manual depois corrige.
-    const fixed = { ...xpeSafeExisting(created), ...item, ID: String(created.ID) };
-    await xpeCall(device, password, 'user', 'set', { item: [fixed] });
+  if (!created) return { id: item.UserID, ...xpeFromItem({ ...item, ID: item.UserID }) };
 
-    // O /api/user/set não grava Frequency/Validity neste firmware.
-    // O POST FCGI é o mesmo usado pelo botão Salvar da interface Web.
-    await xpeFcgEditUser(device, password, created, item);
-
-    const conferido = await xpeFindByUserId(device, password, item.UserID);
-    if (Number(conferido?.Frequency) !== 0 || Number(conferido?.Validity) !== 0) {
-      throw new Error(
-        `XPE não confirmou Termo de validade "Sempre": ` +
-        `Frequency=${conferido?.Frequency}, Validity=${conferido?.Validity}.`
-      );
-    }
-
-    return xpeFromItem(conferido);
+  // O "add" cria o usuário com -1/-1. A própria Web do XPE corrige isso
+  // quando salva o usuário com Termo de validade = Sempre, que corresponde
+  // exatamente a Validity=0 e Frequency=0.
+  await xpeFcgEditUser(device, password, created, input);
+  const conferido = await xpeFindByUserId(device, password, item.UserID);
+  if (Number(conferido?.Frequency) !== 0 || Number(conferido?.Validity) !== 0) {
+    throw new Error(`XPE não confirmou Termo de validade "Sempre": Frequency=${conferido?.Frequency}, Validity=${conferido?.Validity}.`);
   }
-  return { id: item.UserID, ...xpeFromItem({ ...item, ID: item.UserID }) };
+  return xpeFromItem(conferido);
 }
 
 // Só os campos que a própria API documenta para "user/set" (ver
@@ -418,23 +344,17 @@ function xpeSafeExisting(existing) {
 }
 
 async function xpeUpdateUser(device, password, userId, input) {
-  // user/set substitui o item inteiro (não é PATCH) — busca o existente e
-  // mescla, senão campos não enviados no formulário (ex.: Apartamento) somem.
+  // A interface Web do XPE é a que efetivamente grava 0/0 para "Sempre".
+  // O endpoint JSON user/set devolve sucesso, mas neste firmware deixa
+  // Frequency/Validity em -1. Por isso a edição usa exatamente o POST FCGI
+  // usado pela própria interface Web.
   const existing = await xpeFindById(device, password, userId);
-  const merged = { ...xpeSafeExisting(existing), ...xpeBuildItem(input), ID: String(userId) };
-  await xpeCall(device, password, 'user', 'set', { item: [merged] });
-
-  // Corrige Frequency/Validity pelo mesmo POST usado pela interface Web.
+  if (!existing) throw new Error('Usuário não encontrado no equipamento.');
   await xpeFcgEditUser(device, password, existing, input);
-
   const conferido = await xpeFindById(device, password, userId);
   if (Number(conferido?.Frequency) !== 0 || Number(conferido?.Validity) !== 0) {
-    throw new Error(
-      `XPE não confirmou Termo de validade "Sempre": ` +
-      `Frequency=${conferido?.Frequency}, Validity=${conferido?.Validity}.`
-    );
+    throw new Error(`XPE não confirmou Termo de validade "Sempre": Frequency=${conferido?.Frequency}, Validity=${conferido?.Validity}.`);
   }
-
   return xpeFromItem(conferido);
 }
 
@@ -462,15 +382,6 @@ async function xpeSetUserPhoto(device, password, userId, fileBuffer, mimetype) {
   const url = `${relayBase.replace(/\/$/, '')}/api/access/face-relay/${token}.jpg`;
   const merged = { ...xpeSafeExisting(existing), ID: String(userId), FaceUrl: url };
   await xpeCall(device, password, 'user', 'set', { item: [merged] });
-
-  // user/set pode devolver Frequency/Validity para -1 novamente no firmware.
-  // Reaplica "Sempre" pelo mesmo mecanismo da interface Web.
-  await xpeFcgEditUser(device, password, existing, {
-    registration: existing.UserID,
-    name: existing.Name,
-    password: existing.PrivatePIN,
-    cardNumber: existing.CardCode,
-  });
   // Confirmado repetidas vezes contra hardware real: o equipamento busca a
   // foto e realmente cadastra, mas nem `FaceStatus` nem `FaceID` (que fica
   // igual ao trocar uma foto já existente) confirmam isso de forma
