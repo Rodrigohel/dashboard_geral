@@ -282,10 +282,68 @@ function DeviceDetailModal({ deviceId, onClose }) {
   );
 }
 
+// Overlay cobrindo a tela inteira — não é o Modal.jsx padrão (esse é um
+// cartão centralizado, pequeno demais pra planta baixa). Imagem em
+// max-width/max-height 100% pra sempre caber, com os pinos por cima na
+// mesma posição relativa.
+function FullscreenFloorViewer({ floor, imageUrl, pins, onViewDevice, onClose }) {
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(5, 7, 16, 0.94)',
+        zIndex: 200,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 16,
+      }}
+    >
+      <div style={{ position: 'absolute', top: 16, left: 20, right: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ color: 'white', fontWeight: 700 }}>{floor.name}</div>
+        <button className="btn btn-ghost btn-icon" onClick={onClose} aria-label="Fechar" style={{ color: 'white' }}>
+          <Icon name="x" size={22} />
+        </button>
+      </div>
+      {!imageUrl ? (
+        <span className="spinner" />
+      ) : (
+        <div onClick={(e) => e.stopPropagation()} style={{ position: 'relative', maxWidth: '95vw', maxHeight: '88vh' }}>
+          <img src={imageUrl} alt={floor.name} style={{ maxWidth: '95vw', maxHeight: '88vh', display: 'block', borderRadius: 8 }} />
+          {pins.map((d) => (
+            <div
+              key={d.id}
+              title={`${d.name} (${d.status}) — clique para ver detalhes`}
+              onClick={() => onViewDevice(d.id)}
+              style={{
+                position: 'absolute',
+                left: `${d.floorX * 100}%`,
+                top: `${d.floorY * 100}%`,
+                transform: 'translate(-50%, -50%)',
+                width: 18,
+                height: 18,
+                borderRadius: '50%',
+                border: '2px solid white',
+                boxShadow: '0 0 0 1px rgba(0,0,0,.4)',
+                cursor: 'pointer',
+                background: d.status === 'online' ? 'var(--success-500)' : d.status === 'degraded' ? 'var(--warning-500)' : 'var(--danger-500)',
+              }}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function FloorPlanSection({ onViewDevice }) {
   const [floors, setFloors] = useState(null);
   const [devices, setDevices] = useState([]);
-  const [imageUrls, setImageUrls] = useState({});
+  const [openFloorId, setOpenFloorId] = useState(null);
+  const [openImageUrl, setOpenImageUrl] = useState(null);
 
   useEffect(() => {
     Promise.all([api.rede.floors(), api.rede.devices()])
@@ -296,28 +354,26 @@ function FloorPlanSection({ onViewDevice }) {
       .catch(() => setFloors([]));
   }, []);
 
-  // Imagem precisa de fetch autenticado (vira blob) — <img src> puro não
-  // manda o Authorization exigido pelo gateway, ver client.js.
-  useEffect(() => {
-    if (!floors) return;
-    let cancelled = false;
-    const urls = {};
-    Promise.all(
-      floors.map(async (floor) => {
-        try {
-          urls[floor.id] = await api.rede.getFloorImageBlobUrl(floor.imageUrl);
-        } catch {
-          // uma imagem específica falhou — segue sem ela, não trava as outras
-        }
-      })
-    ).then(() => {
-      if (!cancelled) setImageUrls(urls);
-    });
-    return () => {
-      cancelled = true;
-      Object.values(urls).forEach((u) => URL.revokeObjectURL(u));
-    };
-  }, [floors]);
+  async function openFloor(floor) {
+    setOpenFloorId(floor.id);
+    setOpenImageUrl(null);
+    try {
+      // Imagem precisa de fetch autenticado (vira blob) — <img src> puro não
+      // manda o Authorization exigido pelo gateway, ver client.js.
+      const url = await api.rede.getFloorImageBlobUrl(floor.imageUrl);
+      setOpenImageUrl(url);
+    } catch {
+      // erro ao carregar — o overlay mostra só o spinner parado; fechar e tentar de novo é a saída
+    }
+  }
+
+  function closeFloor() {
+    if (openImageUrl) URL.revokeObjectURL(openImageUrl);
+    setOpenFloorId(null);
+    setOpenImageUrl(null);
+  }
+
+  const openFloor_ = floors?.find((f) => f.id === openFloorId);
 
   return (
     <div className="surface" style={{ padding: 24 }}>
@@ -327,48 +383,41 @@ function FloorPlanSection({ onViewDevice }) {
       </p>
 
       {floors === null ? (
-        <div className="skeleton" style={{ height: 200, borderRadius: 12 }} />
+        <div className="skeleton" style={{ height: 100, borderRadius: 12 }} />
       ) : floors.length === 0 ? (
         <div className="field-hint">Nenhum pavimento cadastrado ainda.</div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {floors.map((floor) => {
-            const pins = devices.filter((d) => d.floorId === floor.id && d.floorX != null && d.floorY != null);
+            const pinCount = devices.filter((d) => d.floorId === floor.id && d.floorX != null && d.floorY != null).length;
             return (
-              <div key={floor.id}>
-                <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 8 }}>{floor.name}</div>
-                <div style={{ position: 'relative', width: '100%', borderRadius: 12, overflow: 'hidden', border: '1px solid var(--border-subtle)' }}>
-                  {imageUrls[floor.id] ? (
-                    <img src={imageUrls[floor.id]} alt={floor.name} style={{ width: '100%', display: 'block' }} />
-                  ) : (
-                    <div className="skeleton" style={{ height: 240, borderRadius: 0 }} />
-                  )}
-                  {pins.map((d) => (
-                    <div
-                      key={d.id}
-                      title={`${d.name} (${d.status}) — clique para ver detalhes`}
-                      onClick={() => onViewDevice(d.id)}
-                      style={{
-                        position: 'absolute',
-                        left: `${d.floorX * 100}%`,
-                        top: `${d.floorY * 100}%`,
-                        transform: 'translate(-50%, -50%)',
-                        width: 16,
-                        height: 16,
-                        borderRadius: '50%',
-                        border: '2px solid white',
-                        boxShadow: '0 0 0 1px rgba(0,0,0,.3)',
-                        cursor: 'pointer',
-                        background:
-                          d.status === 'online' ? 'var(--success-500)' : d.status === 'degraded' ? 'var(--warning-500)' : 'var(--danger-500)',
-                      }}
-                    />
-                  ))}
+              <button
+                key={floor.id}
+                className="service-row"
+                onClick={() => openFloor(floor)}
+                style={{ width: '100%', textAlign: 'left', cursor: 'pointer', border: 'none', background: 'none' }}
+              >
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: 14 }}>{floor.name}</div>
+                  <div className="field-hint">{pinCount} disp.</div>
                 </div>
-              </div>
+                <span style={{ color: 'var(--accent-500)', display: 'flex', alignItems: 'center', gap: 4, fontWeight: 600, fontSize: 13.5 }}>
+                  Ver planta <Icon name="chevronRight" size={15} />
+                </span>
+              </button>
             );
           })}
         </div>
+      )}
+
+      {openFloor_ && (
+        <FullscreenFloorViewer
+          floor={openFloor_}
+          imageUrl={openImageUrl}
+          pins={devices.filter((d) => d.floorId === openFloor_.id && d.floorX != null && d.floorY != null)}
+          onViewDevice={onViewDevice}
+          onClose={closeFloor}
+        />
       )}
     </div>
   );
