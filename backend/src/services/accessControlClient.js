@@ -242,6 +242,11 @@ function xpeSafeExisting(existing) {
   return {
     UserID: existing.UserID,
     Name: existing.Name,
+    // Precisa dos dois — ver xpeBuildItem. Esse merge aqui é usado também
+    // pelo envio de foto (xpeSetUserPhoto), que NÃO passa por xpeBuildItem;
+    // sem preservar Frequency aqui, subir uma foto depois de cadastrar o
+    // usuário derrubava o acesso de novo (voltava pra -1/-1).
+    Frequency: existing.Frequency ?? 0,
     Validity: existing.Validity ?? 0,
     WebRelay: existing.WebRelay ?? '0',
     PrivatePIN: existing.PrivatePIN ?? '',
