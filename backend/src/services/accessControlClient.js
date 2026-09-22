@@ -126,10 +126,9 @@ function xpeFromItem(item) {
     apartment: item.LiftFloorNum || '',
     hasFace: xpeHasRealFace(item),
     cardNumber: item.CardCode || null,
-    // Validity aceita outros valores além de 0, mas o formato não está
-    // confirmado — todo usuário cadastrado pela própria interface do
-    // equipamento está com Validity=0 (sem prazo), então não editamos esse
-    // campo pelo Portal por enquanto.
+    // Validity/Frequency aceitam outros valores, mas o formato não está
+    // confirmado além de 0/0 = sem prazo (ver xpeBuildItem) — o Portal
+    // sempre cadastra como "sempre", sem UI pra editar isso por enquanto.
     expiration: null,
   };
 }
@@ -188,6 +187,12 @@ function xpeBuildItem(input) {
   return {
     UserID: input.registration || deriveRegistration(input.name),
     Name: input.name,
+    // "Sempre" (sem prazo) exige os dois campos, confirmados via captura
+    // real: usuário cadastrado pela própria interface do equipamento tinha
+    // Frequency=0 E Validity=0. Mandar só Validity=0 sem Frequency fazia o
+    // equipamento gravar os dois como -1 (inválido/expirado) — era esse o
+    // bug real de acesso negado depois de cadastrar/editar pelo Portal.
+    Frequency: 0,
     Validity: 0,
     // O nome real desse campo é "WebRelay", não "Relay" — confirmado via
     // captura real de `user/get` (todo usuário cadastrado pela própria
