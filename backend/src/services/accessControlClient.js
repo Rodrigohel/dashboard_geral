@@ -256,8 +256,8 @@ function xpeSafeExisting(existing) {
     // pelo envio de foto (xpeSetUserPhoto), que NÃO passa por xpeBuildItem;
     // sem preservar Frequency aqui, subir uma foto depois de cadastrar o
     // usuário derrubava o acesso de novo (voltava pra -1/-1).
-    Frequency: existing.Frequency ?? 0,
-    Validity: existing.Validity ?? 0,
+    Frequency: 0,
+    Validity: 0,
     WebRelay: existing.WebRelay ?? '0',
     PrivatePIN: existing.PrivatePIN ?? '',
     CardCode: existing.CardCode ?? '',
