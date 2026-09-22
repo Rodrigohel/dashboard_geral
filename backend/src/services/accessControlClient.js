@@ -239,8 +239,20 @@ async function xpeCreateUser(device, password, input) {
 
     console.log('XPE USER SET:', JSON.stringify(fixed, null, 2)); // ESSA LINHA DEVE SER APAGADA DEPOIS
     
-    await xpeCall(device, password, 'user', 'set', { item: [fixed] });
-    return xpeFromItem(fixed);
+   await xpeCall(device, password, 'user', 'set', { item: [fixed] });
+
+const conferido = await xpeFindByUserId(device, password, item.UserID);
+
+console.log(
+  'XPE APOS SET:',
+  JSON.stringify({
+    UserID: conferido?.UserID,
+    Frequency: conferido?.Frequency,
+    Validity: conferido?.Validity,
+  }, null, 2)
+);
+
+return xpeFromItem(conferido || fixed);
   }
   return { id: item.UserID, ...xpeFromItem({ ...item, ID: item.UserID }) };
 }
