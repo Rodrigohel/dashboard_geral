@@ -106,6 +106,7 @@ export const api = {
     callHistory: ({ q = '', page = 1, pageSize = 10 } = {}) =>
       request(`/gateway/interfone/api/calls/history?q=${encodeURIComponent(q)}&page=${page}&pageSize=${pageSize}`),
     todaySummary: () => request('/gateway/interfone/api/calls/today-summary'),
+    callsSummary: (range = '7d') => request(`/gateway/interfone/api/calls/summary?range=${range}`),
     missedToday: () => request('/gateway/interfone/api/calls/missed-today').then((r) => r.data),
     alerts: () => request('/gateway/interfone/api/alerts'),
   },
