@@ -459,25 +459,15 @@ async function xpeSetUserPhoto(device, password, userId, fileBuffer, mimetype) {
   const url = `${relayBase.replace(/\/$/, '')}/api/access/face-relay/${token}.jpg`;
   const merged = { ...xpeSafeExisting(existing), ID: String(userId), FaceUrl: url };
   await xpeCall(device, password, 'user', 'set', { item: [merged] });
-  // Confirmado contra hardware real: esse `user/set` (mesmo só trocando a
-  // foto) também zera "Termo de validade" no equipamento — então precisa
-  // revalidar de novo aqui. Mas não pode ser na hora: o equipamento busca a
-  // foto de forma assíncrona (token do relay expira em 60s) e as 3
-  // requisições extras da sessão legada atrapalhavam essa busca (dava "OK"
-  // e a foto não chegava). Por isso dispara em segundo plano, com atraso,
-  // sem bloquear a resposta pro Portal nem competir com a busca da foto.
-  setTimeout(async () => {
-    try {
-      // Re-busca fresco: `existing` foi lido ANTES da troca, então o
-      // FaceID dele ainda é o antigo — só depois desse atraso (tempo pro
-      // equipamento processar a foto nova) o user/get reflete o FaceID
-      // real da foto que acabou de chegar (ver xpeFaceIdFromRecord).
-      const fresh = await xpeFindById(device, password, userId);
-      await xpeLegacySetValiditySempre(device, password, merged, xpeFaceIdFromRecord(fresh));
-    } catch (err) {
-      console.error(`[accessControlClient] Falha ao revalidar "Termo de validade" após troca de foto (usuário ${userId}): ${err.message}`);
-    }
-  }, 8000);
+  // DESLIGADO DE PROPÓSITO (era um setTimeout revalidando "Termo de
+  // validade" via xpeLegacySetValiditySempre 8s depois): relatado contra
+  // hardware real que, com isso ligado, o equipamento passou a linkar a
+  // foto de OUTRA pessoa (não a que acabou de ser enviada) ao usuário
+  // atual — grave o bastante (reconhecimento facial abrindo pra pessoa
+  // errada) pra não arriscar até entender a causa raiz. Efeito colateral
+  // conhecido de deixar desligado: "Termo de validade" pode voltar a ficar
+  // em branco especificamente depois de trocar uma foto (editar o usuário
+  // de novo, sem mexer na foto, corrige — esse caminho não mexe em FaceId).
   //
   // Confirmado repetidas vezes contra hardware real: o equipamento busca a
   // foto e realmente cadastra, mas nem `FaceStatus` nem `FaceID` (que fica
