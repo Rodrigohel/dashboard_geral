@@ -54,12 +54,12 @@
   width: 56px;
   height: 56px;
   font-size: 22px;
-  margin: 0 auto var(--space-4);
+  margin: 0 auto var(--space-2);
   border-radius: 16px;
 }
 .login-card .brand-mark.brand-logo-img {
-  width: 180px;
-  height: 180px;
+  width: 208px;
+  height: 208px;
 }
 .login-title {
   font-size: 24px;

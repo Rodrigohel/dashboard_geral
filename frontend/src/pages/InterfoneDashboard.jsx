@@ -23,19 +23,16 @@ function ExtensionStatusBadge({ state }) {
   );
 }
 
-function SummaryCard({ icon, title, value, sub, tone }) {
+function MiniStat({ icon, title, value, tone }) {
   return (
-    <div className="metric-card surface">
-      <div className="metric-card-head">
-        <div className="metric-card-title">
-          <Icon name={icon} size={16} />
-          {title}
-        </div>
+    <div className="mini-stat-card surface">
+      <div className="mini-stat-card-title">
+        <Icon name={icon} size={13} />
+        {title}
       </div>
-      <div className="metric-card-value" style={tone ? { color: `var(--${tone}-500)` } : undefined}>
+      <div className="mini-stat-card-value" style={tone ? { color: `var(--${tone}-500)` } : undefined}>
         {value}
       </div>
-      {sub && <div className="metric-card-sub">{sub}</div>}
     </div>
   );
 }
@@ -51,6 +48,73 @@ function formatDuration(totalSeconds) {
 function formatDateTime(value) {
   if (!value) return '—';
   return new Date(value).toLocaleString('pt-BR');
+}
+
+// Vem cru do Asterisk (CDR), sempre em inglês — traduz pra exibir.
+const DISPOSITION_LABELS = {
+  ANSWERED: 'Atendida',
+  'NO ANSWER': 'Não atendida',
+  BUSY: 'Ocupado',
+  FAILED: 'Falhou',
+  CONGESTION: 'Congestionamento',
+};
+function formatDisposition(disposition) {
+  if (!disposition) return '—';
+  return DISPOSITION_LABELS[disposition.toUpperCase()] || disposition;
+}
+
+// Cores fixas por série (não por posição) — a mesma paleta de status usada
+// no resto do Portal, então "perdidas"/"falhas" já leem como alerta.
+const TREND_SERIES = [
+  { key: 'recebidas', label: 'Recebidas', color: 'var(--success-500)' },
+  { key: 'realizadas', label: 'Realizadas', color: 'var(--accent-500)' },
+  { key: 'perdidas', label: 'Perdidas', color: 'var(--warning-500)' },
+  { key: 'falhas', label: 'Falhas', color: 'var(--danger-500)' },
+];
+
+function CallsTrendChart({ data }) {
+  if (!data || !data.categories || data.categories.length === 0) {
+    return <div className="field-hint">Sem dados suficientes ainda.</div>;
+  }
+  const { categories } = data;
+  const w = 700;
+  const h = 160;
+  const maxValue = Math.max(1, ...TREND_SERIES.flatMap((s) => data[s.key] || []));
+  const groupWidth = w / categories.length;
+  const gap = 2;
+  const barWidth = Math.max(1, (groupWidth - gap * (TREND_SERIES.length + 1)) / TREND_SERIES.length);
+
+  return (
+    <div>
+      <svg viewBox={`0 0 ${w} ${h + 22}`} width="100%" height={h + 22} preserveAspectRatio="none">
+        {categories.map((cat, ci) => (
+          <g key={cat}>
+            {TREND_SERIES.map((s, si) => {
+              const value = (data[s.key] || [])[ci] || 0;
+              const barH = (value / maxValue) * h;
+              const x = ci * groupWidth + gap + si * (barWidth + gap);
+              return (
+                <rect key={s.key} x={x} y={h - barH} width={barWidth} height={barH} rx={2.5} fill={s.color}>
+                  <title>{`${cat} · ${s.label}: ${value}`}</title>
+                </rect>
+              );
+            })}
+            <text x={ci * groupWidth + groupWidth / 2} y={h + 16} textAnchor="middle" fontSize="10" fill="var(--text-tertiary)">
+              {cat}
+            </text>
+          </g>
+        ))}
+      </svg>
+      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginTop: 6 }}>
+        {TREND_SERIES.map((s) => (
+          <span key={s.key} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: 'var(--text-secondary)' }}>
+            <span style={{ width: 10, height: 10, borderRadius: 3, background: s.color, display: 'inline-block' }} />
+            {s.label}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 const HISTORY_PAGE_SIZE = 10;
@@ -118,7 +182,7 @@ function CallHistorySection() {
                     <td style={{ padding: '10px 12px', fontWeight: 600 }}>{c.src}</td>
                     <td style={{ padding: '10px 12px', fontWeight: 600 }}>{c.dst}</td>
                     <td style={{ padding: '10px 12px', color: 'var(--text-secondary)' }}>{c.direction === 'made' ? 'realizada' : 'recebida'}</td>
-                    <td style={{ padding: '10px 12px', color: 'var(--text-secondary)' }}>{c.disposition}</td>
+                    <td style={{ padding: '10px 12px', color: 'var(--text-secondary)' }}>{formatDisposition(c.disposition)}</td>
                     <td style={{ padding: '10px 12px', color: 'var(--text-secondary)' }}>{formatDuration(c.durationSeconds)}</td>
                   </tr>
                 ))}
@@ -150,20 +214,29 @@ export default function InterfoneDashboard() {
   const [extensions, setExtensions] = useState([]);
   const [activeCalls, setActiveCalls] = useState([]);
   const [missed, setMissed] = useState([]);
+  const [trend, setTrend] = useState(null);
   const [extFilter, setExtFilter] = useState('');
   const [error, setError] = useState('');
 
   useEffect(() => {
     let cancelled = false;
     function load() {
-      Promise.all([api.interfone.extensionsSummary(), api.interfone.todaySummary(), api.interfone.extensions(), api.interfone.activeCalls(), api.interfone.missedToday()])
-        .then(([s, t, ext, calls, miss]) => {
+      Promise.all([
+        api.interfone.extensionsSummary(),
+        api.interfone.todaySummary(),
+        api.interfone.extensions(),
+        api.interfone.activeCalls(),
+        api.interfone.missedToday(),
+        api.interfone.callsSummary('7d'),
+      ])
+        .then(([s, t, ext, calls, miss, tr]) => {
           if (cancelled) return;
           setSummary(s);
           setToday(t);
           setExtensions(ext || []);
           setActiveCalls(calls || []);
           setMissed(miss || []);
+          setTrend(tr);
           setError('');
         })
         .catch((err) => !cancelled && setError(err.message));
@@ -198,21 +271,23 @@ export default function InterfoneDashboard() {
       )}
 
       {!summary || !today ? (
-        <div className="skeleton" style={{ height: 130, borderRadius: 20 }} />
+        <div className="skeleton" style={{ height: 100, borderRadius: 20 }} />
       ) : (
-        <>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
-            <SummaryCard icon="phone" title="Ramais online" value={summary.online || 0} tone="success" sub={`de ${summary.configured || 0} configurados`} />
-            <SummaryCard icon="phone" title="Ramais offline" value={summary.offline || 0} tone={summary.offline > 0 ? 'danger' : undefined} />
-            <SummaryCard icon="phone" title="Chamadas ativas" value={activeCalls.length} />
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
-            <SummaryCard icon="phone" title="Recebidas hoje" value={today.received || 0} />
-            <SummaryCard icon="phone" title="Realizadas hoje" value={today.made || 0} />
-            <SummaryCard icon="phone" title="Perdidas hoje" value={today.missed || 0} tone={today.missed > 0 ? 'warning' : undefined} />
-          </div>
-        </>
+        <div className="mini-stat-grid">
+          <MiniStat icon="phone" title="Ramais online" value={summary.online || 0} tone="success" />
+          <MiniStat icon="phone" title="Ramais offline" value={summary.offline || 0} tone={summary.offline > 0 ? 'danger' : undefined} />
+          <MiniStat icon="phone" title="Chamadas ativas" value={activeCalls.length} />
+          <MiniStat icon="phone" title="Recebidas hoje" value={today.received || 0} />
+          <MiniStat icon="phone" title="Realizadas hoje" value={today.made || 0} />
+          <MiniStat icon="phone" title="Perdidas hoje" value={today.missed || 0} tone={today.missed > 0 ? 'warning' : undefined} />
+        </div>
       )}
+
+      <div className="surface" style={{ padding: 24 }}>
+        <div style={{ fontWeight: 700, marginBottom: 4 }}>Chamadas nos últimos 7 dias</div>
+        <p className="field-hint" style={{ marginBottom: 16 }}>Recebidas, realizadas, perdidas e falhas por dia.</p>
+        {trend === null ? <div className="skeleton" style={{ height: 160, borderRadius: 12 }} /> : <CallsTrendChart data={trend} />}
+      </div>
 
       <div className="surface" style={{ padding: 24 }}>
         <div style={{ fontWeight: 700, marginBottom: 4 }}>Chamadas ativas agora</div>

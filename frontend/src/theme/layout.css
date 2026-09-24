@@ -52,6 +52,20 @@
     justify-content: flex-start;
     gap: var(--space-3);
   }
+  /* "Administração" tem padding vertical maior que os outros labels (é um
+     título de seção) — os 24px genéricos do .nav-label cortavam a palavra
+     e ela grudava no item de baixo. Precisa vir depois da regra genérica
+     acima pra sobrescrever (mesma especificidade, ordem decide). */
+  .sidebar:hover .nav-section-label,
+  .sidebar:focus-within .nav-section-label {
+    max-height: 48px;
+  }
+  /* Logo da marca cresce junto quando o sidebar expande. */
+  .sidebar:hover .brand-mark.brand-logo-img,
+  .sidebar:focus-within .brand-mark.brand-logo-img {
+    width: 84px;
+    height: 84px;
+  }
 }
 
 .shell-main {
