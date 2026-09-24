@@ -8,8 +8,8 @@ import Sidebar from './components/Sidebar.jsx';
 import TopBar from './components/TopBar.jsx';
 import Login from './pages/Login.jsx';
 import Home from './pages/Home.jsx';
-import ModuleLink from './pages/ModuleLink.jsx';
 import RedeDashboard from './pages/RedeDashboard.jsx';
+import InterfoneDashboard from './pages/InterfoneDashboard.jsx';
 import AccessControl from './pages/AccessControl/index.jsx';
 import UsersAdmin from './pages/UsersAdmin/index.jsx';
 import Settings from './pages/Settings.jsx';
@@ -55,7 +55,7 @@ export default function App() {
       case 'rede':
         return can('rede') ? <RedeDashboard can={can} /> : <NoAccess />;
       case 'interfone':
-        return can('interfone') ? <ModuleLink moduleKey="interfone" isOwner={isOwner} onNavigate={navigate} /> : <NoAccess />;
+        return can('interfone') ? <InterfoneDashboard /> : <NoAccess />;
       case 'acesso':
         return can('acesso') ? (
           <AccessControl isOwner={isOwner} initialDevice={acessoDevice} onInitialDeviceHandled={() => setAcessoDevice(null)} />
