@@ -94,6 +94,22 @@ export const api = {
     logins: () => request('/api/audit/logins'),
   },
 
+  // Painel de Interfone consumido nativamente pelo Portal, igual o de Rede —
+  // só leitura (ramais, chamadas): cadastro/config continuam no painel
+  // original. Respostas de lá vêm envelopadas em `{ data, source }` — os
+  // métodos abaixo já devolvem só `data` pra ficar igual ao resto do client.
+  interfone: {
+    extensionsSummary: () => request('/gateway/interfone/api/extensions/summary'),
+    extensions: () => request('/gateway/interfone/api/extensions').then((r) => r.data),
+    extensionDetail: (number) => request(`/gateway/interfone/api/extensions/${number}`),
+    activeCalls: () => request('/gateway/interfone/api/calls/active').then((r) => r.data),
+    callHistory: ({ q = '', page = 1, pageSize = 10 } = {}) =>
+      request(`/gateway/interfone/api/calls/history?q=${encodeURIComponent(q)}&page=${page}&pageSize=${pageSize}`),
+    todaySummary: () => request('/gateway/interfone/api/calls/today-summary'),
+    missedToday: () => request('/gateway/interfone/api/calls/missed-today').then((r) => r.data),
+    alerts: () => request('/gateway/interfone/api/alerts'),
+  },
+
   // Painel de Rede consumido nativamente pelo Portal (sem iframe) via
   // gateway — mesma origem, mesmo token, sem segunda tela de login.
   rede: {

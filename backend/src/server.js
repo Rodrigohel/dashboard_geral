@@ -91,7 +91,22 @@ const REDE_FEATURE_RULES = [
   },
 ];
 app.all('/gateway/rede/*', requireAuth, requireModule('rede'), gatewayProxy('rede', { featureRules: REDE_FEATURE_RULES }));
-app.all('/gateway/interfone/*', requireAuth, requireModule('interfone'), gatewayProxy('interfone'));
+
+// Interfone é a mesma política de Rede: só consulta no Portal (ramais,
+// chamadas) — configurações e usuários do painel de Interfone continuam lá.
+const INTERFONE_FEATURE_RULES = [
+  {
+    test: (method, path) => /^\/api\/(settings|users)(\/|$)/.test(path),
+    requireOwner: true,
+    message: 'Configurações e usuários do painel de Interfone são geridos no painel original.',
+  },
+  {
+    test: (method) => method !== 'GET',
+    requireOwner: true,
+    message: 'O Portal só mostra dados do Interfone — alterações são feitas no painel original.',
+  },
+];
+app.all('/gateway/interfone/*', requireAuth, requireModule('interfone'), gatewayProxy('interfone', { featureRules: INTERFONE_FEATURE_RULES }));
 
 // Opcional: se GATEWAY_*_FRONTEND_DIST apontar para o `frontend/dist` já
 // buildado do painel de Rede/Interfone (rebuildado com
