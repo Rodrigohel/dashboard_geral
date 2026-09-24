@@ -419,7 +419,12 @@ async function xpeSetUserPhoto(device, password, userId, fileBuffer, mimetype) {
   const url = `${relayBase.replace(/\/$/, '')}/api/access/face-relay/${token}.jpg`;
   const merged = { ...xpeSafeExisting(existing), ID: String(userId), FaceUrl: url };
   await xpeCall(device, password, 'user', 'set', { item: [merged] });
-  await xpeLegacySetValiditySempre(device, password, merged);
+  // NÃO chama xpeLegacySetValiditySempre aqui: o equipamento busca a foto
+  // de forma assíncrona (token do relay expira em 60s) e as 3 requisições
+  // extras da sessão legada atrasam/atrapalham essa busca — confirmado que
+  // isso quebrava o envio de foto (dava "OK" mas a foto não chegava).
+  // "Termo de validade" já foi fixado quando o usuário foi criado/editado.
+  //
   // Confirmado repetidas vezes contra hardware real: o equipamento busca a
   // foto e realmente cadastra, mas nem `FaceStatus` nem `FaceID` (que fica
   // igual ao trocar uma foto já existente) confirmam isso de forma
