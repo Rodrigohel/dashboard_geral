@@ -297,13 +297,13 @@ async function xpeLegacySetValiditySempre(device, plainPassword, item) {
   }
 }
 
+// Usado na CRIAÇÃO (onde não existe nada a preservar, então campo em
+// branco = "sem PIN/cartão" mesmo) e como base na EDIÇÃO — nesse segundo
+// caso, xpeUpdateUser descarta PrivatePIN/CardCode daqui e decide os dois
+// separadamente (ver xpeUpdateFields), porque na edição "em branco" tem
+// que significar "não mexer", não "apagar" (era isso que zerava a senha
+// de quem só editava outro campo sem redigitá-la).
 function xpeBuildItem(input) {
-  // CardCode/PrivatePIN sempre presentes (mesmo vazios) de propósito: no
-  // update, isso é um "merge" com o item existente (ver xpeUpdateUser) —
-  // se esses campos só aparecessem quando preenchidos, limpar o cartão ou
-  // a senha no formulário (deixando o campo em branco) não tinha efeito
-  // nenhum, porque o valor antigo sobrevivia ao merge. Foi exatamente o
-  // bug relatado: excluir o cartão no Portal não excluía no equipamento.
   return {
     UserID: input.registration || deriveRegistration(input.name),
     Name: input.name,
@@ -385,11 +385,29 @@ function xpeSafeExisting(existing) {
   };
 }
 
+// Senha/cartão em branco na EDIÇÃO significa "não mexer" (diferente da
+// criação, onde não existe nada ainda pra preservar) — relatado como bug:
+// deixar a senha em branco pra manter a mesma zerava ela no equipamento,
+// porque xpeBuildItem sempre força o campo (mesmo vazio) pra fazer
+// "excluir cartão" funcionar. Só entra no merge se veio um valor novo ou
+// se o formulário pediu remoção explícita (removePassword/removeCard).
+function xpeUpdateFields(input) {
+  const fields = {};
+  if (input.password) fields.PrivatePIN = input.password;
+  else if (input.removePassword) fields.PrivatePIN = '';
+  if (input.cardNumber) fields.CardCode = toXpeCardCode(input.cardNumber);
+  else if (input.removeCard) fields.CardCode = '';
+  return fields;
+}
+
 async function xpeUpdateUser(device, password, userId, input) {
   // user/set substitui o item inteiro (não é PATCH) — busca o existente e
   // mescla, senão campos não enviados no formulário (ex.: Apartamento) somem.
   const existing = await xpeFindById(device, password, userId);
-  const merged = { ...xpeSafeExisting(existing), ...xpeBuildItem(input), ID: String(userId) };
+  const base = xpeBuildItem(input);
+  delete base.PrivatePIN;
+  delete base.CardCode;
+  const merged = { ...xpeSafeExisting(existing), ...base, ...xpeUpdateFields(input), ID: String(userId) };
   await xpeCall(device, password, 'user', 'set', { item: [merged] });
   await xpeLegacySetValiditySempre(device, password, merged);
   return xpeFromItem(merged);
