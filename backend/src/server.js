@@ -11,11 +11,15 @@ import { brandingRouter } from './routes/branding.js';
 import { settingsRouter } from './routes/settings.js';
 import { modulesRouter } from './routes/modules.js';
 import { systemRouter } from './routes/system.js';
+import { auditRouter } from './routes/audit.js';
 import { requireAuth, requireOwner, requireModule } from './middleware/auth.js';
 import { gatewayProxy } from './services/gatewayService.js';
 import './db/sqlite.js';
 
 const app = express();
+// Necessário pra req.ip pegar o IP real do cliente (não o do túnel/proxy
+// local) quando o Portal roda atrás de cloudflared — usado no log de login.
+app.set('trust proxy', true);
 app.use(cors({ origin: config.corsOrigin }));
 app.use(express.json());
 
@@ -44,6 +48,7 @@ app.use('/api/users', requireAuth, requireOwner, usersRouter);
 app.use('/api/access/devices', requireAuth, requireModule('acesso'), accessDevicesRouter);
 app.use('/api/settings', requireAuth, requireOwner, settingsRouter);
 app.use('/api/system', requireAuth, requireOwner, systemRouter);
+app.use('/api/audit', requireAuth, requireOwner, auditRouter);
 
 // Gateway: o front-end do Portal chama /gateway/rede/... e /gateway/interfone/...
 // como se fossem API própria; por trás, isso vira uma chamada autenticada

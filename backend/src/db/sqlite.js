@@ -66,6 +66,20 @@ db.exec(`
     service_password_enc TEXT NOT NULL DEFAULT ''
   );
 
+  -- Cada tentativa de login (sucesso ou falha) — auditoria só pro
+  -- administrador. Guarda username digitado mesmo em falha/usuário
+  -- inexistente (user_id fica NULL nesse caso) pra dar pra ver tentativas
+  -- de acesso indevido, não só logins válidos.
+  CREATE TABLE IF NOT EXISTS login_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    username TEXT NOT NULL,
+    success INTEGER NOT NULL,
+    ip TEXT NOT NULL DEFAULT '',
+    user_agent TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
   -- Nome e logo mostrados na tela de login e na barra lateral — uma linha
   -- só (id fixo = 1). Público de propósito (GET): a tela de login precisa
   -- mostrar isso ANTES do usuário entrar.
