@@ -244,10 +244,7 @@ async function xpeLegacyEncryptPassword(device, plainPassword) {
 
 // Abre uma sessão na tela legada: o equipamento não confirma isso com um
 // cookie Set-Cookie de verdade — devolve o novo SessionId embutido num
-// campo escondido (SessionIdNow) da própria página de destino. Essa mesma
-// página também expõe o UserID/FaceId do registro "atual" do equipamento
-// (o que a própria tela ficou mostrando por último) — reaproveita pra
-// pegar o FaceId real sem outra chamada.
+// campo escondido (SessionIdNow) da própria página de destino.
 async function xpeLegacyOpenSession(device, plainPassword) {
   const hash = await xpeLegacyEncryptPassword(device, plainPassword);
   const baseCookie = `UserName=${device.device_username}; Password=${hash}`;
@@ -259,13 +256,18 @@ async function xpeLegacyOpenSession(device, plainPassword) {
   if (!sessionMatch) {
     throw new Error('Não consegui abrir sessão na tela antiga do equipamento (usuário/senha recusados?).');
   }
-  const userIdMatch = html.match(/hcUserId[^>]*value=['"]([^&'"]*)/i);
-  const faceIdMatch = html.match(/hcFaceId[^>]*value=['"](\d+)/i);
-  return {
-    cookie: `${baseCookie}; SessionId=${sessionMatch[1]}`,
-    currentUserId: userIdMatch ? userIdMatch[1] : null,
-    faceId: faceIdMatch ? faceIdMatch[1] : '0',
-  };
+  return `${baseCookie}; SessionId=${sessionMatch[1]}`;
+}
+
+// O FaceId da tela legada é o mesmo id que aparece no fim da URL do campo
+// FaceID da API JSON (ex.: ".../423.jpg") — confirmado contra hardware real
+// comparando os dois pro mesmo usuário. "-1.jpg" é o placeholder de "sem
+// foto" (ver xpeHasRealFace) e vira "0" aqui, que é o valor visto na tela
+// legada pra quem nunca teve foto ou já está com a foto atual "assentada".
+function xpeFaceIdFromRecord(record) {
+  const match = String(record?.FaceID || '').match(/\/(-?\d+)\.jpg$/i);
+  if (!match || match[1] === '-1') return '0';
+  return match[1];
 }
 
 // Só Nome/UserID passam por isso na tela original do equipamento (PIN e
@@ -298,17 +300,19 @@ function xpeLegacyCUserEdit(item, validityTerm, faceId) {
 //
 // Confirmado contra hardware real: mandar "0" fixo no campo FaceId (última
 // posição do cUserEdit) APAGAVA a foto recém-cadastrada da pessoa — esse
-// campo não é "não mexe na foto", é o id real da foto atual. Por isso lê o
-// FaceId de verdade em xpeLegacyOpenSession e reenvia o mesmo valor, só
-// confirmando antes que a página devolvida é realmente do usuário certo
-// (hcUserId bate com o UserID que estamos salvando) — evita gravar o
-// FaceId de outro usuário por engano.
-async function xpeLegacySetValiditySempre(device, plainPassword, item) {
-  const { cookie, currentUserId, faceId } = await xpeLegacyOpenSession(device, plainPassword);
-  const safeFaceId = currentUserId === (item.UserID || null) ? faceId : '0';
+// campo não é "não mexe na foto", é o id real da foto atual. `faceIdHint`
+// (extraído de um user/get fresco via xpeFaceIdFromRecord) resolve isso.
+//
+// Uma tentativa anterior tentava ler esse id de uma página "atual" da
+// própria tela legada — mas essa página só atualiza quando alguém edita
+// pela interface original de verdade, então ficava travada sempre no
+// último usuário editado manualmente, quebrando a foto de todo mundo
+// menos dele. Passar o valor já resolvido evita essa armadilha.
+async function xpeLegacySetValiditySempre(device, plainPassword, item, faceIdHint = '0') {
+  const cookie = await xpeLegacyOpenSession(device, plainPassword);
   const html = await xpeLegacyRequest(device, {
     cookie,
-    body: `SubmitData=begin&Operation=Submit&cUserEdit=${xpeLegacyCUserEdit(item, XPE_LEGACY_VALIDITY_SEMPRE, safeFaceId)}&SubmitData=end`,
+    body: `SubmitData=begin&Operation=Submit&cUserEdit=${xpeLegacyCUserEdit(item, XPE_LEGACY_VALIDITY_SEMPRE, faceIdHint)}&SubmitData=end`,
   });
   if (/hcLoginStatus/i.test(html)) {
     throw new Error('Equipamento recusou a sessão da tela antiga ao salvar "Termo de validade".');
@@ -374,7 +378,7 @@ async function xpeCreateUser(device, password, input) {
     // acesso e só um "editar" manual depois corrige.
     const fixed = { ...xpeSafeExisting(created), ...item, ID: String(created.ID) };
     await xpeCall(device, password, 'user', 'set', { item: [fixed] });
-    await xpeLegacySetValiditySempre(device, password, fixed);
+    await xpeLegacySetValiditySempre(device, password, fixed, xpeFaceIdFromRecord(created));
     return xpeFromItem(fixed);
   }
   return { id: item.UserID, ...xpeFromItem({ ...item, ID: item.UserID }) };
@@ -427,7 +431,7 @@ async function xpeUpdateUser(device, password, userId, input) {
   delete base.CardCode;
   const merged = { ...xpeSafeExisting(existing), ...base, ...xpeUpdateFields(input), ID: String(userId) };
   await xpeCall(device, password, 'user', 'set', { item: [merged] });
-  await xpeLegacySetValiditySempre(device, password, merged);
+  await xpeLegacySetValiditySempre(device, password, merged, xpeFaceIdFromRecord(existing));
   return xpeFromItem(merged);
 }
 
@@ -462,10 +466,17 @@ async function xpeSetUserPhoto(device, password, userId, fileBuffer, mimetype) {
   // requisições extras da sessão legada atrapalhavam essa busca (dava "OK"
   // e a foto não chegava). Por isso dispara em segundo plano, com atraso,
   // sem bloquear a resposta pro Portal nem competir com a busca da foto.
-  setTimeout(() => {
-    xpeLegacySetValiditySempre(device, password, merged).catch((err) => {
+  setTimeout(async () => {
+    try {
+      // Re-busca fresco: `existing` foi lido ANTES da troca, então o
+      // FaceID dele ainda é o antigo — só depois desse atraso (tempo pro
+      // equipamento processar a foto nova) o user/get reflete o FaceID
+      // real da foto que acabou de chegar (ver xpeFaceIdFromRecord).
+      const fresh = await xpeFindById(device, password, userId);
+      await xpeLegacySetValiditySempre(device, password, merged, xpeFaceIdFromRecord(fresh));
+    } catch (err) {
       console.error(`[accessControlClient] Falha ao revalidar "Termo de validade" após troca de foto (usuário ${userId}): ${err.message}`);
-    });
+    }
   }, 8000);
   //
   // Confirmado repetidas vezes contra hardware real: o equipamento busca a
