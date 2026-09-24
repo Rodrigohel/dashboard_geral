@@ -33,14 +33,6 @@ export const config = {
       frontendDist: process.env.GATEWAY_INTERFONE_FRONTEND_DIST || '',
     },
   },
-
-  // Endereço do próprio Portal na rede local, alcançável pelos equipamentos
-  // de controle de acesso (ex.: http://192.168.1.50:3000) — NÃO é a URL
-  // pública do Cloudflare Tunnel, porque o equipamento fica só na rede
-  // local. Usado só para cadastrar foto facial na XPE 3200 (ver
-  // accessControlClient.js): o Portal hospeda a foto enviada por um
-  // instante num link temporário, e o próprio equipamento busca de lá.
-  accessPhotoRelayBaseUrl: process.env.ACCESS_PHOTO_RELAY_BASE_URL || '',
 };
 
 // Chaves válidas de módulo — usadas para validar permissões e rotas.

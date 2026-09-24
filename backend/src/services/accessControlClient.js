@@ -26,40 +26,10 @@
 import crypto from 'node:crypto';
 import http from 'node:http';
 import https from 'node:https';
-import { config } from '../config.js';
 
 function baseUrlOf(device) {
   const scheme = device.use_https ? 'https' : 'http';
   return `${scheme}://${device.host}:${device.port}`;
-}
-
-// Retransmissão temporária de foto para a XPE 3200: descoberto que o campo
-// `FaceUrl` do `user/set` faz o próprio equipamento BUSCAR a foto de um link
-// (confirmado testando contra hardware real) — diferente de `FaceImage`
-// (nunca existiu de verdade) ou de mandar bytes direto (a API não aceita).
-// Guarda o arquivo em memória por pouco tempo, só até o equipamento buscar.
-const faceRelayTokens = new Map(); // token -> { buffer, mimetype, expiresAt }
-const FACE_RELAY_TTL_MS = 60_000;
-
-function cleanupExpiredFaceRelayTokens() {
-  const now = Date.now();
-  for (const [token, entry] of faceRelayTokens) {
-    if (entry.expiresAt < now) faceRelayTokens.delete(token);
-  }
-}
-
-export function registerFaceRelayToken(buffer, mimetype) {
-  cleanupExpiredFaceRelayTokens();
-  const token = crypto.randomBytes(24).toString('hex');
-  faceRelayTokens.set(token, { buffer, mimetype: mimetype || 'image/jpeg', expiresAt: Date.now() + FACE_RELAY_TTL_MS });
-  return token;
-}
-
-// Não remove no primeiro uso — o equipamento pode tentar buscar mais de uma
-// vez (retry de rede); o token expira sozinho pelo TTL.
-export function getFaceRelayToken(token) {
-  cleanupExpiredFaceRelayTokens();
-  return faceRelayTokens.get(token) || null;
 }
 
 function deriveRegistration(name) {
@@ -307,6 +277,77 @@ async function xpeLegacySetValiditySempre(device, plainPassword, item) {
   }
 }
 
+// Envio de foto "de verdade" — replica exatamente o que a própria tela do
+// equipamento faz quando alguém escolhe uma foto e clica "Aplicar":
+// confirmado lendo o JS do próprio equipamento (handler do botão), o
+// campo de texto "uploadType" do formulário multipart da foto recebe
+// `&Operation=Upload&DestUpFile=UserDataUploadAndCommit` + "/" + o mesmo
+// texto `cUserEdit=...` que usamos pra "Termo de validade" + "&" — tudo
+// isso vai JUNTO com o arquivo, numa única operação. Diferente do
+// `Submit` de texto puro (sem "SubmitData=begin/end" aqui).
+//
+// Isso resolve o impasse do FaceId: como a foto de verdade chega no MESMO
+// pedido, o equipamento associa ela ao registro certo sozinho — não
+// precisamos mandar/adivinhar nenhum FaceId (mandamos "0" no cUserEdit
+// embutido, mas isso é ignorado nesse fluxo porque tem arquivo anexado).
+async function xpeLegacyMultipartRequest(device, { cookie, boundary, body }) {
+  const refRand = Date.now() + Math.floor(Math.random() * 1000);
+  const url = `${baseUrlOf(device)}/fcgi/do?${XPE_LEGACY_USER_PAGE_QUERY}&RefRand=${refRand}`;
+  let res;
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': `multipart/form-data; boundary=${boundary}`,
+        Cookie: cookie,
+        'User-Agent': XPE_LEGACY_USER_AGENT,
+        Referer: `${baseUrlOf(device)}/fcgi/do?${XPE_LEGACY_USER_PAGE_QUERY}`,
+      },
+      body,
+      // A própria tela espera até 20s pelo processamento da foto
+      // (setTimeout("BeforeUpTO...", 20000) no JS original).
+      signal: AbortSignal.timeout(25000),
+    });
+  } catch (err) {
+    throw new Error(`Não consegui alcançar ${url} (${err.message}).`);
+  }
+  return res.text();
+}
+
+function xpeLegacyMultipartBody(boundary, textFields, fileField) {
+  const crlf = '\r\n';
+  const parts = [];
+  for (const [name, value] of Object.entries(textFields)) {
+    parts.push(Buffer.from(`--${boundary}${crlf}Content-Disposition: form-data; name="${name}"${crlf}${crlf}${value}${crlf}`, 'utf8'));
+  }
+  parts.push(
+    Buffer.from(
+      `--${boundary}${crlf}Content-Disposition: form-data; name="${fileField.name}"; filename="${fileField.filename}"${crlf}` +
+        `Content-Type: ${fileField.mimetype}${crlf}${crlf}`,
+      'utf8'
+    )
+  );
+  parts.push(fileField.buffer);
+  parts.push(Buffer.from(`${crlf}--${boundary}--${crlf}`, 'utf8'));
+  return Buffer.concat(parts);
+}
+
+async function xpeLegacyUploadPhotoAndCommit(device, plainPassword, item, fileBuffer, mimetype) {
+  const cookie = await xpeLegacyOpenSession(device, plainPassword);
+  const cUserEditText = `cUserEdit=${xpeLegacyCUserEdit(item, XPE_LEGACY_VALIDITY_SEMPRE, '0')}`;
+  const uploadType = `&Operation=Upload&DestUpFile=UserDataUploadAndCommit/${cUserEditText}&`;
+  const boundary = `----PortalBoundary${crypto.randomBytes(16).toString('hex')}`;
+  const body = xpeLegacyMultipartBody(
+    boundary,
+    { uploadType },
+    { name: 'importUserFacePhoto', filename: 'photo.jpg', mimetype: mimetype || 'image/jpeg', buffer: fileBuffer }
+  );
+  const html = await xpeLegacyMultipartRequest(device, { cookie, boundary, body });
+  if (/hcLoginStatus/i.test(html)) {
+    throw new Error('Equipamento recusou a sessão da tela antiga ao enviar a foto.');
+  }
+}
+
 // Usado na CRIAÇÃO (onde não existe nada a preservar, então campo em
 // branco = "sem PIN/cartão" mesmo) e como base na EDIÇÃO — nesse segundo
 // caso, xpeUpdateUser descarta PrivatePIN/CardCode daqui e decide os dois
@@ -429,39 +470,21 @@ async function xpeDeleteUser(device, password, userId) {
   await xpeCall(device, password, 'user', 'del', { item: [{ ID: String(userId) }] });
 }
 
+// Substituído o mecanismo antigo (JSON API com FaceUrl apontando pro
+// relay do Portal, equipamento busca a foto por conta própria) por esse:
+// manda a foto DIRETO, pelo mesmo caminho multipart que a própria tela do
+// equipamento usa (ver xpeLegacyUploadPhotoAndCommit) — já inclui "Termo
+// de validade" = Sempre na mesma operação, sem precisar de um passo
+// separado depois nem de adivinhar FaceId nenhum.
 async function xpeSetUserPhoto(device, password, userId, fileBuffer, mimetype) {
   if (fileBuffer.length > 200 * 1024) {
     throw new Error('Foto maior que 200KB — reduza o tamanho do arquivo (limite do equipamento).');
   }
-  const relayBase = config.accessPhotoRelayBaseUrl;
-  if (!relayBase) {
-    throw new Error(
-      'Cadastro de foto não está configurado — falta definir ACCESS_PHOTO_RELAY_BASE_URL no .env do Portal ' +
-        '(o endereço do próprio Portal na rede local, que o equipamento consegue alcançar — não é a URL pública).'
-    );
-  }
   const existing = await xpeFindById(device, password, userId);
   if (!existing) throw new Error('Usuário não encontrado no equipamento.');
 
-  const token = registerFaceRelayToken(fileBuffer, mimetype);
-  const url = `${relayBase.replace(/\/$/, '')}/api/access/face-relay/${token}.jpg`;
-  const merged = { ...xpeSafeExisting(existing), ID: String(userId), FaceUrl: url };
-  await xpeCall(device, password, 'user', 'set', { item: [merged] });
-  // DESLIGADO DE PROPÓSITO (era um setTimeout revalidando "Termo de
-  // validade" via xpeLegacySetValiditySempre 8s depois): relatado contra
-  // hardware real que, com isso ligado, o equipamento passou a linkar a
-  // foto de OUTRA pessoa (não a que acabou de ser enviada) ao usuário
-  // atual — grave o bastante (reconhecimento facial abrindo pra pessoa
-  // errada) pra não arriscar até entender a causa raiz. Efeito colateral
-  // conhecido de deixar desligado: "Termo de validade" pode voltar a ficar
-  // em branco especificamente depois de trocar uma foto (editar o usuário
-  // de novo, sem mexer na foto, corrige — esse caminho não mexe em FaceId).
-  //
-  // Confirmado repetidas vezes contra hardware real: o equipamento busca a
-  // foto e realmente cadastra, mas nem `FaceStatus` nem `FaceID` (que fica
-  // igual ao trocar uma foto já existente) confirmam isso de forma
-  // confiável logo em seguida — tentar reconferir só produzia falso
-  // negativo. Confia no retcode 0 do `user/set`, igual todo outro campo.
+  const item = { ...xpeSafeExisting(existing), ID: String(userId) };
+  await xpeLegacyUploadPhotoAndCommit(device, password, item, fileBuffer, mimetype);
 }
 
 async function xpeGetUserPhoto(device, password, userId) {
