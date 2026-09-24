@@ -208,6 +208,90 @@ function CallHistorySection() {
   );
 }
 
+const EXTENSIONS_PAGE_SIZE = 10;
+
+function ExtensionsSection({ extensions }) {
+  const [filter, setFilter] = useState('');
+  const [page, setPage] = useState(1);
+
+  const filtered = extensions.filter((e) => {
+    const needle = filter.trim().toLowerCase();
+    if (!needle) return true;
+    return e.number.toLowerCase().includes(needle) || (e.name || '').toLowerCase().includes(needle);
+  });
+  const totalPages = Math.max(1, Math.ceil(filtered.length / EXTENSIONS_PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const pageExtensions = filtered.slice((safePage - 1) * EXTENSIONS_PAGE_SIZE, safePage * EXTENSIONS_PAGE_SIZE);
+
+  return (
+    <div className="surface" style={{ padding: 24 }}>
+      <div style={{ fontWeight: 700, marginBottom: 4 }}>Ramais</div>
+      <p className="field-hint" style={{ marginBottom: 12 }}>
+        Consulta — cadastro de ramal é feito no painel de Interfone original.
+      </p>
+      {extensions.length === 0 ? (
+        <div className="field-hint">Nenhum ramal configurado.</div>
+      ) : (
+        <>
+          <input
+            className="input"
+            style={{ marginBottom: 12, maxWidth: 320 }}
+            placeholder="Buscar por ramal ou nome..."
+            value={filter}
+            onChange={(e) => {
+              setFilter(e.target.value);
+              setPage(1);
+            }}
+          />
+          {filtered.length === 0 ? (
+            <div className="field-hint">Nenhum ramal encontrado para "{filter}".</div>
+          ) : (
+            <>
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13.5 }}>
+                  <thead>
+                    <tr style={{ textAlign: 'left', color: 'var(--text-tertiary)' }}>
+                      <th style={{ padding: '8px 12px', fontWeight: 600 }}>Ramal</th>
+                      <th style={{ padding: '8px 12px', fontWeight: 600 }}>Nome</th>
+                      <th style={{ padding: '8px 12px', fontWeight: 600 }}>Status</th>
+                      <th style={{ padding: '8px 12px', fontWeight: 600 }}>Última atividade</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pageExtensions.map((e) => (
+                      <tr key={e.number} style={{ borderTop: '1px solid var(--border-subtle)' }}>
+                        <td style={{ padding: '10px 12px', fontWeight: 600 }}>{e.number}</td>
+                        <td style={{ padding: '10px 12px', color: 'var(--text-secondary)' }}>{e.name || '—'}</td>
+                        <td style={{ padding: '10px 12px' }}>
+                          <ExtensionStatusBadge state={e.state} />
+                        </td>
+                        <td style={{ padding: '10px 12px', color: 'var(--text-secondary)' }}>{formatDateTime(e.lastActivity)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {totalPages > 1 && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 10, marginTop: 12 }}>
+                  <span className="field-hint">
+                    Página {safePage} de {totalPages} · {filtered.length} ramal(is)
+                  </span>
+                  <button className="btn btn-secondary btn-sm" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={safePage <= 1}>
+                    Anterior
+                  </button>
+                  <button className="btn btn-secondary btn-sm" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={safePage >= totalPages}>
+                    Próxima
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function InterfoneDashboard() {
   const [summary, setSummary] = useState(null);
   const [today, setToday] = useState(null);
@@ -215,7 +299,6 @@ export default function InterfoneDashboard() {
   const [activeCalls, setActiveCalls] = useState([]);
   const [missed, setMissed] = useState([]);
   const [trend, setTrend] = useState(null);
-  const [extFilter, setExtFilter] = useState('');
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -248,12 +331,6 @@ export default function InterfoneDashboard() {
       clearInterval(id);
     };
   }, []);
-
-  const filteredExtensions = extensions.filter((e) => {
-    const needle = extFilter.trim().toLowerCase();
-    if (!needle) return true;
-    return e.number.toLowerCase().includes(needle) || (e.name || '').toLowerCase().includes(needle);
-  });
 
   return (
     <>
@@ -289,84 +366,73 @@ export default function InterfoneDashboard() {
         {trend === null ? <div className="skeleton" style={{ height: 160, borderRadius: 12 }} /> : <CallsTrendChart data={trend} />}
       </div>
 
-      <div className="surface" style={{ padding: 24 }}>
-        <div style={{ fontWeight: 700, marginBottom: 4 }}>Chamadas ativas agora</div>
-        <p className="field-hint" style={{ marginBottom: 12 }}>
-          {activeCalls.length === 0 ? 'Nenhuma chamada em andamento.' : `${activeCalls.length} chamada(s) em andamento.`}
-        </p>
-        {activeCalls.map((c, i) => (
-          <div className="service-row" key={i}>
-            <div>
-              <div style={{ fontWeight: 600, fontSize: 14 }}>{c.name || c.ext} → {c.destination}</div>
-              <div className="field-hint">{c.direction === 'made' ? 'realizada' : 'recebida'} · {formatDuration(c.durationSeconds)}</div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 'var(--space-4)' }}>
+        <div className="surface" style={{ padding: 24 }}>
+          <div style={{ fontWeight: 700, marginBottom: 4 }}>Chamadas ativas agora</div>
+          <p className="field-hint" style={{ marginBottom: 12 }}>
+            {activeCalls.length === 0 ? 'Nenhuma chamada em andamento.' : `${activeCalls.length} chamada(s) em andamento.`}
+          </p>
+          {activeCalls.length > 0 && (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13.5 }}>
+                <thead>
+                  <tr style={{ textAlign: 'left', color: 'var(--text-tertiary)' }}>
+                    <th style={{ padding: '8px 12px', fontWeight: 600 }}>Ramal</th>
+                    <th style={{ padding: '8px 12px', fontWeight: 600 }}>Destino</th>
+                    <th style={{ padding: '8px 12px', fontWeight: 600 }}>Duração</th>
+                    <th style={{ padding: '8px 12px', fontWeight: 600 }}></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {activeCalls.map((c, i) => (
+                    <tr key={i} style={{ borderTop: '1px solid var(--border-subtle)' }}>
+                      <td style={{ padding: '10px 12px', fontWeight: 600 }}>{c.name || c.ext}</td>
+                      <td style={{ padding: '10px 12px', color: 'var(--text-secondary)' }}>{c.destination}</td>
+                      <td style={{ padding: '10px 12px', color: 'var(--text-secondary)' }}>{formatDuration(c.durationSeconds)}</td>
+                      <td style={{ padding: '10px 12px' }}>
+                        <ExtensionStatusBadge state={c.state} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-            <ExtensionStatusBadge state={c.state} />
-          </div>
-        ))}
-      </div>
+          )}
+        </div>
 
-      {missed.length > 0 && (
         <div className="surface" style={{ padding: 24 }}>
           <div style={{ fontWeight: 700, marginBottom: 4 }}>Chamadas perdidas hoje</div>
-          {missed.map((m, i) => (
-            <div className="service-row" key={i}>
-              <div>
-                <div style={{ fontWeight: 600, fontSize: 14 }}>{m.number}</div>
-                <div className="field-hint">Última: {formatDateTime(m.lastAt)}</div>
-              </div>
-              <span className="badge badge-warning">{m.total}x</span>
-            </div>
-          ))}
-        </div>
-      )}
-
-      <div className="surface" style={{ padding: 24 }}>
-        <div style={{ fontWeight: 700, marginBottom: 4 }}>Ramais</div>
-        <p className="field-hint" style={{ marginBottom: 12 }}>
-          Consulta — cadastro de ramal é feito no painel de Interfone original.
-        </p>
-        {extensions.length === 0 ? (
-          <div className="field-hint">Nenhum ramal configurado.</div>
-        ) : (
-          <>
-            <input
-              className="input"
-              style={{ marginBottom: 12, maxWidth: 320 }}
-              placeholder="Buscar por ramal ou nome..."
-              value={extFilter}
-              onChange={(e) => setExtFilter(e.target.value)}
-            />
-            {filteredExtensions.length === 0 ? (
-              <div className="field-hint">Nenhum ramal encontrado para "{extFilter}".</div>
-            ) : (
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13.5 }}>
-                  <thead>
-                    <tr style={{ textAlign: 'left', color: 'var(--text-tertiary)' }}>
-                      <th style={{ padding: '8px 12px', fontWeight: 600 }}>Ramal</th>
-                      <th style={{ padding: '8px 12px', fontWeight: 600 }}>Nome</th>
-                      <th style={{ padding: '8px 12px', fontWeight: 600 }}>Status</th>
-                      <th style={{ padding: '8px 12px', fontWeight: 600 }}>Última atividade</th>
+          <p className="field-hint" style={{ marginBottom: 12 }}>
+            {missed.length === 0 ? 'Nenhuma chamada perdida hoje.' : `${missed.length} número(s) com chamada perdida.`}
+          </p>
+          {missed.length > 0 && (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13.5 }}>
+                <thead>
+                  <tr style={{ textAlign: 'left', color: 'var(--text-tertiary)' }}>
+                    <th style={{ padding: '8px 12px', fontWeight: 600 }}>Número</th>
+                    <th style={{ padding: '8px 12px', fontWeight: 600 }}>Última</th>
+                    <th style={{ padding: '8px 12px', fontWeight: 600 }}>Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {missed.map((m, i) => (
+                    <tr key={i} style={{ borderTop: '1px solid var(--border-subtle)' }}>
+                      <td style={{ padding: '10px 12px', fontWeight: 600 }}>{m.number}</td>
+                      <td style={{ padding: '10px 12px', color: 'var(--text-secondary)' }}>{formatDateTime(m.lastAt)}</td>
+                      <td style={{ padding: '10px 12px' }}>
+                        <span className="badge badge-warning">{m.total}x</span>
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {filteredExtensions.map((e) => (
-                      <tr key={e.number} style={{ borderTop: '1px solid var(--border-subtle)' }}>
-                        <td style={{ padding: '10px 12px', fontWeight: 600 }}>{e.number}</td>
-                        <td style={{ padding: '10px 12px', color: 'var(--text-secondary)' }}>{e.name || '—'}</td>
-                        <td style={{ padding: '10px 12px' }}>
-                          <ExtensionStatusBadge state={e.state} />
-                        </td>
-                        <td style={{ padding: '10px 12px', color: 'var(--text-secondary)' }}>{formatDateTime(e.lastActivity)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </>
-        )}
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       </div>
+
+      <ExtensionsSection extensions={extensions} />
 
       <CallHistorySection />
     </>
