@@ -15,6 +15,17 @@ const ADMIN_ITEMS = [
 ];
 
 export default function Sidebar({ branding, view, onNavigate, can, isOwner, open, onClose }) {
+  // O CSS mantém o menu expandido com :focus-within (junto com :hover) —
+  // sem isso, clicar num item foca o botão e o navegador guarda esse foco,
+  // então o menu não recolhia mais sozinho ao tirar o mouse, só clicando
+  // fora. Tirando o foco do próprio botão no clique, sobra só o :hover.
+  function handleNavigate(key) {
+    onNavigate(key);
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+  }
+
   return (
     <>
       <div className={`sidebar-backdrop ${open ? 'open' : ''}`} onClick={onClose} />
@@ -33,7 +44,7 @@ export default function Sidebar({ branding, view, onNavigate, can, isOwner, open
             <button
               key={item.key}
               className={`nav-item ${view === item.key ? 'active' : ''}`}
-              onClick={() => onNavigate(item.key)}
+              onClick={() => handleNavigate(item.key)}
               title={item.label}
             >
               <Icon name={item.icon} size={18} />
@@ -48,7 +59,7 @@ export default function Sidebar({ branding, view, onNavigate, can, isOwner, open
                 <button
                   key={item.key}
                   className={`nav-item ${view === item.key ? 'active' : ''}`}
-                  onClick={() => onNavigate(item.key)}
+                  onClick={() => handleNavigate(item.key)}
                   title={item.label}
                 >
                   <Icon name={item.icon} size={18} />
