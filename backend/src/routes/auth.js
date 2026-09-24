@@ -25,16 +25,25 @@ function permissionsFor(user) {
   return { modules, deviceIds };
 }
 
+const recordLoginEvent = db.prepare(
+  'INSERT INTO login_events (user_id, username, success, ip, user_agent) VALUES (?, ?, ?, ?, ?)'
+);
+
 authRouter.post('/login', (req, res) => {
   const { username, password } = req.body || {};
+  const ip = req.ip || '';
+  const userAgent = req.get('user-agent') || '';
+
   if (!username || !password) {
     return res.status(400).json({ error: 'Usuário e senha são obrigatórios' });
   }
 
   const user = db.prepare('SELECT * FROM users WHERE username = ?').get(username);
   if (!user || !bcrypt.compareSync(password, user.password_hash)) {
+    recordLoginEvent.run(user?.id ?? null, username, 0, ip, userAgent);
     return res.status(401).json({ error: 'Credenciais inválidas' });
   }
+  recordLoginEvent.run(user.id, user.username, 1, ip, userAgent);
 
   const token = jwt.sign(
     { sub: user.id, username: user.username, displayName: user.display_name, role: user.role },

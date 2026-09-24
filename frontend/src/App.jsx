@@ -14,6 +14,7 @@ import AccessControl from './pages/AccessControl/index.jsx';
 import UsersAdmin from './pages/UsersAdmin/index.jsx';
 import Settings from './pages/Settings.jsx';
 import ServerHealth from './pages/ServerHealth.jsx';
+import AuditLog from './pages/AuditLog.jsx';
 
 export default function App() {
   const { user, checking, login, logout, can } = useAuth();
@@ -65,6 +66,8 @@ export default function App() {
         return isOwner ? <UsersAdmin currentUserId={user.id} /> : <NoAccess />;
       case 'servidor':
         return isOwner ? <ServerHealth /> : <NoAccess />;
+      case 'auditoria':
+        return isOwner ? <AuditLog /> : <NoAccess />;
       case 'configuracoes':
         return isOwner ? <Settings /> : <NoAccess />;
       default:
