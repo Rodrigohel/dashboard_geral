@@ -9,6 +9,11 @@ export default function DeviceUserFormModal({ user, onClose, onSave }) {
     password: '',
     cardNumber: user?.cardNumber || '',
     expiration: user?.expiration ? user.expiration.slice(0, 10) : '',
+    // Só fazem sentido editando um usuário existente — na edição, deixar
+    // senha/cartão em branco MANTÉM o valor atual; pra apagar de verdade
+    // precisa marcar aqui.
+    removePassword: false,
+    removeCard: false,
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -71,11 +76,45 @@ export default function DeviceUserFormModal({ user, onClose, onSave }) {
         <div className="grid-2">
           <div className="field">
             <label className="field-label">Senha de acesso (opcional)</label>
-            <input className="input" value={form.password} onChange={(e) => set('password', e.target.value)} placeholder="Senha numérica" />
+            <input
+              className="input"
+              value={form.password}
+              onChange={(e) => setForm((f) => ({ ...f, password: e.target.value, removePassword: false }))}
+              placeholder="Senha numérica"
+              disabled={form.removePassword}
+            />
+            {user && (
+              <label className="field-hint" style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                <input
+                  type="checkbox"
+                  checked={form.removePassword}
+                  onChange={(e) => setForm((f) => ({ ...f, removePassword: e.target.checked, password: e.target.checked ? '' : f.password }))}
+                />
+                Remover senha de acesso
+              </label>
+            )}
+            {user && !form.removePassword && (
+              <span className="field-hint">Deixe em branco para manter a senha atual.</span>
+            )}
           </div>
           <div className="field">
             <label className="field-label">Cartão RFID (opcional)</label>
-            <input className="input" value={form.cardNumber} onChange={(e) => set('cardNumber', e.target.value)} />
+            <input
+              className="input"
+              value={form.cardNumber}
+              onChange={(e) => setForm((f) => ({ ...f, cardNumber: e.target.value, removeCard: false }))}
+              disabled={form.removeCard}
+            />
+            {user && (
+              <label className="field-hint" style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                <input
+                  type="checkbox"
+                  checked={form.removeCard}
+                  onChange={(e) => setForm((f) => ({ ...f, removeCard: e.target.checked, cardNumber: e.target.checked ? '' : f.cardNumber }))}
+                />
+                Remover cartão RFID
+              </label>
+            )}
           </div>
         </div>
 
