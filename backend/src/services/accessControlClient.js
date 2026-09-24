@@ -177,6 +177,126 @@ function toXpeCardCode(cardNumber) {
   return bytes.reverse().join(',');
 }
 
+// ----------------------------------------------------------------------
+// "Termo de validade" — confirmado contra hardware real que esse campo NÃO
+// existe na API JSON (user/get só devolve Frequency/Validity, que são outra
+// coisa: controlam se o usuário criado pela própria interface web nasce
+// "sem acesso" ou não — ver xpeBuildItem). "Termo de validade" só existe na
+// tela web LEGADA do equipamento (`/fcgi/do`), que usa sessão por cookie
+// (UserName + hash da senha + SessionId), não HTTP Basic. Sem replicar essa
+// sessão, o campo fica em branco no equipamento mesmo com o cadastro via API
+// JSON tendo dado certo em tudo mais — era esse o bug relatado ("revoga o
+// acesso"). Campo a campo confirmado lendo o JS do próprio equipamento
+// (função CommitEditUser da tela de usuário):
+//   cUserEdit = ID/UserID/Nome/PIN/Andar/Cartões/1(fixo)/WebRelay/ValidityTerm/FaceId/
+// ValidityTerm=0 é "Sempre" — confirmado lendo o campo direto do equipamento
+// depois de setá-lo pela própria interface original.
+const XPE_LEGACY_USER_AGENT =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36';
+const XPE_LEGACY_USER_PAGE_QUERY = 'id=16&id=5';
+// "id=16&id=5" no escape próprio do equipamento pro parâmetro DestURL
+// (confirmado comparando com o hcDestURL que a própria tela de login manda).
+const XPE_LEGACY_DEST_URL = 'id`C16`Bid`C5';
+const XPE_LEGACY_VALIDITY_SEMPRE = 0;
+
+async function xpeLegacyRequest(device, { cookie, body }) {
+  const refRand = Date.now() + Math.floor(Math.random() * 1000);
+  const url = `${baseUrlOf(device)}/fcgi/do?${XPE_LEGACY_USER_PAGE_QUERY}&RefRand=${refRand}`;
+  let res;
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        ...(cookie ? { Cookie: cookie } : {}),
+        'User-Agent': XPE_LEGACY_USER_AGENT,
+        Referer: `${baseUrlOf(device)}/fcgi/do?${XPE_LEGACY_USER_PAGE_QUERY}`,
+      },
+      body,
+      signal: AbortSignal.timeout(8000),
+    });
+  } catch (err) {
+    throw new Error(`Não consegui alcançar ${url} (${err.message}).`);
+  }
+  return res.text();
+}
+
+// A senha nunca vai crua no cookie — o próprio equipamento expõe um
+// endpoint que devolve o hash esperado (confirmado batendo com o hash real
+// visto num login manual pela interface).
+async function xpeLegacyEncryptPassword(device, plainPassword) {
+  const url =
+    `${baseUrlOf(device)}/fcgi/do?action=Encrypt` +
+    `&UserName=${encodeURIComponent(device.device_username)}&Password=${encodeURIComponent(plainPassword)}`;
+  let res;
+  try {
+    res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+  } catch (err) {
+    throw new Error(`Não consegui alcançar ${url} (${err.message}).`);
+  }
+  const html = await res.text();
+  const match = html.match(/hcSingleResult[^>]*value=['"]([^'"]*)['"]/i);
+  if (!match) {
+    throw new Error('Equipamento não devolveu o hash de senha esperado (tela antiga de login mudou?).');
+  }
+  return match[1];
+}
+
+// Abre uma sessão na tela legada: o equipamento não confirma isso com um
+// cookie Set-Cookie de verdade — devolve o novo SessionId embutido num
+// campo escondido (SessionIdNow) da própria página de destino.
+async function xpeLegacyOpenSession(device, plainPassword) {
+  const hash = await xpeLegacyEncryptPassword(device, plainPassword);
+  const baseCookie = `UserName=${device.device_username}; Password=${hash}`;
+  const html = await xpeLegacyRequest(device, {
+    cookie: baseCookie,
+    body: `SubmitData=begin&Operation=CreateSession&DestURL=${encodeURIComponent(XPE_LEGACY_DEST_URL)}&SubmitData=end`,
+  });
+  const match = html.match(/SessionIdNow[^>]*value=['"](\d+)['"]/i);
+  if (!match) {
+    throw new Error('Não consegui abrir sessão na tela antiga do equipamento (usuário/senha recusados?).');
+  }
+  return `${baseCookie}; SessionId=${match[1]}`;
+}
+
+// Só Nome/UserID passam por isso na tela original do equipamento (PIN e
+// Cartão vão crus) — usa encodeURIComponent como equivalente ao "PostEncode"
+// do JS do equipamento (protege as barras que separam os campos).
+function xpeLegacyEncodeField(value) {
+  return encodeURIComponent(String(value ?? ''));
+}
+
+function xpeLegacyCUserEdit(item, validityTerm) {
+  const fields = [
+    String(item.ID),
+    xpeLegacyEncodeField(item.UserID || ''),
+    xpeLegacyEncodeField(item.Name || ''),
+    item.PrivatePIN || '',
+    item.LiftFloorNum || '0',
+    item.CardCode || '',
+    '1', // "relay" fixo — a própria tela não deixa configurar (sempre 1)
+    item.WebRelay ?? '0',
+    String(validityTerm),
+    '0', // FaceId — não mexe na foto já cadastrada
+  ];
+  return fields.join('/') + '/';
+}
+
+// Chamado depois de qualquer user/set (criar, editar ou trocar foto) pra
+// garantir que "Termo de validade" fique em "Sempre" — a API JSON não
+// controla esse campo (ver comentário acima), então sem isso ele fica em
+// branco no equipamento mesmo com o resto do cadastro certo.
+async function xpeLegacySetValiditySempre(device, plainPassword, item) {
+  const cookie = await xpeLegacyOpenSession(device, plainPassword);
+  const html = await xpeLegacyRequest(device, {
+    cookie,
+    body: `SubmitData=begin&Operation=Submit&cUserEdit=${xpeLegacyCUserEdit(item, XPE_LEGACY_VALIDITY_SEMPRE)}&SubmitData=end`,
+  });
+  if (/hcLoginStatus/i.test(html)) {
+    throw new Error('Equipamento recusou a sessão da tela antiga ao salvar "Termo de validade".');
+  }
+}
+
 function xpeBuildItem(input) {
   // CardCode/PrivatePIN sempre presentes (mesmo vazios) de propósito: no
   // update, isso é um "merge" com o item existente (ver xpeUpdateUser) —
@@ -187,11 +307,10 @@ function xpeBuildItem(input) {
   return {
     UserID: input.registration || deriveRegistration(input.name),
     Name: input.name,
-    // "Sempre" (sem prazo) exige os dois campos, confirmados via captura
-    // real: usuário cadastrado pela própria interface do equipamento tinha
-    // Frequency=0 E Validity=0. Mandar só Validity=0 sem Frequency fazia o
-    // equipamento gravar os dois como -1 (inválido/expirado) — era esse o
-    // bug real de acesso negado depois de cadastrar/editar pelo Portal.
+    // NÃO é o campo "Termo de validade" (isso é outra coisa, só existe na
+    // tela legada — ver xpeLegacySetValiditySempre). Frequency/Validity=0
+    // é só o valor padrão que a própria interface do equipamento usa ao
+    // cadastrar um usuário; mantido por consistência, não controla acesso.
     Frequency: 0,
     Validity: 0,
     // O nome real desse campo é "WebRelay", não "Relay" — confirmado via
@@ -237,6 +356,7 @@ async function xpeCreateUser(device, password, input) {
     // acesso e só um "editar" manual depois corrige.
     const fixed = { ...xpeSafeExisting(created), ...item, ID: String(created.ID) };
     await xpeCall(device, password, 'user', 'set', { item: [fixed] });
+    await xpeLegacySetValiditySempre(device, password, fixed);
     return xpeFromItem(fixed);
   }
   return { id: item.UserID, ...xpeFromItem({ ...item, ID: item.UserID }) };
@@ -252,10 +372,10 @@ function xpeSafeExisting(existing) {
   return {
     UserID: existing.UserID,
     Name: existing.Name,
-    // Precisa dos dois — ver xpeBuildItem. Esse merge aqui é usado também
-    // pelo envio de foto (xpeSetUserPhoto), que NÃO passa por xpeBuildItem;
-    // sem preservar Frequency aqui, subir uma foto depois de cadastrar o
-    // usuário derrubava o acesso de novo (voltava pra -1/-1).
+    // Ver xpeBuildItem — não é "Termo de validade". Esse merge aqui é usado
+    // também pelo envio de foto (xpeSetUserPhoto), que NÃO passa por
+    // xpeBuildItem; sem preservar Frequency aqui, subir uma foto depois de
+    // cadastrar o usuário voltava esses campos pra -1/-1.
     Frequency: existing.Frequency ?? 0,
     Validity: existing.Validity ?? 0,
     WebRelay: existing.WebRelay ?? '0',
@@ -271,6 +391,7 @@ async function xpeUpdateUser(device, password, userId, input) {
   const existing = await xpeFindById(device, password, userId);
   const merged = { ...xpeSafeExisting(existing), ...xpeBuildItem(input), ID: String(userId) };
   await xpeCall(device, password, 'user', 'set', { item: [merged] });
+  await xpeLegacySetValiditySempre(device, password, merged);
   return xpeFromItem(merged);
 }
 
@@ -298,6 +419,7 @@ async function xpeSetUserPhoto(device, password, userId, fileBuffer, mimetype) {
   const url = `${relayBase.replace(/\/$/, '')}/api/access/face-relay/${token}.jpg`;
   const merged = { ...xpeSafeExisting(existing), ID: String(userId), FaceUrl: url };
   await xpeCall(device, password, 'user', 'set', { item: [merged] });
+  await xpeLegacySetValiditySempre(device, password, merged);
   // Confirmado repetidas vezes contra hardware real: o equipamento busca a
   // foto e realmente cadastra, mas nem `FaceStatus` nem `FaceID` (que fica
   // igual ao trocar uma foto já existente) confirmam isso de forma
