@@ -57,7 +57,7 @@ const SERVICE_LABELS = {
   'portal-backend': 'Portal',
   'ip-dashboard-backend': 'Painel de Rede',
   'pbx-dashboard-backend': 'Painel de Interfone',
-  asterisk: 'Asterisk (PBX)',
+  freepbx: 'FreePBX (Asterisk)',
 };
 
 function ServiceStatusBadge({ status }) {

@@ -14,7 +14,7 @@ function round(n, decimals = 1) {
 // só para status/memória de cada um, nunca para controlá-los. Ajustável via
 // SERVER_HEALTH_SERVICES (separado por vírgula) caso os nomes reais no seu
 // servidor sejam diferentes.
-const SERVICE_UNITS = (process.env.SERVER_HEALTH_SERVICES || 'portal-backend,ip-dashboard-backend,pbx-dashboard-backend,asterisk')
+const SERVICE_UNITS = (process.env.SERVER_HEALTH_SERVICES || 'portal-backend,ip-dashboard-backend,pbx-dashboard-backend,freepbx')
   .split(',')
   .map((s) => s.trim())
   .filter(Boolean);
