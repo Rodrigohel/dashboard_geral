@@ -244,7 +244,10 @@ async function xpeLegacyEncryptPassword(device, plainPassword) {
 
 // Abre uma sessão na tela legada: o equipamento não confirma isso com um
 // cookie Set-Cookie de verdade — devolve o novo SessionId embutido num
-// campo escondido (SessionIdNow) da própria página de destino.
+// campo escondido (SessionIdNow) da própria página de destino. Essa mesma
+// página também expõe o UserID/FaceId do registro "atual" do equipamento
+// (o que a própria tela ficou mostrando por último) — reaproveita pra
+// pegar o FaceId real sem outra chamada.
 async function xpeLegacyOpenSession(device, plainPassword) {
   const hash = await xpeLegacyEncryptPassword(device, plainPassword);
   const baseCookie = `UserName=${device.device_username}; Password=${hash}`;
@@ -252,11 +255,17 @@ async function xpeLegacyOpenSession(device, plainPassword) {
     cookie: baseCookie,
     body: `SubmitData=begin&Operation=CreateSession&DestURL=${encodeURIComponent(XPE_LEGACY_DEST_URL)}&SubmitData=end`,
   });
-  const match = html.match(/SessionIdNow[^>]*value=['"](\d+)['"]/i);
-  if (!match) {
+  const sessionMatch = html.match(/SessionIdNow[^>]*value=['"](\d+)['"]/i);
+  if (!sessionMatch) {
     throw new Error('Não consegui abrir sessão na tela antiga do equipamento (usuário/senha recusados?).');
   }
-  return `${baseCookie}; SessionId=${match[1]}`;
+  const userIdMatch = html.match(/hcUserId[^>]*value=['"]([^&'"]*)/i);
+  const faceIdMatch = html.match(/hcFaceId[^>]*value=['"](\d+)/i);
+  return {
+    cookie: `${baseCookie}; SessionId=${sessionMatch[1]}`,
+    currentUserId: userIdMatch ? userIdMatch[1] : null,
+    faceId: faceIdMatch ? faceIdMatch[1] : '0',
+  };
 }
 
 // Só Nome/UserID passam por isso na tela original do equipamento (PIN e
@@ -266,7 +275,7 @@ function xpeLegacyEncodeField(value) {
   return encodeURIComponent(String(value ?? ''));
 }
 
-function xpeLegacyCUserEdit(item, validityTerm) {
+function xpeLegacyCUserEdit(item, validityTerm, faceId) {
   const fields = [
     String(item.ID),
     xpeLegacyEncodeField(item.UserID || ''),
@@ -277,7 +286,7 @@ function xpeLegacyCUserEdit(item, validityTerm) {
     '1', // "relay" fixo — a própria tela não deixa configurar (sempre 1)
     item.WebRelay ?? '0',
     String(validityTerm),
-    '0', // FaceId — não mexe na foto já cadastrada
+    String(faceId ?? '0'),
   ];
   return fields.join('/') + '/';
 }
@@ -286,11 +295,20 @@ function xpeLegacyCUserEdit(item, validityTerm) {
 // garantir que "Termo de validade" fique em "Sempre" — a API JSON não
 // controla esse campo (ver comentário acima), então sem isso ele fica em
 // branco no equipamento mesmo com o resto do cadastro certo.
+//
+// Confirmado contra hardware real: mandar "0" fixo no campo FaceId (última
+// posição do cUserEdit) APAGAVA a foto recém-cadastrada da pessoa — esse
+// campo não é "não mexe na foto", é o id real da foto atual. Por isso lê o
+// FaceId de verdade em xpeLegacyOpenSession e reenvia o mesmo valor, só
+// confirmando antes que a página devolvida é realmente do usuário certo
+// (hcUserId bate com o UserID que estamos salvando) — evita gravar o
+// FaceId de outro usuário por engano.
 async function xpeLegacySetValiditySempre(device, plainPassword, item) {
-  const cookie = await xpeLegacyOpenSession(device, plainPassword);
+  const { cookie, currentUserId, faceId } = await xpeLegacyOpenSession(device, plainPassword);
+  const safeFaceId = currentUserId === (item.UserID || null) ? faceId : '0';
   const html = await xpeLegacyRequest(device, {
     cookie,
-    body: `SubmitData=begin&Operation=Submit&cUserEdit=${xpeLegacyCUserEdit(item, XPE_LEGACY_VALIDITY_SEMPRE)}&SubmitData=end`,
+    body: `SubmitData=begin&Operation=Submit&cUserEdit=${xpeLegacyCUserEdit(item, XPE_LEGACY_VALIDITY_SEMPRE, safeFaceId)}&SubmitData=end`,
   });
   if (/hcLoginStatus/i.test(html)) {
     throw new Error('Equipamento recusou a sessão da tela antiga ao salvar "Termo de validade".');
