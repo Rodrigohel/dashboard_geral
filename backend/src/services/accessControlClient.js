@@ -259,17 +259,6 @@ async function xpeLegacyOpenSession(device, plainPassword) {
   return `${baseCookie}; SessionId=${sessionMatch[1]}`;
 }
 
-// O FaceId da tela legada é o mesmo id que aparece no fim da URL do campo
-// FaceID da API JSON (ex.: ".../423.jpg") — confirmado contra hardware real
-// comparando os dois pro mesmo usuário. "-1.jpg" é o placeholder de "sem
-// foto" (ver xpeHasRealFace) e vira "0" aqui, que é o valor visto na tela
-// legada pra quem nunca teve foto ou já está com a foto atual "assentada".
-function xpeFaceIdFromRecord(record) {
-  const match = String(record?.FaceID || '').match(/\/(-?\d+)\.jpg$/i);
-  if (!match || match[1] === '-1') return '0';
-  return match[1];
-}
-
 // Só Nome/UserID passam por isso na tela original do equipamento (PIN e
 // Cartão vão crus) — usa encodeURIComponent como equivalente ao "PostEncode"
 // do JS do equipamento (protege as barras que separam os campos).
@@ -293,26 +282,25 @@ function xpeLegacyCUserEdit(item, validityTerm, faceId) {
   return fields.join('/') + '/';
 }
 
-// Chamado depois de qualquer user/set (criar, editar ou trocar foto) pra
-// garantir que "Termo de validade" fique em "Sempre" — a API JSON não
-// controla esse campo (ver comentário acima), então sem isso ele fica em
-// branco no equipamento mesmo com o resto do cadastro certo.
+// Chamado depois de qualquer user/set (criar ou editar) pra garantir que
+// "Termo de validade" fique em "Sempre" — a API JSON não controla esse
+// campo (ver comentário acima), então sem isso ele fica em branco no
+// equipamento mesmo com o resto do cadastro certo.
 //
-// Confirmado contra hardware real: mandar "0" fixo no campo FaceId (última
-// posição do cUserEdit) APAGAVA a foto recém-cadastrada da pessoa — esse
-// campo não é "não mexe na foto", é o id real da foto atual. `faceIdHint`
-// (extraído de um user/get fresco via xpeFaceIdFromRecord) resolve isso.
-//
-// Uma tentativa anterior tentava ler esse id de uma página "atual" da
-// própria tela legada — mas essa página só atualiza quando alguém edita
-// pela interface original de verdade, então ficava travada sempre no
-// último usuário editado manualmente, quebrando a foto de todo mundo
-// menos dele. Passar o valor já resolvido evita essa armadilha.
-async function xpeLegacySetValiditySempre(device, plainPassword, item, faceIdHint = '0') {
+// O último campo do cUserEdit (FaceId) é sempre "0" fixo, de propósito —
+// JÁ TENTAMOS duas vezes ler/preservar o valor real (via uma página
+// "atual" da tela legada, depois via o FaceID da API JSON) e as duas
+// vezes o equipamento, em uso real, chegou a linkar a foto de OUTRA
+// pessoa ao usuário sendo salvo — grave demais (reconhecimento facial
+// abrindo pra pessoa errada) pra continuar tentando adivinhar. "0" fixo é
+// o único valor testado extensivamente sem nunca trocar foto de ninguém;
+// o preço é que editar alguém que JÁ TEM foto cadastrada pode limpar essa
+// foto (precisa reenviar) — pior seria linkar a foto errada.
+async function xpeLegacySetValiditySempre(device, plainPassword, item) {
   const cookie = await xpeLegacyOpenSession(device, plainPassword);
   const html = await xpeLegacyRequest(device, {
     cookie,
-    body: `SubmitData=begin&Operation=Submit&cUserEdit=${xpeLegacyCUserEdit(item, XPE_LEGACY_VALIDITY_SEMPRE, faceIdHint)}&SubmitData=end`,
+    body: `SubmitData=begin&Operation=Submit&cUserEdit=${xpeLegacyCUserEdit(item, XPE_LEGACY_VALIDITY_SEMPRE, '0')}&SubmitData=end`,
   });
   if (/hcLoginStatus/i.test(html)) {
     throw new Error('Equipamento recusou a sessão da tela antiga ao salvar "Termo de validade".');
@@ -378,7 +366,7 @@ async function xpeCreateUser(device, password, input) {
     // acesso e só um "editar" manual depois corrige.
     const fixed = { ...xpeSafeExisting(created), ...item, ID: String(created.ID) };
     await xpeCall(device, password, 'user', 'set', { item: [fixed] });
-    await xpeLegacySetValiditySempre(device, password, fixed, xpeFaceIdFromRecord(created));
+    await xpeLegacySetValiditySempre(device, password, fixed);
     return xpeFromItem(fixed);
   }
   return { id: item.UserID, ...xpeFromItem({ ...item, ID: item.UserID }) };
@@ -431,7 +419,7 @@ async function xpeUpdateUser(device, password, userId, input) {
   delete base.CardCode;
   const merged = { ...xpeSafeExisting(existing), ...base, ...xpeUpdateFields(input), ID: String(userId) };
   await xpeCall(device, password, 'user', 'set', { item: [merged] });
-  await xpeLegacySetValiditySempre(device, password, merged, xpeFaceIdFromRecord(existing));
+  await xpeLegacySetValiditySempre(device, password, merged);
   return xpeFromItem(merged);
 }
 
