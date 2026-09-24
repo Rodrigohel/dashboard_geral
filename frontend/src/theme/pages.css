@@ -57,9 +57,16 @@
   margin: 0 auto 4px;
   border-radius: 16px;
 }
+/* Largura/altura livres (com objeto contido) em vez de caixa quadrada fixa
+   — logo real costuma ser bem mais larga que alta; forçar 1:1 sobrava um
+   espaço vazio enorme acima/abaixo da marca (era isso que empurrava o
+   "Bem-vindo de volta" pra longe do logo, não uma margem). */
 .login-card .brand-mark.brand-logo-img {
-  width: 208px;
-  height: 208px;
+  width: auto;
+  height: auto;
+  max-width: 260px;
+  max-height: 90px;
+  margin: 0 auto 12px;
 }
 .login-title {
   font-size: 24px;

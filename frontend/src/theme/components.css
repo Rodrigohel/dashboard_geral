@@ -111,6 +111,14 @@
   transform: translateY(-50%);
   color: var(--text-tertiary);
 }
+/* Botão de mostrar/ocultar senha (ícone à direita, não à esquerda) — o
+   próprio botão já vem posicionado (inline style); sem isso, a regra
+   genérica acima (pensada pro ícone à esquerda) reposicionava o svg de
+   novo por cima, jogando o olho pro canto errado do campo. */
+.input-with-icon .input-icon-btn svg {
+  position: static;
+  transform: none;
+}
 .checkbox-row {
   display: flex;
   align-items: center;
