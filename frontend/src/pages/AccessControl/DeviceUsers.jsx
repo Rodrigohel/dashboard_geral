@@ -106,9 +106,6 @@ export default function DeviceUsers({ device, onBack }) {
           <h1>{device.name}</h1>
           <p>{device.location} · {device.host}:{device.port}</p>
         </div>
-        <button className="btn btn-primary" onClick={() => setShowForm(true)}>
-          <Icon name="plus" size={16} /> Novo usuário
-        </button>
       </div>
 
       {error && /não é suportad/i.test(error) ? (
@@ -116,7 +113,8 @@ export default function DeviceUsers({ device, onBack }) {
           <strong style={{ color: 'var(--warning-500)' }}>Listar usuários ainda não é suportado neste modelo.</strong>
           <p style={{ color: 'var(--text-secondary)', marginTop: 6, fontSize: 13.5 }}>
             A conexão com o equipamento está OK — só não é possível listar/editar/excluir pela tela ainda para este
-            modelo. Você já pode usar o botão <strong>"Novo usuário"</strong> acima para cadastrar.
+            modelo. Volte para a lista de equipamentos e use <strong>"Novo usuário em vários porteiros"</strong> pra
+            cadastrar (funciona escolhendo só este aqui também).
           </p>
         </div>
       ) : (
@@ -141,7 +139,11 @@ export default function DeviceUsers({ device, onBack }) {
       {!error && users === null && <div className="skeleton" style={{ height: 220, borderRadius: 20 }} />}
 
       {!error && users !== null && filtered.length === 0 && (
-        <EmptyState icon="users" title="Nenhum usuário encontrado" description="Cadastre o primeiro morador/funcionário liberado neste porteiro." />
+        <EmptyState
+          icon="users"
+          title="Nenhum usuário encontrado"
+          description={'Volte para a lista de equipamentos e use "Novo usuário em vários porteiros" pra cadastrar o primeiro morador/funcionário aqui.'}
+        />
       )}
 
       {!error && filtered.length > 0 && (
