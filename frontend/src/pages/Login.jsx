@@ -51,7 +51,7 @@ export default function Login({ branding, onLogin }) {
               autoComplete="username"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              placeholder="seu.usuario"
+              placeholder="usuário"
             />
           </div>
 
@@ -72,6 +72,7 @@ export default function Login({ branding, onLogin }) {
               />
               <button
                 type="button"
+                className="input-icon-btn"
                 onClick={() => setShowPassword((v) => !v)}
                 style={{
                   position: 'absolute',
