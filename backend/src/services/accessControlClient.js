@@ -236,11 +236,18 @@ function xpeLegacyEncodeField(value) {
   return encodeURIComponent(String(value ?? ''));
 }
 
-function xpeLegacyCUserEdit(item, validityTerm, faceId) {
+// `raw=true` (usado só no multipart, ver xpeLegacyUploadPhotoAndCommit) manda
+// Nome/UserID sem PostEncode nenhum — confirmado por hardware que esse
+// caminho (Upload+Commit) GRAVA o texto exatamente como chega, sem decodificar
+// nada; o caminho de texto (Submit) é o único que espera o PostEncode, porque
+// aí sim o corpo passa pelo decode automático de application/x-www-form-urlencoded
+// antes de chegar no parser do cUserEdit.
+function xpeLegacyCUserEdit(item, validityTerm, faceId, raw = false) {
+  const encode = raw ? (value) => String(value ?? '') : xpeLegacyEncodeField;
   const fields = [
     String(item.ID),
-    xpeLegacyEncodeField(item.UserID || ''),
-    xpeLegacyEncodeField(item.Name || ''),
+    encode(item.UserID || ''),
+    encode(item.Name || ''),
     item.PrivatePIN || '',
     item.LiftFloorNum || '0',
     item.CardCode || '',
@@ -334,7 +341,7 @@ function xpeLegacyMultipartBody(boundary, textFields, fileField) {
 
 async function xpeLegacyUploadPhotoAndCommit(device, plainPassword, item, fileBuffer, mimetype) {
   const cookie = await xpeLegacyOpenSession(device, plainPassword);
-  const cUserEditText = `cUserEdit=${xpeLegacyCUserEdit(item, XPE_LEGACY_VALIDITY_SEMPRE, '0')}`;
+  const cUserEditText = `cUserEdit=${xpeLegacyCUserEdit(item, XPE_LEGACY_VALIDITY_SEMPRE, '0', true)}`;
   const uploadType = `&Operation=Upload&DestUpFile=UserDataUploadAndCommit/${cUserEditText}&`;
   const boundary = `----PortalBoundary${crypto.randomBytes(16).toString('hex')}`;
   const body = xpeLegacyMultipartBody(
