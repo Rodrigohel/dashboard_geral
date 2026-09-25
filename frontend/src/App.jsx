@@ -32,8 +32,16 @@ export default function App() {
     applyAccentColor(branding.accentColor);
   }, [branding.accentColor]);
 
+  // `view` mora aqui em cima (não desmonta ao deslogar) — sem resetar no
+  // login, quem relogava depois de expirar a sessão caía direto na última
+  // tela que estava aberta antes, em vez de voltar pro Início.
+  async function handleLogin(username, password) {
+    await login(username, password);
+    setView('home');
+  }
+
   if (checking) return <LoadingScreen />;
-  if (!user) return <Login branding={branding} onLogin={login} />;
+  if (!user) return <Login branding={branding} onLogin={handleLogin} />;
 
   const isOwner = user.role === 'owner';
 
