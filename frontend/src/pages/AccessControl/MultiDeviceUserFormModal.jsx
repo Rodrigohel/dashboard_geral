@@ -9,9 +9,9 @@ import { api } from '../../api/client.js';
 // um cadastro independente por trás (a API não tem conceito de "usuário
 // compartilhado" entre porteiros), então mandamos uma criação por
 // equipamento escolhido e mostramos o resultado de cada um.
-export default function MultiDeviceUserFormModal({ devices, onClose, onDone }) {
+export default function MultiDeviceUserFormModal({ devices, initialName = '', onClose, onDone }) {
   const [form, setForm] = useState({
-    name: '',
+    name: initialName,
     registration: '',
     apartment: '',
     password: '',

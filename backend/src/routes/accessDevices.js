@@ -120,6 +120,33 @@ accessDevicesRouter.post('/:id/test-connection', requireOwner, async (req, res) 
   }
 });
 
+// Busca um usuário (por nome) em todos os equipamentos que o usuário logado
+// enxerga de uma vez, em vez de abrir porteiro por porteiro — cada
+// equipamento é consultado em paralelo e o que der erro (offline,
+// credencial errada) não derruba os outros, só entra em "errors" separado.
+accessDevicesRouter.get('/search-users', async (req, res) => {
+  const q = String(req.query.q || '').trim().toLowerCase();
+  if (!q) return res.json({ results: [], errors: [] });
+  const devices = visibleDevices(req);
+  const results = [];
+  const errors = [];
+  await Promise.all(
+    devices.map(async (device) => {
+      try {
+        const users = await deviceApi.listUsers(device, decryptSecret(device.device_password_enc));
+        for (const user of users) {
+          if ((user.name || '').toLowerCase().includes(q)) {
+            results.push({ device: { id: device.id, name: device.name, location: device.location }, user });
+          }
+        }
+      } catch (err) {
+        errors.push({ device: { id: device.id, name: device.name }, message: err.message });
+      }
+    })
+  );
+  res.json({ results, errors });
+});
+
 // --- Usuários dentro do equipamento (liberado a quem tem device_permissions) ---
 
 accessDevicesRouter.get('/:deviceId/users', requireDeviceAccess, async (req, res) => {
