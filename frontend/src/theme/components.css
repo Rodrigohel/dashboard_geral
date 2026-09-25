@@ -445,6 +445,27 @@ table.data-table {
     grid-template-columns: repeat(6, 1fr);
   }
 }
+/* Resumo do Rede (Equipamentos/Online/Degradado/Offline) — 4 colunas lado a
+   lado só a partir de telas maiores; no celular volta pro esquema antigo
+   (Equipamentos numa linha só, os outros três em 3 colunas embaixo), que já
+   era o que funcionava bem ali — 4 cards espremidos numa tela estreita
+   ficava ilegível. */
+.rede-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.rede-summary-grid > :first-child {
+  grid-column: 1 / -1;
+}
+@media (min-width: 900px) {
+  .rede-summary-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+  .rede-summary-grid > :first-child {
+    grid-column: auto;
+  }
+}
 .mini-stat-card {
   padding: var(--space-4) var(--space-2);
   border-radius: var(--radius-lg);

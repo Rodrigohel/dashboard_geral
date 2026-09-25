@@ -630,10 +630,9 @@ export default function RedeDashboard({ can }) {
       {!summary ? (
         <div className="skeleton" style={{ height: 130, borderRadius: 20 }} />
       ) : (
-        // Sempre 4 colunas fixas (nunca empilha, nem no celular) — são os
-        // quatro números que precisam ficar lado a lado pra comparar de
-        // relance.
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+        // 4 colunas lado a lado no PC; no celular, Equipamentos numa linha e
+        // os outros três em 3 colunas embaixo (ver .rede-summary-grid).
+        <div className="rede-summary-grid">
           <SummaryCard icon="network" title="Equipamentos" value={summary.total} sub="monitorados" />
           <SummaryCard icon="wifi" title="Online" value={summary.online || 0} tone="success" />
           <SummaryCard icon="wifi" title="Degradado" value={summary.degraded || 0} tone="warning" />
