@@ -7,6 +7,7 @@ import { authRouter } from './routes/auth.js';
 import { usersRouter } from './routes/users.js';
 import { accessDevicesRouter } from './routes/accessDevices.js';
 import { brandingRouter } from './routes/branding.js';
+import { manifestRouter } from './routes/manifest.js';
 import { settingsRouter } from './routes/settings.js';
 import { modulesRouter } from './routes/modules.js';
 import { systemRouter } from './routes/system.js';
@@ -28,6 +29,12 @@ app.get('/health', (req, res) => res.json({ ok: true }));
 // nome/logo antes de autenticar); o PUT já exige dono dentro do próprio
 // router (ver branding.js).
 app.use('/api/branding', brandingRouter);
+
+// Fora de /api de propósito — é onde o navegador/SO busca o manifest de um
+// PWA (link rel="manifest" no index.html aponta pra cá). Registrado antes
+// do fallback estático do frontend (final do arquivo) pra não cair no
+// index.html no lugar do JSON.
+app.use('/manifest.webmanifest', manifestRouter);
 
 app.use('/api/auth', authRouter);
 app.use('/api/modules', requireAuth, modulesRouter);
