@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Icon from '../components/Icon.jsx';
 import { api } from '../api/client.js';
 
@@ -63,52 +63,197 @@ function formatDisposition(disposition) {
   return DISPOSITION_LABELS[disposition.toUpperCase()] || disposition;
 }
 
-// Cores fixas por série (não por posição) — a mesma paleta de status usada
-// no resto do Portal, então "perdidas"/"falhas" já leem como alerta.
+// Cores categóricas (identidade da série), de propósito DIFERENTES das
+// cores de status (--success/--warning/--danger) usadas no resto do
+// Portal — reaproveitar a cor de "alerta" pra série "perdidas" faria ela
+// parecer sempre um problema, mesmo quando é só uma categoria entre
+// outras. Ordem fixa (nunca reordenar por filtro) — mantém o contraste
+// entre séries vizinhas mesmo pra quem tem daltonismo.
 const TREND_SERIES = [
-  { key: 'recebidas', label: 'Recebidas', color: 'var(--success-500)' },
-  { key: 'realizadas', label: 'Realizadas', color: 'var(--accent-500)' },
-  { key: 'perdidas', label: 'Perdidas', color: 'var(--warning-500)' },
-  { key: 'falhas', label: 'Falhas', color: 'var(--danger-500)' },
+  { key: 'recebidas', label: 'Recebidas', color: 'var(--chart-series-1)' },
+  { key: 'realizadas', label: 'Realizadas', color: 'var(--chart-series-2)' },
+  { key: 'perdidas', label: 'Perdidas', color: 'var(--chart-series-3)' },
+  { key: 'falhas', label: 'Falhas', color: 'var(--chart-series-4)' },
 ];
 
+// Maior "número redondo" >= valor, com uns 4 degraus até lá (0, step, 2·step,
+// ..., niceMax) — evita eixo Y tipo "0, 7, 14, 21" difícil de ler de relance.
+function niceStep(maxValue, targetTicks = 4) {
+  const rough = maxValue / targetTicks || 1;
+  const magnitude = 10 ** Math.floor(Math.log10(rough));
+  const norm = rough / magnitude;
+  const step = norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10;
+  return step * magnitude;
+}
+
 function CallsTrendChart({ data }) {
+  const svgRef = useRef(null);
+  const [hoverIndex, setHoverIndex] = useState(null);
+
   if (!data || !data.categories || data.categories.length === 0) {
     return <div className="field-hint">Sem dados suficientes ainda.</div>;
   }
   const { categories } = data;
-  const w = 700;
-  const h = 160;
-  const maxValue = Math.max(1, ...TREND_SERIES.flatMap((s) => data[s.key] || []));
-  const groupWidth = w / categories.length;
-  const gap = 2;
-  const barWidth = Math.max(1, (groupWidth - gap * (TREND_SERIES.length + 1)) / TREND_SERIES.length);
+  const n = categories.length;
+
+  const W = 680;
+  const H = 210;
+  const pad = { top: 10, right: 54, bottom: 26, left: 30 };
+  const plotW = W - pad.left - pad.right;
+  const plotH = H - pad.top - pad.bottom;
+
+  const rawMax = Math.max(1, ...TREND_SERIES.flatMap((s) => data[s.key] || []));
+  const step = niceStep(rawMax);
+  const niceMax = Math.ceil(rawMax / step) * step;
+  const ticks = [];
+  for (let t = 0; t <= niceMax; t += step) ticks.push(t);
+
+  const xAt = (i) => pad.left + (n === 1 ? plotW / 2 : (i / (n - 1)) * plotW);
+  const yAt = (value) => pad.top + plotH - (value / niceMax) * plotH;
+
+  const seriesPoints = TREND_SERIES.map((s) => {
+    const values = data[s.key] || [];
+    const points = categories.map((_, i) => ({ x: xAt(i), y: yAt(values[i] || 0), value: values[i] || 0 }));
+    const linePath = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ');
+    const areaPath = `${linePath} L${points[points.length - 1].x},${pad.top + plotH} L${points[0].x},${pad.top + plotH} Z`;
+    return { ...s, points, linePath, areaPath };
+  });
+
+  // Rótulo do valor final de cada série (obrigatório com 4 séries — cor
+  // sozinha não basta) — quando os valores ficam próximos e as etiquetas
+  // colidiriam, empurra pra baixo na ordem certa em vez de sobrepor.
+  const endLabels = seriesPoints
+    .map((s) => ({ key: s.key, color: s.color, value: s.points[n - 1].value, y: s.points[n - 1].y }))
+    .sort((a, b) => a.y - b.y);
+  const MIN_LABEL_GAP = 13;
+  for (let i = 1; i < endLabels.length; i++) {
+    if (endLabels[i].y - endLabels[i - 1].y < MIN_LABEL_GAP) {
+      endLabels[i].y = endLabels[i - 1].y + MIN_LABEL_GAP;
+    }
+  }
+  // Empurrar só pra baixo pode jogar o último rótulo pra fora da área do
+  // gráfico quando várias séries empatam perto de zero (bem comum com
+  // "falhas"/"perdidas") — desloca o grupo inteiro pra cima o quanto for
+  // preciso pra caber, mantendo o espaçamento entre eles.
+  const overflow = endLabels[endLabels.length - 1].y - (pad.top + plotH);
+  if (overflow > 0) {
+    for (const l of endLabels) l.y -= overflow;
+  }
+
+  function handleMove(e) {
+    const rect = svgRef.current.getBoundingClientRect();
+    const localX = ((e.clientX - rect.left) / rect.width) * W;
+    const ratio = plotW === 0 ? 0 : (localX - pad.left) / plotW;
+    const idx = Math.round(ratio * (n - 1));
+    setHoverIndex(Math.min(n - 1, Math.max(0, idx)));
+  }
+
+  const hovered = hoverIndex !== null;
+  const tooltipLeftPct = hovered ? (xAt(hoverIndex) / W) * 100 : 0;
+  const tooltipOnRight = tooltipLeftPct > 60;
 
   return (
-    <div>
-      <svg viewBox={`0 0 ${w} ${h + 22}`} width="100%" height={h + 22} preserveAspectRatio="none">
-        {categories.map((cat, ci) => (
-          <g key={cat}>
-            {TREND_SERIES.map((s, si) => {
-              const value = (data[s.key] || [])[ci] || 0;
-              const barH = (value / maxValue) * h;
-              const x = ci * groupWidth + gap + si * (barWidth + gap);
-              return (
-                <rect key={s.key} x={x} y={h - barH} width={barWidth} height={barH} rx={2.5} fill={s.color}>
-                  <title>{`${cat} · ${s.label}: ${value}`}</title>
-                </rect>
-              );
-            })}
-            <text x={ci * groupWidth + groupWidth / 2} y={h + 16} textAnchor="middle" fontSize="10" fill="var(--text-tertiary)">
-              {cat}
-            </text>
+    <div style={{ position: 'relative' }}>
+      <svg
+        ref={svgRef}
+        viewBox={`0 0 ${W} ${H}`}
+        width="100%"
+        height={H}
+        onMouseMove={handleMove}
+        onMouseLeave={() => setHoverIndex(null)}
+        style={{ display: 'block', cursor: 'crosshair' }}
+      >
+        {ticks.map((t) => {
+          const y = yAt(t);
+          return (
+            <g key={t}>
+              <line x1={pad.left} x2={W - pad.right} y1={y} y2={y} stroke="var(--border-subtle)" strokeWidth="1" />
+              <text x={pad.left - 8} y={y + 3} textAnchor="end" fontSize="10" fill="var(--text-tertiary)">
+                {t}
+              </text>
+            </g>
+          );
+        })}
+
+        {categories.map((cat, i) => (
+          <text key={cat} x={xAt(i)} y={H - 6} textAnchor="middle" fontSize="10" fill="var(--text-tertiary)">
+            {cat}
+          </text>
+        ))}
+
+        {seriesPoints.map((s) => (
+          <g key={s.key}>
+            <path d={s.areaPath} fill={s.color} opacity="0.1" stroke="none" />
+            <path d={s.linePath} fill="none" stroke={s.color} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+            <circle cx={s.points[n - 1].x} cy={s.points[n - 1].y} r="4" fill={s.color} stroke="var(--bg-surface)" strokeWidth="2" />
           </g>
         ))}
+
+        {endLabels.map((l) => (
+          <text key={l.key} x={W - pad.right + 8} y={l.y + 3} fontSize="10.5" fontWeight="700" fill="var(--text-secondary)">
+            {l.value}
+          </text>
+        ))}
+
+        {hovered && (
+          <g>
+            <line
+              x1={xAt(hoverIndex)}
+              x2={xAt(hoverIndex)}
+              y1={pad.top}
+              y2={pad.top + plotH}
+              stroke="var(--border-strong)"
+              strokeWidth="1"
+            />
+            {seriesPoints.map((s) => (
+              <circle
+                key={s.key}
+                cx={xAt(hoverIndex)}
+                cy={s.points[hoverIndex].y}
+                r="4"
+                fill={s.color}
+                stroke="var(--bg-surface)"
+                strokeWidth="2"
+              />
+            ))}
+          </g>
+        )}
       </svg>
-      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginTop: 6 }}>
+
+      {hovered && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 4,
+            left: `${tooltipLeftPct}%`,
+            transform: tooltipOnRight ? 'translateX(-100%)' : 'translateX(8px)',
+            background: 'var(--bg-surface-raised)',
+            border: '1px solid var(--border-subtle)',
+            borderRadius: 'var(--radius-sm)',
+            boxShadow: 'var(--shadow-md)',
+            padding: '8px 10px',
+            pointerEvents: 'none',
+            minWidth: 130,
+            zIndex: 1,
+          }}
+        >
+          <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>
+            {categories[hoverIndex]}
+          </div>
+          {seriesPoints.map((s) => (
+            <div key={s.key} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, padding: '1px 0' }}>
+              <span style={{ width: 10, height: 2, background: s.color, display: 'inline-block', flexShrink: 0 }} />
+              <span style={{ color: 'var(--text-secondary)', flex: 1 }}>{s.label}</span>
+              <strong style={{ color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' }}>{s.points[hoverIndex].value}</strong>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginTop: 10 }}>
         {TREND_SERIES.map((s) => (
           <span key={s.key} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: 'var(--text-secondary)' }}>
-            <span style={{ width: 10, height: 10, borderRadius: 3, background: s.color, display: 'inline-block' }} />
+            <span style={{ width: 12, height: 2, background: s.color, display: 'inline-block' }} />
             {s.label}
           </span>
         ))}
