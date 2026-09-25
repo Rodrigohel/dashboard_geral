@@ -630,17 +630,15 @@ export default function RedeDashboard({ can }) {
       {!summary ? (
         <div className="skeleton" style={{ height: 130, borderRadius: 20 }} />
       ) : (
-        <>
+        // Sempre 4 colunas fixas (nunca empilha, nem no celular) — são os
+        // quatro números que precisam ficar lado a lado pra comparar de
+        // relance.
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
           <SummaryCard icon="network" title="Equipamentos" value={summary.total} sub="monitorados" />
-          {/* Sempre 3 colunas fixas (nunca empilha, nem no celular) — são os
-              três números que precisam ficar lado a lado pra comparar de
-              relance. */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
-            <SummaryCard icon="wifi" title="Online" value={summary.online || 0} tone="success" />
-            <SummaryCard icon="wifi" title="Degradado" value={summary.degraded || 0} tone="warning" />
-            <SummaryCard icon="wifi" title="Offline" value={summary.offline || 0} tone="danger" />
-          </div>
-        </>
+          <SummaryCard icon="wifi" title="Online" value={summary.online || 0} tone="success" />
+          <SummaryCard icon="wifi" title="Degradado" value={summary.degraded || 0} tone="warning" />
+          <SummaryCard icon="wifi" title="Offline" value={summary.offline || 0} tone="danger" />
+        </div>
       )}
 
       <div className="surface" style={{ padding: 24 }}>
