@@ -17,3 +17,11 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     </ToastProvider>
   </React.StrictMode>
 );
+
+// Service worker mínimo (ver public/sw.js) — só pra deixar o Portal
+// instalável ("Adicionar à tela inicial"/abrir como app); não cacheia nada.
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  });
+}

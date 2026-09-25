@@ -10,6 +10,7 @@ export default defineConfig({
       '/api': 'http://localhost:3000',
       '/gateway': 'http://localhost:3000',
       '/apps': 'http://localhost:3000',
+      '/manifest.webmanifest': 'http://localhost:3000',
     },
   },
 });
