@@ -4,6 +4,7 @@ import EmptyState from '../../components/EmptyState.jsx';
 import ConfirmDialog from '../../components/ConfirmDialog.jsx';
 import DeviceFormModal from './DeviceFormModal.jsx';
 import MultiDeviceUserFormModal from './MultiDeviceUserFormModal.jsx';
+import UserSearch from './UserSearch.jsx';
 import { api } from '../../api/client.js';
 import { useToast } from '../../hooks/useToast.jsx';
 
@@ -57,6 +58,8 @@ export default function DevicesList({ isOwner, onOpenDevice }) {
 
   return (
     <>
+      {devices?.length > 1 && <UserSearch devices={devices} onOpenDevice={onOpenDevice} />}
+
       <div className="toolbar">
         <p style={{ color: 'var(--text-secondary)', fontSize: 14 }}>
           Porteiros com reconhecimento facial cadastrados. Clique em um para gerenciar os usuários liberados.
