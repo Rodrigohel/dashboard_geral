@@ -14,6 +14,12 @@ function serializeUser(user) {
     .prepare('SELECT device_id FROM device_permissions WHERE user_id = ?')
     .all(user.id)
     .map((r) => r.device_id);
+  // À parte de deviceIds (que só controla "enxerga/gerencia usuários daquele
+  // porteiro") — quais desses o usuário também pode ABRIR remotamente.
+  const openDeviceIds = db
+    .prepare('SELECT device_id FROM device_open_permissions WHERE user_id = ?')
+    .all(user.id)
+    .map((r) => r.device_id);
   return {
     id: user.id,
     username: user.username,
@@ -21,6 +27,7 @@ function serializeUser(user) {
     role: user.role,
     modules,
     deviceIds,
+    openDeviceIds,
     createdAt: user.created_at,
   };
 }
@@ -47,13 +54,24 @@ function setPermissions(userId, modules, deviceIds) {
   }
 }
 
+// À parte de setPermissions/device_permissions de propósito — só mexe na
+// tabela nova (device_open_permissions), nunca nas outras, e só quando o
+// campo vem no corpo da requisição (ver chamadas abaixo).
+function setOpenPermissions(userId, openDeviceIds) {
+  db.prepare('DELETE FROM device_open_permissions WHERE user_id = ?').run(userId);
+  const insertOpen = db.prepare('INSERT OR IGNORE INTO device_open_permissions (user_id, device_id) VALUES (?, ?)');
+  for (const deviceId of openDeviceIds || []) {
+    insertOpen.run(userId, Number(deviceId));
+  }
+}
+
 usersRouter.get('/', (req, res) => {
   const users = db.prepare('SELECT * FROM users ORDER BY created_at ASC').all();
   res.json(users.map(serializeUser));
 });
 
 usersRouter.post('/', (req, res) => {
-  const { username, displayName, password, role, modules, deviceIds } = req.body || {};
+  const { username, displayName, password, role, modules, deviceIds, openDeviceIds } = req.body || {};
   if (!username || !password || !displayName) {
     return res.status(400).json({ error: 'Usuário, nome e senha são obrigatórios' });
   }
@@ -67,6 +85,7 @@ usersRouter.post('/', (req, res) => {
       .prepare('INSERT INTO users (username, display_name, password_hash, role) VALUES (?, ?, ?, ?)')
       .run(username, displayName, passwordHash, role || 'user');
     setPermissions(info.lastInsertRowid, modules, deviceIds);
+    if (openDeviceIds !== undefined) setOpenPermissions(info.lastInsertRowid, openDeviceIds);
     const created = db.prepare('SELECT * FROM users WHERE id = ?').get(info.lastInsertRowid);
     res.status(201).json(serializeUser(created));
   } catch (err) {
@@ -81,7 +100,7 @@ usersRouter.put('/:id', (req, res) => {
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.params.id);
   if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
 
-  const { displayName, password, role, modules, deviceIds } = req.body || {};
+  const { displayName, password, role, modules, deviceIds, openDeviceIds } = req.body || {};
 
   if (role && role !== user.role) {
     if (!['owner', 'user'].includes(role)) return res.status(400).json({ error: 'Papel inválido' });
@@ -103,6 +122,9 @@ usersRouter.put('/:id', (req, res) => {
 
   if (modules !== undefined || deviceIds !== undefined) {
     setPermissions(user.id, modules ?? [], deviceIds ?? []);
+  }
+  if (openDeviceIds !== undefined) {
+    setOpenPermissions(user.id, openDeviceIds);
   }
 
   const updated = db.prepare('SELECT * FROM users WHERE id = ?').get(user.id);

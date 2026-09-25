@@ -53,3 +53,17 @@ export function requireDeviceAccess(req, res, next) {
   if (!allowed) return res.status(403).json({ error: 'Você não tem acesso a este equipamento.' });
   next();
 }
+
+// Permissão à parte de requireDeviceAccess — controla quem pode ABRIR
+// remotamente esse porteiro (não quem pode gerenciar os usuários dele).
+export function requireDeviceOpenAccess(req, res, next) {
+  if (req.user?.role === 'owner') return next();
+
+  const deviceId = Number(req.params.deviceId || req.params.id);
+  const allowed = db
+    .prepare('SELECT 1 FROM device_open_permissions WHERE user_id = ? AND device_id = ?')
+    .get(req.user.sub, deviceId);
+
+  if (!allowed) return res.status(403).json({ error: 'Você não tem permissão para abrir este equipamento.' });
+  next();
+}

@@ -17,8 +17,23 @@ export default function DeviceUsers({ device, onBack }) {
   const [uploadingId, setUploadingId] = useState(null);
   const [photoModal, setPhotoModal] = useState(null); // { name, url } | null
   const [loadingPhotoId, setLoadingPhotoId] = useState(null);
+  const [opening, setOpening] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const fileInputRef = useRef(null);
   const toast = useToast();
+
+  async function handleOpenDoor() {
+    setConfirmOpen(false);
+    setOpening(true);
+    try {
+      await api.accessDevices.openDoor(device.id);
+      toast(`"${device.name}" aberto.`);
+    } catch (err) {
+      toast(`Falha ao abrir: ${err.message}`, 'error');
+    } finally {
+      setOpening(false);
+    }
+  }
 
   function reload() {
     setError('');
@@ -106,6 +121,11 @@ export default function DeviceUsers({ device, onBack }) {
           <h1>{device.name}</h1>
           <p>{device.location} · {device.host}:{device.port}</p>
         </div>
+        {device.canOpen && (
+          <button className="btn btn-primary" onClick={() => setConfirmOpen(true)} disabled={opening}>
+            {opening ? <span className="spinner" /> : <Icon name="key" size={16} />} Abrir
+          </button>
+        )}
       </div>
 
       {error && /não é suportad/i.test(error) ? (
@@ -204,6 +224,16 @@ export default function DeviceUsers({ device, onBack }) {
 
       {showForm && (
         <DeviceUserFormModal user={editing} onClose={() => { setShowForm(false); setEditing(null); }} onSave={handleSave} />
+      )}
+
+      {confirmOpen && (
+        <ConfirmDialog
+          title="Abrir porta"
+          message={`Abrir "${device.name}" agora?`}
+          confirmLabel="Abrir"
+          onCancel={() => setConfirmOpen(false)}
+          onConfirm={handleOpenDoor}
+        />
       )}
 
       {deleting && (

@@ -26,6 +26,7 @@ export default function UserFormModal({ user, currentUserId, onClose, onSave }) 
     role: user?.role || 'user',
     modules: user?.modules || [],
     deviceIds: user?.deviceIds || [],
+    openDeviceIds: user?.openDeviceIds || [],
   });
   const [devices, setDevices] = useState([]);
   const [saving, setSaving] = useState(false);
@@ -50,6 +51,16 @@ export default function UserFormModal({ user, currentUserId, onClose, onSave }) 
     setForm((f) => ({
       ...f,
       deviceIds: f.deviceIds.includes(id) ? f.deviceIds.filter((d) => d !== id) : [...f.deviceIds, id],
+      // Tirar o acesso geral também tira a permissão de abrir — não faz
+      // sentido manter uma sem a outra.
+      openDeviceIds: f.deviceIds.includes(id) ? f.openDeviceIds.filter((d) => d !== id) : f.openDeviceIds,
+    }));
+  }
+
+  function toggleOpenDevice(id) {
+    setForm((f) => ({
+      ...f,
+      openDeviceIds: f.openDeviceIds.includes(id) ? f.openDeviceIds.filter((d) => d !== id) : [...f.openDeviceIds, id],
     }));
   }
 
@@ -151,10 +162,22 @@ export default function UserFormModal({ user, currentUserId, onClose, onSave }) 
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
                     {devices.map((d) => (
-                      <label className="checkbox-row" key={d.id}>
-                        <input type="checkbox" checked={form.deviceIds.includes(d.id)} onChange={() => toggleDevice(d.id)} />
-                        {d.name} <span className="field-hint">({d.location || d.host})</span>
-                      </label>
+                      <div key={d.id}>
+                        <label className="checkbox-row">
+                          <input type="checkbox" checked={form.deviceIds.includes(d.id)} onChange={() => toggleDevice(d.id)} />
+                          {d.name} <span className="field-hint">({d.location || d.host})</span>
+                        </label>
+                        {form.deviceIds.includes(d.id) && (
+                          <label className="checkbox-row" style={{ paddingLeft: 26, marginTop: 4 }}>
+                            <input
+                              type="checkbox"
+                              checked={form.openDeviceIds.includes(d.id)}
+                              onChange={() => toggleOpenDevice(d.id)}
+                            />
+                            <span className="field-hint">Também pode abrir esse porteiro remotamente pelo Portal</span>
+                          </label>
+                        )}
+                      </div>
                     ))}
                   </div>
                 )}

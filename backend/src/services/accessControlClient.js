@@ -512,6 +512,18 @@ async function xpeTestConnection(device, password) {
   return true;
 }
 
+// TENTATIVA EMBASADA, ainda NÃO confirmada em hardware real: a Intelbras usa
+// target "accessControl" / action "openDoor" num modelo irmão mais antigo
+// (XPE 3101 IP, que usa a API CGI antiga — não a JSON API deste 3200) —
+// forte indício da convenção de nomenclatura da marca, mas não prova que a
+// API JSON deste equipamento aceita exatamente esses nomes. Falha segura:
+// se o nome estiver errado, xpeCall já devolve um erro claro (retcode/mensagem
+// do próprio equipamento) em vez de fazer algo indevido silenciosamente.
+// Ajustar aqui assim que confirmado contra o equipamento real.
+async function xpeOpenDoor(device, password) {
+  await xpeCall(device, password, 'accessControl', 'openDoor', { channel: 1 });
+}
+
 // ======================================================================
 // SS 3532 MF (Bio-T) — não validada em hardware real, ver aviso no topo.
 // ======================================================================
@@ -673,6 +685,16 @@ async function biotTestConnection(device, password) {
   return true;
 }
 
+// Confirmado indiretamente: endpoint padrão da família Dahua/cgi-bin que a
+// linha "MF" da Intelbras usa (mesma família de magicBox.cgi/AccessFace.cgi
+// já usados acima) — um projeto de terceiro que integra o Intelbras 3542 MFW
+// (mesma linha "MF", bem próximo do 3532 MF) usa exatamente esse endpoint
+// pra abrir a porta. Confiança alta, mas ainda vale confirmar num teste real.
+async function biotOpenDoor(device, password) {
+  const text = await biotRequest(device, password, 'accessControl.cgi', 'openDoor', { method: 'GET', extraQuery: { channel: 1 } });
+  if (!biotIsOk(text)) throw new Error(`Equipamento recusou abrir a porta: ${text.slice(0, 200)}`);
+}
+
 // ======================================================================
 // Dispatcher — escolhe a implementação pelo modelo cadastrado.
 // ======================================================================
@@ -686,6 +708,7 @@ const CLIENTS = {
     setUserPhoto: xpeSetUserPhoto,
     getUserPhoto: xpeGetUserPhoto,
     testConnection: xpeTestConnection,
+    openDoor: xpeOpenDoor,
   },
   ss3532mf: {
     listUsers: biotListUsers,
@@ -695,6 +718,7 @@ const CLIENTS = {
     setUserPhoto: biotSetUserPhoto,
     getUserPhoto: biotGetUserPhoto,
     testConnection: biotTestConnection,
+    openDoor: biotOpenDoor,
   },
 };
 
@@ -715,3 +739,4 @@ export const deleteUser = (device, password, userId) => clientFor(device).delete
 export const setUserPhoto = (device, password, userId, fileBuffer) => clientFor(device).setUserPhoto(device, password, userId, fileBuffer);
 export const getUserPhoto = (device, password, userId) => clientFor(device).getUserPhoto(device, password, userId);
 export const testConnection = (device, password) => clientFor(device).testConnection(device, password);
+export const openDoor = (device, password) => clientFor(device).openDoor(device, password);
