@@ -29,9 +29,18 @@ function getBranding() {
   return db.prepare('SELECT * FROM branding WHERE id = 1').get();
 }
 
+function serializeBranding(row) {
+  return {
+    name: row.name,
+    logoUrl: row.logo_filename ? '/api/branding/logo' : null,
+    accentColor: row.accent_color || '',
+    shortName: row.short_name || '',
+    pwaIconUrl: row.pwa_icon_filename ? '/api/branding/pwa-icon' : null,
+  };
+}
+
 brandingRouter.get('/', (req, res) => {
-  const row = getBranding();
-  res.json({ name: row.name, logoUrl: row.logo_filename ? '/api/branding/logo' : null, accentColor: row.accent_color || '' });
+  res.json(serializeBranding(getBranding()));
 });
 
 brandingRouter.get('/logo', (req, res) => {
@@ -43,32 +52,75 @@ brandingRouter.get('/logo', (req, res) => {
   res.sendFile(filePath);
 });
 
-brandingRouter.put('/', requireAuth, requireOwner, upload.single('logo'), (req, res) => {
+// Ícone quadrado do PWA — à parte do logo (ver comentário da migração em
+// db/sqlite.js). Sem ele, o manifest (routes/manifest.js) cai de volta no
+// logo e depois no ícone padrão.
+brandingRouter.get('/pwa-icon', (req, res) => {
   const row = getBranding();
-  const name = (req.body?.name || '').trim() || row.name;
-  let logoFilename = row.logo_filename;
-
-  let accentColor = row.accent_color || '';
-  if (req.body?.accentColor !== undefined) {
-    const raw = String(req.body.accentColor).trim();
-    if (raw === '') accentColor = '';
-    else if (/^#[0-9a-fA-F]{6}$/.test(raw)) accentColor = raw;
-    else return res.status(400).json({ error: 'Cor inválida — use o formato #RRGGBB.' });
-  }
-
-  if (req.file) {
-    const ext = EXT_BY_MIME[req.file.mimetype];
-    if (!ext) return res.status(400).json({ error: 'Formato de imagem não suportado (use PNG, JPG, SVG ou WEBP).' });
-    fs.mkdirSync(LOGO_DIR, { recursive: true });
-    // Remove o logo antigo (nome diferente) antes de gravar o novo, senão
-    // arquivo de extensão trocada (ex.: .png -> .svg) fica órfão no disco.
-    if (logoFilename && logoFilename !== `logo${ext}`) {
-      fs.rmSync(path.join(LOGO_DIR, logoFilename), { force: true });
-    }
-    logoFilename = `logo${ext}`;
-    fs.writeFileSync(path.join(LOGO_DIR, logoFilename), req.file.buffer);
-  }
-
-  db.prepare('UPDATE branding SET name = ?, logo_filename = ?, accent_color = ? WHERE id = 1').run(name, logoFilename, accentColor);
-  res.json({ name, logoUrl: logoFilename ? '/api/branding/logo' : null, accentColor });
+  if (!row.pwa_icon_filename) return res.status(404).end();
+  const filePath = path.join(LOGO_DIR, row.pwa_icon_filename);
+  if (!fs.existsSync(filePath)) return res.status(404).end();
+  res.set('Cache-Control', 'no-cache');
+  res.sendFile(filePath);
 });
+
+brandingRouter.put(
+  '/',
+  requireAuth,
+  requireOwner,
+  upload.fields([
+    { name: 'logo', maxCount: 1 },
+    { name: 'pwaIcon', maxCount: 1 },
+  ]),
+  (req, res) => {
+    const row = getBranding();
+    const name = (req.body?.name || '').trim() || row.name;
+    let logoFilename = row.logo_filename;
+    let pwaIconFilename = row.pwa_icon_filename;
+
+    let accentColor = row.accent_color || '';
+    if (req.body?.accentColor !== undefined) {
+      const raw = String(req.body.accentColor).trim();
+      if (raw === '') accentColor = '';
+      else if (/^#[0-9a-fA-F]{6}$/.test(raw)) accentColor = raw;
+      else return res.status(400).json({ error: 'Cor inválida — use o formato #RRGGBB.' });
+    }
+
+    const shortName = req.body?.shortName !== undefined ? String(req.body.shortName).trim() : row.short_name || '';
+
+    const logoFile = req.files?.logo?.[0];
+    if (logoFile) {
+      const ext = EXT_BY_MIME[logoFile.mimetype];
+      if (!ext) return res.status(400).json({ error: 'Formato de imagem não suportado (use PNG, JPG, SVG ou WEBP).' });
+      fs.mkdirSync(LOGO_DIR, { recursive: true });
+      // Remove o logo antigo (nome diferente) antes de gravar o novo, senão
+      // arquivo de extensão trocada (ex.: .png -> .svg) fica órfão no disco.
+      if (logoFilename && logoFilename !== `logo${ext}`) {
+        fs.rmSync(path.join(LOGO_DIR, logoFilename), { force: true });
+      }
+      logoFilename = `logo${ext}`;
+      fs.writeFileSync(path.join(LOGO_DIR, logoFilename), logoFile.buffer);
+    }
+
+    const pwaIconFile = req.files?.pwaIcon?.[0];
+    if (pwaIconFile) {
+      const ext = EXT_BY_MIME[pwaIconFile.mimetype];
+      if (!ext) return res.status(400).json({ error: 'Formato de imagem não suportado (use PNG, JPG, SVG ou WEBP).' });
+      fs.mkdirSync(LOGO_DIR, { recursive: true });
+      if (pwaIconFilename && pwaIconFilename !== `pwa-icon${ext}`) {
+        fs.rmSync(path.join(LOGO_DIR, pwaIconFilename), { force: true });
+      }
+      pwaIconFilename = `pwa-icon${ext}`;
+      fs.writeFileSync(path.join(LOGO_DIR, pwaIconFilename), pwaIconFile.buffer);
+    }
+
+    db.prepare('UPDATE branding SET name = ?, logo_filename = ?, accent_color = ?, short_name = ?, pwa_icon_filename = ? WHERE id = 1').run(
+      name,
+      logoFilename,
+      accentColor,
+      shortName,
+      pwaIconFilename
+    );
+    res.json(serializeBranding(getBranding()));
+  }
+);

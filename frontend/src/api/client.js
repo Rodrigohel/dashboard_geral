@@ -152,11 +152,13 @@ export const api = {
 
   branding: {
     get: () => request('/api/branding'),
-    save: ({ name, logoFile, accentColor }) => {
+    save: ({ name, logoFile, accentColor, shortName, pwaIconFile }) => {
       const form = new FormData();
       form.append('name', name);
       if (logoFile) form.append('logo', logoFile);
       if (accentColor !== undefined) form.append('accentColor', accentColor);
+      if (shortName !== undefined) form.append('shortName', shortName);
+      if (pwaIconFile) form.append('pwaIcon', pwaIconFile);
       return request('/api/branding', { method: 'PUT', body: form, isForm: true });
     },
   },
