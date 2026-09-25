@@ -2,7 +2,7 @@ import { Router } from 'express';
 import multer from 'multer';
 import { db } from '../db/sqlite.js';
 import { encryptSecret, decryptSecret } from '../services/cryptoService.js';
-import { requireOwner, requireDeviceAccess } from '../middleware/auth.js';
+import { requireOwner, requireDeviceAccess, requireDeviceOpenAccess } from '../middleware/auth.js';
 import * as deviceApi from '../services/accessControlClient.js';
 
 export const accessDevicesRouter = Router();
@@ -36,6 +36,13 @@ function visibleDevices(req) {
     .all(req.user.sub);
 }
 
+function canOpenDevice(req, deviceId) {
+  if (req.user.role === 'owner') return true;
+  return Boolean(
+    db.prepare('SELECT 1 FROM device_open_permissions WHERE user_id = ? AND device_id = ?').get(req.user.sub, deviceId)
+  );
+}
+
 function getDeviceOr404(req, res) {
   const device = db.prepare('SELECT * FROM access_devices WHERE id = ?').get(req.params.id || req.params.deviceId);
   if (!device) {
@@ -48,7 +55,7 @@ function getDeviceOr404(req, res) {
 // --- CRUD do cadastro do equipamento (só owner) ---
 
 accessDevicesRouter.get('/', (req, res) => {
-  res.json(visibleDevices(req).map(serializeDevice));
+  res.json(visibleDevices(req).map((d) => ({ ...serializeDevice(d), canOpen: canOpenDevice(req, d.id) })));
 });
 
 accessDevicesRouter.post('/', requireOwner, (req, res) => {
@@ -114,6 +121,20 @@ accessDevicesRouter.post('/:id/test-connection', requireOwner, async (req, res) 
   if (!device) return;
   try {
     await deviceApi.testConnection(device, decryptSecret(device.device_password_enc));
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(502).json({ ok: false, error: err.message });
+  }
+});
+
+// Abre a porta/fechadura remotamente — permissão à parte de "gerenciar
+// usuários" (ver requireDeviceOpenAccess): dá pra liberar só o botão de
+// abrir pra um porteiro/zelador sem dar acesso ao cadastro de moradores.
+accessDevicesRouter.post('/:id/open', requireDeviceAccess, requireDeviceOpenAccess, async (req, res) => {
+  const device = getDeviceOr404(req, res);
+  if (!device) return;
+  try {
+    await deviceApi.openDoor(device, decryptSecret(device.device_password_enc));
     res.json({ ok: true });
   } catch (err) {
     res.status(502).json({ ok: false, error: err.message });

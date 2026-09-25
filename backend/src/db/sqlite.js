@@ -55,6 +55,16 @@ db.exec(`
     PRIMARY KEY (user_id, device_id)
   );
 
+  -- Permissão à parte de device_permissions (que só controla "enxerga/gerencia
+  -- usuários daquele porteiro") — quem pode ABRIR remotamente. Separada de
+  -- propósito: dá pra liberar o botão de abrir pra um porteiro/zelador sem
+  -- dar acesso ao cadastro de moradores daquele equipamento.
+  CREATE TABLE IF NOT EXISTS device_open_permissions (
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    device_id INTEGER NOT NULL REFERENCES access_devices(id) ON DELETE CASCADE,
+    PRIMARY KEY (user_id, device_id)
+  );
+
   -- Configuração de cada gateway (Rede/Interfone): endereço do backend real
   -- na rede local + conta de serviço que o Portal usa para logar nele em
   -- nome do usuário (o usuário final só loga uma vez, no Portal).

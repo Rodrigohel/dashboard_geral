@@ -9,9 +9,11 @@ export const authRouter = Router();
 
 function permissionsFor(user) {
   if (user.role === 'owner') {
+    const allDeviceIds = db.prepare('SELECT id FROM access_devices').all().map((d) => d.id);
     return {
       modules: MODULE_KEYS,
-      deviceIds: db.prepare('SELECT id FROM access_devices').all().map((d) => d.id),
+      deviceIds: allDeviceIds,
+      openDeviceIds: allDeviceIds,
     };
   }
   const modules = db
@@ -22,7 +24,13 @@ function permissionsFor(user) {
     .prepare('SELECT device_id FROM device_permissions WHERE user_id = ?')
     .all(user.id)
     .map((r) => r.device_id);
-  return { modules, deviceIds };
+  // À parte de deviceIds — quais desses o usuário também pode ABRIR
+  // remotamente (ver device_open_permissions).
+  const openDeviceIds = db
+    .prepare('SELECT device_id FROM device_open_permissions WHERE user_id = ?')
+    .all(user.id)
+    .map((r) => r.device_id);
+  return { modules, deviceIds, openDeviceIds };
 }
 
 const recordLoginEvent = db.prepare(
@@ -51,10 +59,10 @@ authRouter.post('/login', (req, res) => {
     { expiresIn: config.auth.jwtExpiresIn }
   );
 
-  const { modules, deviceIds } = permissionsFor(user);
+  const { modules, deviceIds, openDeviceIds } = permissionsFor(user);
   res.json({
     token,
-    user: { id: user.id, username: user.username, displayName: user.display_name, role: user.role, modules, deviceIds },
+    user: { id: user.id, username: user.username, displayName: user.display_name, role: user.role, modules, deviceIds, openDeviceIds },
   });
 });
 
@@ -62,6 +70,6 @@ authRouter.get('/me', requireAuth, (req, res) => {
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.sub);
   if (!user) return res.status(401).json({ error: 'Usuário não existe mais' });
 
-  const { modules, deviceIds } = permissionsFor(user);
-  res.json({ id: user.id, username: user.username, displayName: user.display_name, role: user.role, modules, deviceIds });
+  const { modules, deviceIds, openDeviceIds } = permissionsFor(user);
+  res.json({ id: user.id, username: user.username, displayName: user.display_name, role: user.role, modules, deviceIds, openDeviceIds });
 });

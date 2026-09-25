@@ -51,6 +51,7 @@ export const api = {
     remove: (id) => request(`/api/access/devices/${id}`, { method: 'DELETE' }),
     testConnection: (id) => request(`/api/access/devices/${id}/test-connection`, { method: 'POST' }),
     searchUsers: (q) => request(`/api/access/devices/search-users?q=${encodeURIComponent(q)}`),
+    openDoor: (id) => request(`/api/access/devices/${id}/open`, { method: 'POST' }),
 
     users: {
       list: (deviceId) => request(`/api/access/devices/${deviceId}/users`),
