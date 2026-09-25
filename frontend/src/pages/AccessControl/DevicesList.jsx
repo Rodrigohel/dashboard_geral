@@ -16,6 +16,7 @@ export default function DevicesList({ isOwner, onOpenDevice }) {
   const [editing, setEditing] = useState(null);
   const [deleting, setDeleting] = useState(null);
   const [testing, setTesting] = useState(null);
+  const [opening, setOpening] = useState(null);
   const [showMultiUserForm, setShowMultiUserForm] = useState(false);
   const toast = useToast();
 
@@ -42,6 +43,20 @@ export default function DevicesList({ isOwner, onOpenDevice }) {
     toast('Equipamento removido.');
     setDeleting(null);
     reload();
+  }
+
+  // Sem confirmação de propósito — é uma ação rápida, pra quem já tem a
+  // permissão específica de abrir esse equipamento (ver botão no card).
+  async function handleOpenDoor(device) {
+    setOpening(device.id);
+    try {
+      await api.accessDevices.openDoor(device.id);
+      toast(`"${device.name}" aberto.`);
+    } catch (err) {
+      toast(`Falha ao abrir: ${err.message}`, 'error');
+    } finally {
+      setOpening(null);
+    }
   }
 
   async function handleTest(device) {
@@ -124,6 +139,21 @@ export default function DevicesList({ isOwner, onOpenDevice }) {
                   <span>{MODEL_LABELS[d.model] || d.model} · {d.host}:{d.port}</span>
                 </div>
               </div>
+              {d.canOpen && (
+                <div className="module-card-footer">
+                  <button
+                    className="btn btn-primary btn-sm"
+                    style={{ width: '100%', justifyContent: 'center' }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleOpenDoor(d);
+                    }}
+                    disabled={opening === d.id}
+                  >
+                    {opening === d.id ? <span className="spinner" /> : <Icon name="key" size={15} />} Abrir
+                  </button>
+                </div>
+              )}
             </div>
           ))}
         </div>
