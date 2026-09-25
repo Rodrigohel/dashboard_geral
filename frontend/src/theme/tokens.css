@@ -42,6 +42,26 @@
   --danger-soft: rgba(239, 68, 68, 0.16);
 }
 
+/* Paleta categórica pra gráficos com várias séries (ex.: tendência de
+   chamadas do Interfone) — de propósito DIFERENTE das cores de status
+   acima (--success/--warning/--danger): aquelas marcam "bom/atenção/ruim"
+   em qualquer lugar do Portal; usar a mesma cor pra identificar uma série
+   faria "perdidas" parecer sempre um alerta mesmo quando é só uma
+   categoria entre outras. Ordem fixa (nunca embaralhar por filtro) —
+   validada pra manter contraste entre cores adjacentes mesmo com daltonismo. */
+:root[data-theme='dark'] {
+  --chart-series-1: #3987e5;
+  --chart-series-2: #d95926;
+  --chart-series-3: #199e70;
+  --chart-series-4: #c98500;
+}
+:root[data-theme='light'] {
+  --chart-series-1: #2a78d6;
+  --chart-series-2: #eb6834;
+  --chart-series-3: #1baf7a;
+  --chart-series-4: #eda100;
+}
+
 :root[data-theme='dark'] {
   --bg-page: #0a0e1a;
   --bg-page-gradient: radial-gradient(1200px circle at 12% -8%, rgba(79, 125, 255, 0.18) 0%, transparent 55%),
