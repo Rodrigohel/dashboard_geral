@@ -22,17 +22,21 @@ manifestRouter.get('/', (req, res) => {
   const row = db.prepare('SELECT * FROM branding WHERE id = 1').get();
   const name = row?.name || 'Portal';
   const accentColor = row?.accent_color || '#14b8a6';
+  const shortName = row?.short_name || (name.length > 20 ? name.slice(0, 20) : name);
 
+  // Prioridade: ícone quadrado dedicado > logo (pode não ser quadrado,
+  // mas é melhor que nada) > ícone padrão do Portal.
+  const iconFilename = row?.pwa_icon_filename || row?.logo_filename;
+  const iconUrl = row?.pwa_icon_filename ? '/api/branding/pwa-icon' : row?.logo_filename ? '/api/branding/logo' : null;
   const icons = [];
-  if (row?.logo_filename) {
-    const ext = row.logo_filename.slice(row.logo_filename.lastIndexOf('.')).toLowerCase();
+  if (iconFilename && iconUrl) {
+    const ext = iconFilename.slice(iconFilename.lastIndexOf('.')).toLowerCase();
     const type = MIME_BY_EXT[ext] || 'image/png';
     // Mesmo arquivo declarado em todos os tamanhos — não temos como gerar
-    // recortes quadrados de verdade a partir da logo enviada pelo
-    // administrador; o sistema operacional escala/centraliza sozinho
-    // (mesma limitação que já existe pra logo do login/menu).
-    icons.push({ src: '/api/branding/logo', sizes: '192x192', type, purpose: 'any' });
-    icons.push({ src: '/api/branding/logo', sizes: '512x512', type, purpose: 'any' });
+    // recortes de verdade em cada tamanho; o sistema operacional
+    // escala/centraliza sozinho.
+    icons.push({ src: iconUrl, sizes: '192x192', type, purpose: 'any' });
+    icons.push({ src: iconUrl, sizes: '512x512', type, purpose: 'any' });
   } else {
     icons.push({ src: '/icon-mark.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' });
   }
@@ -41,7 +45,7 @@ manifestRouter.get('/', (req, res) => {
   res.set('Cache-Control', 'no-cache');
   res.json({
     name,
-    short_name: name.length > 20 ? name.slice(0, 20) : name,
+    short_name: shortName,
     start_url: '/',
     scope: '/',
     display: 'standalone',

@@ -131,11 +131,15 @@ function BrandingCard() {
   const [logoFile, setLogoFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
   const [accentColor, setAccentColor] = useState('#14b8a6');
+  const [shortName, setShortName] = useState('');
+  const [pwaIconFile, setPwaIconFile] = useState(null);
+  const [pwaIconPreviewUrl, setPwaIconPreviewUrl] = useState(null);
   const [saving, setSaving] = useState(false);
   const toast = useToast();
 
   useEffect(() => setName(current.name), [current.name]);
   useEffect(() => setAccentColor(current.accentColor || '#14b8a6'), [current.accentColor]);
+  useEffect(() => setShortName(current.shortName || ''), [current.shortName]);
 
   function handleFile(e) {
     const file = e.target.files?.[0] || null;
@@ -146,10 +150,19 @@ function BrandingCard() {
     });
   }
 
+  function handlePwaIconFile(e) {
+    const file = e.target.files?.[0] || null;
+    setPwaIconFile(file);
+    setPwaIconPreviewUrl((old) => {
+      if (old) URL.revokeObjectURL(old);
+      return file ? URL.createObjectURL(file) : null;
+    });
+  }
+
   async function handleSave() {
     setSaving(true);
     try {
-      await api.branding.save({ name, logoFile, accentColor });
+      await api.branding.save({ name, logoFile, accentColor, shortName, pwaIconFile });
       toast('Marca atualizada.');
       setTimeout(() => window.location.reload(), 600);
     } catch (err) {
@@ -216,6 +229,55 @@ function BrandingCard() {
           </button>
         </div>
         <span className="field-hint">Escolha uma cor que combine com sua logo.</span>
+      </div>
+
+      <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: 16 }}>
+        <div style={{ fontWeight: 700, marginBottom: 4 }}>PWA (Adicionar à tela inicial)</div>
+        <div className="field-hint" style={{ marginBottom: 12 }}>
+          Como o Portal aparece quando instalado no celular/PC. O nome e a cor de destaque acima já valem
+          pra isso — os dois campos abaixo são só pro ícone/rótulo da instalação.
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16 }}>
+          <div
+            style={{
+              width: 56,
+              height: 56,
+              borderRadius: 14,
+              flexShrink: 0,
+              overflow: 'hidden',
+              border: '1px solid var(--border-subtle)',
+              background: 'var(--bg-surface-hover)',
+            }}
+          >
+            <img
+              src={pwaIconPreviewUrl || current.pwaIconUrl || '/icon-mark.svg'}
+              alt="Ícone do PWA"
+              style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+            />
+          </div>
+          <div className="field" style={{ flex: 1 }}>
+            <label className="field-label">Ícone do app (opcional)</label>
+            <input className="input" type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp" onChange={handlePwaIconFile} />
+            <span className="field-hint">
+              Precisa ser QUADRADO (ex.: 512x512) — diferente do logo acima, que pode ter qualquer proporção.
+              Sem um ícone próprio, usa o logo (pode ficar cortado/espremido se não for quadrado) e, sem
+              nenhum dos dois, um ícone padrão.
+            </span>
+          </div>
+        </div>
+
+        <div className="field">
+          <label className="field-label">Nome curto (rótulo embaixo do ícone na tela inicial)</label>
+          <input
+            className="input"
+            value={shortName}
+            onChange={(e) => setShortName(e.target.value)}
+            placeholder={name || 'Portal'}
+            maxLength={30}
+          />
+          <span className="field-hint">Opcional — sem preencher, usa o nome do sistema (cortado se for muito longo).</span>
+        </div>
       </div>
 
       <div>

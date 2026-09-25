@@ -112,3 +112,15 @@ const brandingColumns = db.prepare('PRAGMA table_info(branding)').all().map((c) 
 if (!brandingColumns.includes('accent_color')) {
   db.exec("ALTER TABLE branding ADD COLUMN accent_color TEXT NOT NULL DEFAULT ''");
 }
+// Nome curto e ícone quadrado, os dois só pro PWA (Adicionar à tela
+// inicial). Nome curto porque `name` pode ser longo demais pra caber
+// embaixo do ícone na tela inicial do celular; ícone à parte do logo
+// porque o logo (tela de login/menu) pode não ser quadrado — usado como
+// <img>, tanto faz — mas um ícone de app precisa ser quadrado pra não
+// ficar cortado/espremido pelo sistema operacional.
+if (!brandingColumns.includes('short_name')) {
+  db.exec("ALTER TABLE branding ADD COLUMN short_name TEXT NOT NULL DEFAULT ''");
+}
+if (!brandingColumns.includes('pwa_icon_filename')) {
+  db.exec("ALTER TABLE branding ADD COLUMN pwa_icon_filename TEXT NOT NULL DEFAULT ''");
+}
