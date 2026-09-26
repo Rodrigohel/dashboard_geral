@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { MODULE_KEYS } from '../config.js';
 import { getGatewayConfig, saveGatewayConfig, testGatewayConnection } from '../services/gatewayService.js';
+import { getSecuritySettings, saveSecuritySettings, validateSecuritySettings } from '../services/securitySettingsService.js';
 
 export const settingsRouter = Router();
 const GATEWAY_MODULES = MODULE_KEYS.filter((k) => k !== 'acesso'); // 'rede' | 'interfone'
@@ -39,4 +40,15 @@ settingsRouter.post('/gateways/:moduleKey/test-connection', async (req, res) => 
   } catch (err) {
     res.status(502).json({ ok: false, error: err.message });
   }
+});
+
+settingsRouter.get('/security', (req, res) => {
+  res.json(getSecuritySettings());
+});
+
+settingsRouter.put('/security', (req, res) => {
+  const error = validateSecuritySettings(req.body || {});
+  if (error) return res.status(400).json({ error });
+  saveSecuritySettings(req.body);
+  res.json(getSecuritySettings());
 });

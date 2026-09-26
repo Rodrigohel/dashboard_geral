@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import Icon from './Icon.jsx';
+import ChangePasswordModal from './ChangePasswordModal.jsx';
 
 const TITLES = {
   home: ['Início', 'Visão geral de tudo o que você administra'],
@@ -13,6 +14,7 @@ const TITLES = {
 
 export default function TopBar({ view, user, onLogout, theme, setTheme, onMenuClick }) {
   const [open, setOpen] = useState(false);
+  const [showAccountModal, setShowAccountModal] = useState(false);
   const ref = useRef(null);
   const [title, subtitle] = TITLES[view] || ['Portal', ''];
 
@@ -70,6 +72,17 @@ export default function TopBar({ view, user, onLogout, theme, setTheme, onMenuCl
                 zIndex: 20,
               }}
             >
+              <button
+                className="btn btn-ghost"
+                style={{ width: '100%', justifyContent: 'flex-start' }}
+                onClick={() => {
+                  setOpen(false);
+                  setShowAccountModal(true);
+                }}
+              >
+                <Icon name="key" size={16} />
+                Minha conta
+              </button>
               <button className="btn btn-ghost" style={{ width: '100%', justifyContent: 'flex-start' }} onClick={onLogout}>
                 <Icon name="logout" size={16} />
                 Sair
@@ -78,6 +91,8 @@ export default function TopBar({ view, user, onLogout, theme, setTheme, onMenuCl
           )}
         </div>
       </div>
+
+      {showAccountModal && <ChangePasswordModal onClose={() => setShowAccountModal(false)} />}
     </header>
   );
 }

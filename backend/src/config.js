@@ -6,7 +6,6 @@ export const config = {
 
   auth: {
     jwtSecret: process.env.JWT_SECRET || 'dev-secret-change-me',
-    jwtExpiresIn: process.env.JWT_EXPIRES_IN || '8h',
     sqlitePath: process.env.SQLITE_PATH || './data/portal.db',
   },
 

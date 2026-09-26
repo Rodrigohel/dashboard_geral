@@ -114,6 +114,18 @@ db.exec(`
     logo_filename TEXT NOT NULL DEFAULT ''
   );
   INSERT OR IGNORE INTO branding (id, name, logo_filename) VALUES (1, 'Portal', '');
+
+  -- Parâmetros de segurança do login — uma linha só (id fixo = 1), igual
+  -- 'branding'. Valores batem com o que já era fixo no código antes desta
+  -- tabela existir (10 falhas/15min, sessão de 8h), então criar a tabela não
+  -- muda o comportamento de ninguém até o dono ir em Configurações mudar.
+  CREATE TABLE IF NOT EXISTS security_settings (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    max_login_failures INTEGER NOT NULL DEFAULT 10,
+    login_window_minutes INTEGER NOT NULL DEFAULT 15,
+    session_hours INTEGER NOT NULL DEFAULT 8
+  );
+  INSERT OR IGNORE INTO security_settings (id) VALUES (1);
 `);
 
 // Última checagem periódica de saúde de cada porteiro (ver
