@@ -202,14 +202,21 @@ export default function Home({ user, onNavigate, can }) {
         stat2: s && offline > 0 ? { value: offline, label: 'ramais offline', color: 'var(--danger-500)' } : null,
       };
     }
-    // acesso: só existe a contagem de equipamentos — sem status "ao vivo"
-    // nem histórico, então não fabricamos nenhum dos dois.
+    // acesso: sem histórico de aberturas guardado no backend, então não
+    // fabricamos um gráfico — mas o status/contagem online-offline agora vêm
+    // da checagem periódica de saúde (deviceHealthPoller), então é dado real.
+    const offline = info?.offline ?? 0;
     return {
-      status: null,
+      status:
+        info?.deviceCount > 0
+          ? offline > 0
+            ? { color: 'var(--danger-500)', label: `${offline} offline` }
+            : { color: 'var(--success-500)', label: 'online' }
+          : null,
       trendLabel: null,
       points: null,
       stat1: info?.deviceCount !== undefined ? { value: info.deviceCount, label: info.deviceCount === 1 ? 'porteiro' : 'porteiros' } : null,
-      stat2: null,
+      stat2: info?.deviceCount > 0 && offline > 0 ? { value: offline, label: 'offline', color: 'var(--danger-500)' } : null,
     };
   }
 

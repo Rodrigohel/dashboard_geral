@@ -94,6 +94,7 @@ export const api = {
 
   audit: {
     logins: () => request('/api/audit/logins'),
+    doorOpens: () => request('/api/audit/door-opens'),
   },
 
   // Painel de Interfone consumido nativamente pelo Portal, igual o de Rede —

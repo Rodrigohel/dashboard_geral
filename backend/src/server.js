@@ -14,6 +14,7 @@ import { systemRouter } from './routes/system.js';
 import { auditRouter } from './routes/audit.js';
 import { requireAuth, requireOwner, requireModule } from './middleware/auth.js';
 import { gatewayProxy } from './services/gatewayService.js';
+import { startDeviceHealthPoller } from './services/deviceHealthPoller.js';
 import './db/sqlite.js';
 
 const app = express();
@@ -132,3 +133,5 @@ if (fs.existsSync(path.join(frontendDist, 'index.html'))) {
 app.listen(config.port, '0.0.0.0', () => {
   console.log(`[portal-backend] ouvindo em http://0.0.0.0:${config.port}`);
 });
+
+startDeviceHealthPoller();

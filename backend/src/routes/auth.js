@@ -37,6 +37,19 @@ const recordLoginEvent = db.prepare(
   'INSERT INTO login_events (user_id, username, success, ip, user_agent) VALUES (?, ?, ?, ?, ?)'
 );
 
+// Trava simples contra força bruta — reaproveita o próprio login_events
+// (já gravado a cada tentativa) em vez de criar uma tabela/contador à
+// parte. Conta por username OU ip pra barrar tanto "adivinhar a senha de
+// um usuário" quanto "um IP tentando vários usuários", sem precisar de
+// desbloqueio manual: a janela de tempo já reseta sozinha.
+const RATE_LIMIT_WINDOW_MIN = 15;
+const RATE_LIMIT_MAX_FAILURES = 10;
+const countRecentFailures = db.prepare(
+  `SELECT COUNT(*) AS c FROM login_events
+   WHERE success = 0 AND created_at >= datetime('now', '-' || ? || ' minutes')
+   AND (username = ? OR ip = ?)`
+);
+
 authRouter.post('/login', (req, res) => {
   const { username, password } = req.body || {};
   const ip = req.ip || '';
@@ -44,6 +57,10 @@ authRouter.post('/login', (req, res) => {
 
   if (!username || !password) {
     return res.status(400).json({ error: 'Usuário e senha são obrigatórios' });
+  }
+
+  if (countRecentFailures.get(RATE_LIMIT_WINDOW_MIN, username, ip).c >= RATE_LIMIT_MAX_FAILURES) {
+    return res.status(429).json({ error: 'Muitas tentativas de login. Aguarde alguns minutos e tente novamente.' });
   }
 
   const user = db.prepare('SELECT * FROM users WHERE username = ?').get(username);
