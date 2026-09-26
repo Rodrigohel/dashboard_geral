@@ -33,10 +33,20 @@ modulesRouter.get('/', (req, res) => {
   }
 
   if (allowedModules.includes('acesso')) {
-    const deviceCount = isOwner
-      ? db.prepare('SELECT COUNT(*) AS c FROM access_devices').get().c
-      : db.prepare('SELECT COUNT(*) AS c FROM device_permissions WHERE user_id = ?').get(req.user.sub).c;
-    result.acesso = { deviceCount };
+    const devices = isOwner
+      ? db.prepare('SELECT last_status FROM access_devices').all()
+      : db
+          .prepare(
+            `SELECT d.last_status FROM access_devices d
+             JOIN device_permissions p ON p.device_id = d.id
+             WHERE p.user_id = ?`
+          )
+          .all(req.user.sub);
+    result.acesso = {
+      deviceCount: devices.length,
+      online: devices.filter((d) => d.last_status === 'online').length,
+      offline: devices.filter((d) => d.last_status === 'offline').length,
+    };
   }
 
   res.json(result);

@@ -11,3 +11,13 @@ auditRouter.get('/logins', (req, res) => {
     .all();
   res.json(rows.map((r) => ({ ...r, success: Boolean(r.success) })));
 });
+
+auditRouter.get('/door-opens', (req, res) => {
+  const rows = db
+    .prepare(
+      `SELECT id, device_name, username, success, error_message, created_at
+       FROM door_open_events ORDER BY id DESC LIMIT 500`
+    )
+    .all();
+  res.json(rows.map((r) => ({ ...r, success: Boolean(r.success) })));
+});

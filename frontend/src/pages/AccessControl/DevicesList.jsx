@@ -9,6 +9,11 @@ import { api } from '../../api/client.js';
 import { useToast } from '../../hooks/useToast.jsx';
 
 const MODEL_LABELS = { xpe3200: 'XPE 3200 IP Face', ss3532mf: 'SS 3532 MF' };
+const STATUS_META = {
+  online: { label: 'online', badge: 'badge-success' },
+  offline: { label: 'offline', badge: 'badge-danger' },
+  unknown: { label: 'verificando...', badge: 'badge-neutral' },
+};
 
 export default function DevicesList({ isOwner, onOpenDevice }) {
   const [devices, setDevices] = useState(null);
@@ -115,8 +120,13 @@ export default function DevicesList({ isOwner, onOpenDevice }) {
           {devices.map((d) => (
             <div key={d.id} className="device-card surface" onClick={() => onOpenDevice(d)}>
               <div className="device-card-top">
-                <div className="module-card-icon" style={{ background: 'var(--accent-glow)', width: 40, height: 40 }}>
-                  <Icon name="shieldFace" size={18} />
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div className="module-card-icon" style={{ background: 'var(--accent-glow)', width: 40, height: 40 }}>
+                    <Icon name="shieldFace" size={18} />
+                  </div>
+                  <span className={`badge ${STATUS_META[d.lastStatus || 'unknown'].badge}`} title={d.lastError || undefined}>
+                    <span className="badge-dot" /> {STATUS_META[d.lastStatus || 'unknown'].label}
+                  </span>
                 </div>
                 {isOwner && (
                   <div className="row-actions" onClick={(e) => e.stopPropagation()}>

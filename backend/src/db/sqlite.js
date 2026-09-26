@@ -90,6 +90,21 @@ db.exec(`
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
 
+  -- Cada tentativa de abertura remota de porteiro (sucesso ou falha) —
+  -- mesma lógica de login_events: guarda device_name e username direto na
+  -- linha (não só o id) pra continuar legível mesmo se o equipamento ou o
+  -- usuário forem apagados depois.
+  CREATE TABLE IF NOT EXISTS door_open_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    device_id INTEGER REFERENCES access_devices(id) ON DELETE SET NULL,
+    device_name TEXT NOT NULL,
+    user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    username TEXT NOT NULL,
+    success INTEGER NOT NULL,
+    error_message TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
   -- Nome e logo mostrados na tela de login e na barra lateral — uma linha
   -- só (id fixo = 1). Público de propósito (GET): a tela de login precisa
   -- mostrar isso ANTES do usuário entrar.
@@ -100,6 +115,19 @@ db.exec(`
   );
   INSERT OR IGNORE INTO branding (id, name, logo_filename) VALUES (1, 'Portal', '');
 `);
+
+// Última checagem periódica de saúde de cada porteiro (ver
+// deviceHealthPoller.js) — 'unknown' até a primeira checagem rodar.
+const accessDeviceColumns = db.prepare('PRAGMA table_info(access_devices)').all().map((c) => c.name);
+if (!accessDeviceColumns.includes('last_status')) {
+  db.exec("ALTER TABLE access_devices ADD COLUMN last_status TEXT NOT NULL DEFAULT 'unknown'");
+}
+if (!accessDeviceColumns.includes('last_checked_at')) {
+  db.exec("ALTER TABLE access_devices ADD COLUMN last_checked_at TEXT NOT NULL DEFAULT ''");
+}
+if (!accessDeviceColumns.includes('last_error')) {
+  db.exec("ALTER TABLE access_devices ADD COLUMN last_error TEXT NOT NULL DEFAULT ''");
+}
 
 const gatewayColumns = db.prepare('PRAGMA table_info(module_gateways)').all().map((c) => c.name);
 if (!gatewayColumns.includes('public_url')) {

@@ -20,7 +20,17 @@ function serializeDevice(row) {
     deviceUsername: row.device_username,
     notes: row.notes,
     createdAt: row.created_at,
+    lastStatus: row.last_status,
+    lastCheckedAt: row.last_checked_at || null,
+    lastError: row.last_error,
   };
+}
+
+function logDoorOpen({ device, req, success, errorMessage }) {
+  db.prepare(
+    `INSERT INTO door_open_events (device_id, device_name, user_id, username, success, error_message)
+     VALUES (?, ?, ?, ?, ?, ?)`
+  ).run(device.id, device.name, req.user.sub, req.user.username, success ? 1 : 0, errorMessage || '');
 }
 
 function visibleDevices(req) {
@@ -135,8 +145,10 @@ accessDevicesRouter.post('/:id/open', requireDeviceAccess, requireDeviceOpenAcce
   if (!device) return;
   try {
     await deviceApi.openDoor(device, decryptSecret(device.device_password_enc));
+    logDoorOpen({ device, req, success: true });
     res.json({ ok: true });
   } catch (err) {
+    logDoorOpen({ device, req, success: false, errorMessage: err.message });
     res.status(502).json({ ok: false, error: err.message });
   }
 });
