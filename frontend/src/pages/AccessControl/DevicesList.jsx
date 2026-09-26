@@ -7,12 +7,13 @@ import MultiDeviceUserFormModal from './MultiDeviceUserFormModal.jsx';
 import UserSearch from './UserSearch.jsx';
 import { api } from '../../api/client.js';
 import { useToast } from '../../hooks/useToast.jsx';
+import { timeAgo } from '../../utils/relativeTime.js';
 
 const MODEL_LABELS = { xpe3200: 'XPE 3200 IP Face', ss3532mf: 'SS 3532 MF' };
 const STATUS_META = {
-  online: { label: 'online', badge: 'badge-success' },
-  offline: { label: 'offline', badge: 'badge-danger' },
-  unknown: { label: 'verificando...', badge: 'badge-neutral' },
+  online: { label: 'online', badge: 'badge-success', accent: 'var(--success-500)' },
+  offline: { label: 'offline', badge: 'badge-danger', accent: 'var(--danger-500)' },
+  unknown: { label: 'verificando...', badge: 'badge-neutral', accent: 'var(--border-strong)' },
 };
 
 export default function DevicesList({ isOwner, onOpenDevice }) {
@@ -117,15 +118,17 @@ export default function DevicesList({ isOwner, onOpenDevice }) {
         />
       ) : (
         <div className="device-grid">
-          {devices.map((d) => (
-            <div key={d.id} className="device-card surface" onClick={() => onOpenDevice(d)}>
+          {devices.map((d) => {
+            const statusMeta = STATUS_META[d.lastStatus || 'unknown'];
+            return (
+            <div key={d.id} className="device-card surface" style={{ '--card-accent': statusMeta.accent }} onClick={() => onOpenDevice(d)}>
               <div className="device-card-top">
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <div className="module-card-icon" style={{ background: 'var(--accent-glow)', width: 40, height: 40 }}>
                     <Icon name="shieldFace" size={18} />
                   </div>
-                  <span className={`badge ${STATUS_META[d.lastStatus || 'unknown'].badge}`} title={d.lastError || undefined}>
-                    <span className="badge-dot" /> {STATUS_META[d.lastStatus || 'unknown'].label}
+                  <span className={`badge ${statusMeta.badge}`} title={d.lastError || undefined}>
+                    <span className="badge-dot" /> {statusMeta.label}
                   </span>
                 </div>
                 {isOwner && (
@@ -149,6 +152,14 @@ export default function DevicesList({ isOwner, onOpenDevice }) {
                   <span>{MODEL_LABELS[d.model] || d.model} · {d.host}:{d.port}</span>
                 </div>
               </div>
+              {d.lastOpen && (
+                <div className="device-card-last-open">
+                  <Icon name="key" size={13} />
+                  <span>
+                    {d.lastOpen.success ? 'Aberto' : 'Falha ao abrir'} por <strong>{d.lastOpen.username}</strong>, {timeAgo(d.lastOpen.createdAt)}
+                  </span>
+                </div>
+              )}
               {d.canOpen && (
                 <div className="module-card-footer">
                   <button
@@ -165,7 +176,8 @@ export default function DevicesList({ isOwner, onOpenDevice }) {
                 </div>
               )}
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
 

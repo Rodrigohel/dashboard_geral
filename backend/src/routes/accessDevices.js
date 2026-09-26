@@ -46,6 +46,14 @@ function visibleDevices(req) {
     .all(req.user.sub);
 }
 
+const lastOpenStmt = db.prepare(
+  `SELECT username, success, created_at FROM door_open_events WHERE device_id = ? ORDER BY id DESC LIMIT 1`
+);
+function getLastOpen(deviceId) {
+  const row = lastOpenStmt.get(deviceId);
+  return row ? { username: row.username, success: Boolean(row.success), createdAt: row.created_at } : null;
+}
+
 function canOpenDevice(req, deviceId) {
   if (req.user.role === 'owner') return true;
   return Boolean(
@@ -65,7 +73,9 @@ function getDeviceOr404(req, res) {
 // --- CRUD do cadastro do equipamento (só owner) ---
 
 accessDevicesRouter.get('/', (req, res) => {
-  res.json(visibleDevices(req).map((d) => ({ ...serializeDevice(d), canOpen: canOpenDevice(req, d.id) })));
+  res.json(
+    visibleDevices(req).map((d) => ({ ...serializeDevice(d), canOpen: canOpenDevice(req, d.id), lastOpen: getLastOpen(d.id) }))
+  );
 });
 
 accessDevicesRouter.post('/', requireOwner, (req, res) => {

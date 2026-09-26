@@ -24,8 +24,9 @@ function ExtensionStatusBadge({ state }) {
 }
 
 function MiniStat({ icon, title, value, tone }) {
+  const style = tone ? { '--card-accent': `var(--${tone}-500)` } : undefined;
   return (
-    <div className="mini-stat-card surface">
+    <div className="mini-stat-card surface" style={style}>
       <div className="mini-stat-card-title">
         <Icon name={icon} size={13} />
         {title}
@@ -308,27 +309,27 @@ function CallHistorySection() {
         <div className="field-hint">Nenhuma chamada encontrada.</div>
       ) : (
         <>
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13.5 }}>
+          <div className="table-wrap">
+            <table className="data-table">
               <thead>
-                <tr style={{ textAlign: 'left', color: 'var(--text-tertiary)' }}>
-                  <th style={{ padding: '8px 12px', fontWeight: 600 }}>Quando</th>
-                  <th style={{ padding: '8px 12px', fontWeight: 600 }}>De</th>
-                  <th style={{ padding: '8px 12px', fontWeight: 600 }}>Para</th>
-                  <th style={{ padding: '8px 12px', fontWeight: 600 }}>Sentido</th>
-                  <th style={{ padding: '8px 12px', fontWeight: 600 }}>Resultado</th>
-                  <th style={{ padding: '8px 12px', fontWeight: 600 }}>Duração</th>
+                <tr>
+                  <th>Quando</th>
+                  <th>De</th>
+                  <th>Para</th>
+                  <th>Sentido</th>
+                  <th>Resultado</th>
+                  <th>Duração</th>
                 </tr>
               </thead>
               <tbody>
                 {rows.map((c, i) => (
-                  <tr key={i} style={{ borderTop: '1px solid var(--border-subtle)' }}>
-                    <td style={{ padding: '10px 12px', color: 'var(--text-secondary)' }}>{formatDateTime(c.at)}</td>
-                    <td style={{ padding: '10px 12px', fontWeight: 600 }}>{c.src}</td>
-                    <td style={{ padding: '10px 12px', fontWeight: 600 }}>{c.dst}</td>
-                    <td style={{ padding: '10px 12px', color: 'var(--text-secondary)' }}>{c.direction === 'made' ? 'realizada' : 'recebida'}</td>
-                    <td style={{ padding: '10px 12px', color: 'var(--text-secondary)' }}>{formatDisposition(c.disposition)}</td>
-                    <td style={{ padding: '10px 12px', color: 'var(--text-secondary)' }}>{formatDuration(c.durationSeconds)}</td>
+                  <tr key={i} className={c.disposition && c.disposition.toUpperCase() !== 'ANSWERED' ? 'row-tone-warning' : ''}>
+                    <td style={{ color: 'var(--text-secondary)' }}>{formatDateTime(c.at)}</td>
+                    <td style={{ fontWeight: 600 }}>{c.src}</td>
+                    <td style={{ fontWeight: 600 }}>{c.dst}</td>
+                    <td style={{ color: 'var(--text-secondary)' }}>{c.direction === 'made' ? 'realizada' : 'recebida'}</td>
+                    <td style={{ color: 'var(--text-secondary)' }}>{formatDisposition(c.disposition)}</td>
+                    <td style={{ color: 'var(--text-secondary)' }}>{formatDuration(c.durationSeconds)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -392,25 +393,25 @@ function ExtensionsSection({ extensions }) {
             <div className="field-hint">Nenhum ramal encontrado para "{filter}".</div>
           ) : (
             <>
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13.5 }}>
+              <div className="table-wrap">
+                <table className="data-table">
                   <thead>
-                    <tr style={{ textAlign: 'left', color: 'var(--text-tertiary)' }}>
-                      <th style={{ padding: '8px 12px', fontWeight: 600 }}>Ramal</th>
-                      <th style={{ padding: '8px 12px', fontWeight: 600 }}>Nome</th>
-                      <th style={{ padding: '8px 12px', fontWeight: 600 }}>Status</th>
-                      <th style={{ padding: '8px 12px', fontWeight: 600 }}>Última atividade</th>
+                    <tr>
+                      <th>Ramal</th>
+                      <th>Nome</th>
+                      <th>Status</th>
+                      <th>Última atividade</th>
                     </tr>
                   </thead>
                   <tbody>
                     {pageExtensions.map((e) => (
-                      <tr key={e.number} style={{ borderTop: '1px solid var(--border-subtle)' }}>
-                        <td style={{ padding: '10px 12px', fontWeight: 600 }}>{e.number}</td>
-                        <td style={{ padding: '10px 12px', color: 'var(--text-secondary)' }}>{e.name || '—'}</td>
-                        <td style={{ padding: '10px 12px' }}>
+                      <tr key={e.number} className={e.state === 'offline' ? 'row-tone-warning' : ''}>
+                        <td style={{ fontWeight: 600 }}>{e.number}</td>
+                        <td style={{ color: 'var(--text-secondary)' }}>{e.name || '—'}</td>
+                        <td>
                           <ExtensionStatusBadge state={e.state} />
                         </td>
-                        <td style={{ padding: '10px 12px', color: 'var(--text-secondary)' }}>{formatDateTime(e.lastActivity)}</td>
+                        <td style={{ color: 'var(--text-secondary)' }}>{formatDateTime(e.lastActivity)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -518,23 +519,23 @@ export default function InterfoneDashboard() {
             {activeCalls.length === 0 ? 'Nenhuma chamada em andamento.' : `${activeCalls.length} chamada(s) em andamento.`}
           </p>
           {activeCalls.length > 0 && (
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13.5 }}>
+            <div className="table-wrap">
+              <table className="data-table">
                 <thead>
-                  <tr style={{ textAlign: 'left', color: 'var(--text-tertiary)' }}>
-                    <th style={{ padding: '8px 12px', fontWeight: 600 }}>Ramal</th>
-                    <th style={{ padding: '8px 12px', fontWeight: 600 }}>Destino</th>
-                    <th style={{ padding: '8px 12px', fontWeight: 600 }}>Duração</th>
-                    <th style={{ padding: '8px 12px', fontWeight: 600 }}></th>
+                  <tr>
+                    <th>Ramal</th>
+                    <th>Destino</th>
+                    <th>Duração</th>
+                    <th></th>
                   </tr>
                 </thead>
                 <tbody>
                   {activeCalls.map((c, i) => (
-                    <tr key={i} style={{ borderTop: '1px solid var(--border-subtle)' }}>
-                      <td style={{ padding: '10px 12px', fontWeight: 600 }}>{c.name || c.ext}</td>
-                      <td style={{ padding: '10px 12px', color: 'var(--text-secondary)' }}>{c.destination}</td>
-                      <td style={{ padding: '10px 12px', color: 'var(--text-secondary)' }}>{formatDuration(c.durationSeconds)}</td>
-                      <td style={{ padding: '10px 12px' }}>
+                    <tr key={i}>
+                      <td style={{ fontWeight: 600 }}>{c.name || c.ext}</td>
+                      <td style={{ color: 'var(--text-secondary)' }}>{c.destination}</td>
+                      <td style={{ color: 'var(--text-secondary)' }}>{formatDuration(c.durationSeconds)}</td>
+                      <td>
                         <ExtensionStatusBadge state={c.state} />
                       </td>
                     </tr>
@@ -551,21 +552,21 @@ export default function InterfoneDashboard() {
             {missed.length === 0 ? 'Nenhuma chamada perdida hoje.' : `${missed.length} número(s) com chamada perdida.`}
           </p>
           {missed.length > 0 && (
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13.5 }}>
+            <div className="table-wrap">
+              <table className="data-table">
                 <thead>
-                  <tr style={{ textAlign: 'left', color: 'var(--text-tertiary)' }}>
-                    <th style={{ padding: '8px 12px', fontWeight: 600 }}>Número</th>
-                    <th style={{ padding: '8px 12px', fontWeight: 600 }}>Última</th>
-                    <th style={{ padding: '8px 12px', fontWeight: 600 }}>Total</th>
+                  <tr>
+                    <th>Número</th>
+                    <th>Última</th>
+                    <th>Total</th>
                   </tr>
                 </thead>
                 <tbody>
                   {missed.map((m, i) => (
-                    <tr key={i} style={{ borderTop: '1px solid var(--border-subtle)' }}>
-                      <td style={{ padding: '10px 12px', fontWeight: 600 }}>{m.number}</td>
-                      <td style={{ padding: '10px 12px', color: 'var(--text-secondary)' }}>{formatDateTime(m.lastAt)}</td>
-                      <td style={{ padding: '10px 12px' }}>
+                    <tr key={i} className={m.total >= 3 ? 'row-tone-warning' : ''}>
+                      <td style={{ fontWeight: 600 }}>{m.number}</td>
+                      <td style={{ color: 'var(--text-secondary)' }}>{formatDateTime(m.lastAt)}</td>
+                      <td>
                         <span className="badge badge-warning">{m.total}x</span>
                       </td>
                     </tr>
