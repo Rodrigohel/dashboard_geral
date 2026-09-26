@@ -88,13 +88,78 @@ const MODULE_META = {
   },
 };
 
-export default function Home({ user, onNavigate }) {
+// Converte uma série de números num par de paths SVG (linha + área
+// preenchida) dentro de um viewBox fixo 100x28 — mesmo cálculo usado no
+// mockup aprovado, só que aqui alimentado com dados reais da API.
+function buildSparkline(points) {
+  if (!points || points.length < 2) return null;
+  const w = 100;
+  const h = 28;
+  const max = Math.max(...points);
+  const min = Math.min(...points);
+  const range = max - min || 1;
+  const usable = h * 0.8;
+  const pad = h * 0.1;
+  const step = w / (points.length - 1);
+  const coords = points.map((v, i) => [i * step, h - pad - ((v - min) / range) * usable]);
+  const line = coords.map((c, i) => `${i === 0 ? 'M' : 'L'}${c[0].toFixed(1)},${c[1].toFixed(1)}`).join(' ');
+  const area = `${line} L${w},${h} L0,${h} Z`;
+  const last = coords[coords.length - 1];
+  return { line, area, lastX: last[0].toFixed(1), lastY: last[1].toFixed(1) };
+}
+
+function formatEyebrow(date) {
+  const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+  const day = cap(date.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', ''));
+  const dm = date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }).replace('.', '');
+  const time = date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  return `${day} · ${dm} · ${time}`;
+}
+
+export default function Home({ user, onNavigate, can }) {
   const [modules, setModules] = useState(null);
+  const [redeSummary, setRedeSummary] = useState(null);
+  const [redePoints, setRedePoints] = useState(null);
+  const [interfoneSummary, setInterfoneSummary] = useState(null);
+  const [interfonePoints, setInterfonePoints] = useState(null);
   const isOwner = user.role === 'owner';
+
+  const hasRede = Boolean(user.modules?.includes('rede'));
+  const hasInterfone = Boolean(user.modules?.includes('interfone'));
+  const canSeeRedeAnalise = Boolean(can?.('rede.analise'));
 
   useEffect(() => {
     api.modules().then(setModules).catch(() => setModules({}));
   }, []);
+
+  useEffect(() => {
+    if (!hasRede) return;
+    api.rede.summary().then(setRedeSummary).catch(() => {});
+  }, [hasRede]);
+
+  useEffect(() => {
+    // A série histórica de latência exige a feature "rede.analise" — sem
+    // ela o gateway responde 403, então nem tentamos buscar.
+    if (!hasRede || !canSeeRedeAnalise) return;
+    api.rede
+      .networkHistory(24)
+      .then((res) => {
+        const values = (res?.data || []).map((row) => row.avgLatencyMs).filter((v) => typeof v === 'number');
+        if (values.length >= 2) setRedePoints(values);
+      })
+      .catch(() => {});
+  }, [hasRede, canSeeRedeAnalise]);
+
+  useEffect(() => {
+    if (!hasInterfone) return;
+    api.interfone.extensionsSummary().then(setInterfoneSummary).catch(() => {});
+    api.interfone
+      .callsSummary('7d')
+      .then((trend) => {
+        if (trend?.recebidas?.length >= 2) setInterfonePoints(trend.recebidas);
+      })
+      .catch(() => {});
+  }, [hasInterfone]);
 
   const firstName = (user.displayName || user.username).split(' ')[0];
   const hour = new Date().getHours();
@@ -102,10 +167,57 @@ export default function Home({ user, onNavigate }) {
 
   const linkModules = user.modules?.filter((k) => MODULE_META[k]) || [];
 
+  // Cada card só mostra números e gráficos que existem de verdade — sem
+  // dado real disponível (ex.: histórico de abertura dos porteiros, que o
+  // backend não guarda), o card simplesmente omite aquele pedaço em vez de
+  // inventar algo.
+  function cardDataFor(key, info) {
+    if (key === 'rede') {
+      const s = redeSummary;
+      const offline = s?.offline ?? 0;
+      return {
+        status: s
+          ? offline > 0
+            ? { color: 'var(--danger-500)', label: `${offline} offline` }
+            : { color: 'var(--success-500)', label: 'online' }
+          : null,
+        trendLabel: 'latência média · 24h',
+        points: redePoints,
+        stat1: s ? { value: s.online ?? 0, label: 'online' } : null,
+        stat2: s && offline > 0 ? { value: offline, label: 'offline', color: 'var(--danger-500)' } : null,
+      };
+    }
+    if (key === 'interfone') {
+      const s = interfoneSummary;
+      const offline = s?.offline ?? 0;
+      return {
+        status: s
+          ? offline > 0
+            ? { color: 'var(--danger-500)', label: `${offline} offline` }
+            : { color: 'var(--success-500)', label: 'online' }
+          : null,
+        trendLabel: 'chamadas recebidas · 7 dias',
+        points: interfonePoints,
+        stat1: s ? { value: s.online ?? 0, label: 'ramais online' } : null,
+        stat2: s && offline > 0 ? { value: offline, label: 'ramais offline', color: 'var(--danger-500)' } : null,
+      };
+    }
+    // acesso: só existe a contagem de equipamentos — sem status "ao vivo"
+    // nem histórico, então não fabricamos nenhum dos dois.
+    return {
+      status: null,
+      trendLabel: null,
+      points: null,
+      stat1: info?.deviceCount !== undefined ? { value: info.deviceCount, label: info.deviceCount === 1 ? 'porteiro' : 'porteiros' } : null,
+      stat2: null,
+    };
+  }
+
   return (
     <>
       <div className="page-header">
         <div>
+          <div className="home-eyebrow">{formatEyebrow(new Date())}</div>
           <h1>
             {greeting}, {firstName} 👋
           </h1>
@@ -128,6 +240,8 @@ export default function Home({ user, onNavigate }) {
             // o caso).
             const needsGateway = key === 'rede' || key === 'interfone';
             const configured = !needsGateway || Boolean(info?.configured);
+            const data = cardDataFor(key, info);
+            const spark = configured ? buildSparkline(data.points) : null;
 
             function handleClick() {
               // Sem gateway configurado ainda, manda o dono direto pra onde
@@ -140,16 +254,61 @@ export default function Home({ user, onNavigate }) {
               <div
                 key={key}
                 className="module-card surface"
-                style={{ borderTop: `3px solid ${meta.color}`, cursor: 'pointer' }}
+                style={{ '--module-color': meta.color, cursor: 'pointer' }}
                 onClick={handleClick}
               >
-                <div className="module-card-icon" style={{ background: meta.glow, color: meta.color }}>
-                  <Icon name={meta.icon} size={22} className="module-card-icon-svg" />
+                <span className="module-card-corner tl" />
+                <span className="module-card-corner br" />
+
+                <div className="module-card-top">
+                  <div className="module-card-icon" style={{ background: meta.glow, color: meta.color }}>
+                    <Icon name={meta.icon} size={18} />
+                  </div>
+                  {data.status && (
+                    <div className="module-card-status" style={{ color: data.status.color }}>
+                      <span className="module-card-status-dot" style={{ background: data.status.color }} />
+                      {data.status.label}
+                    </div>
+                  )}
                 </div>
+
                 <div>
                   <div className="module-card-title">{meta.title}</div>
                   <div className="module-card-desc">{meta.desc}</div>
                 </div>
+
+                {spark && (
+                  <div className="module-card-trend">
+                    <div className="module-card-trend-label">{data.trendLabel}</div>
+                    <svg viewBox="0 0 100 28" className="module-card-chart" preserveAspectRatio="none">
+                      <path d={spark.area} fill={meta.color} opacity="0.14" stroke="none" />
+                      <path d={spark.line} fill="none" stroke={meta.color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                      <circle cx={spark.lastX} cy={spark.lastY} r="2.6" fill={meta.color} />
+                    </svg>
+                  </div>
+                )}
+
+                {(data.stat1 || data.stat2) && (
+                  <div className="module-card-stats">
+                    {data.stat1 && (
+                      <div>
+                        <div className="module-card-stat-value">{data.stat1.value}</div>
+                        <div className="module-card-stat-label">{data.stat1.label}</div>
+                      </div>
+                    )}
+                    {data.stat2 && (
+                      <div>
+                        <div className="module-card-stat-value" style={{ color: data.stat2.color }}>
+                          {data.stat2.value}
+                        </div>
+                        <div className="module-card-stat-label" style={{ color: data.stat2.color }}>
+                          {data.stat2.label}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {needsGateway && !configured && (
                   <div className="field-hint">
                     Ainda não configurado{isOwner ? ' — clique para configurar.' : '.'}
