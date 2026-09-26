@@ -43,11 +43,14 @@ function SeverityBadge({ severity }) {
 }
 
 function SummaryCard({ icon, title, value, sub, tone }) {
+  const style = tone ? { '--card-accent': `var(--${tone}-500)`, '--card-accent-soft': `var(--${tone}-soft)` } : undefined;
   return (
-    <div className="metric-card surface">
+    <div className="metric-card surface" style={style}>
       <div className="metric-card-head">
         <div className="metric-card-title">
-          <Icon name={icon} size={16} />
+          <span className="icon-badge">
+            <Icon name={icon} size={14} />
+          </span>
           {title}
         </div>
       </div>
@@ -491,7 +494,7 @@ function AnaliseSection() {
         <div className="field-hint">Nenhuma queda registrada nas últimas 24h.</div>
       ) : (
         flappiest.map((d) => (
-          <div className="service-row" key={d.id}>
+          <div className="service-row" key={d.id} style={{ '--card-accent': 'var(--warning-500)' }}>
             <div>
               <div style={{ fontWeight: 600, fontSize: 14 }}>{d.name}</div>
               <div className="field-hint">{d.location || d.ip}</div>
@@ -528,23 +531,23 @@ function HistoricoSection() {
         <div className="field-hint">Nenhum evento registrado ainda.</div>
       ) : (
         <>
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13.5 }}>
+          <div className="table-wrap">
+            <table className="data-table">
               <thead>
-                <tr style={{ textAlign: 'left', color: 'var(--text-tertiary)' }}>
-                  <th style={{ padding: '8px 12px', fontWeight: 600 }}>Quando</th>
-                  <th style={{ padding: '8px 12px', fontWeight: 600 }}>Equipamento</th>
-                  <th style={{ padding: '8px 12px', fontWeight: 600 }}>Evento</th>
-                  <th style={{ padding: '8px 12px', fontWeight: 600 }}>Durou</th>
+                <tr>
+                  <th>Quando</th>
+                  <th>Equipamento</th>
+                  <th>Evento</th>
+                  <th>Durou</th>
                 </tr>
               </thead>
               <tbody>
                 {pageHistory.map((e) => (
-                  <tr key={e.id} style={{ borderTop: '1px solid var(--border-subtle)' }}>
-                    <td style={{ padding: '10px 12px', color: 'var(--text-secondary)' }}>{new Date(e.at).toLocaleString('pt-BR')}</td>
-                    <td style={{ padding: '10px 12px', fontWeight: 600 }}>{e.device?.name}</td>
-                    <td style={{ padding: '10px 12px' }}>{e.eventLabel}</td>
-                    <td style={{ padding: '10px 12px', color: 'var(--text-secondary)' }}>{formatDuration(e.durationMs)}</td>
+                  <tr key={e.id}>
+                    <td style={{ color: 'var(--text-secondary)' }}>{new Date(e.at).toLocaleString('pt-BR')}</td>
+                    <td style={{ fontWeight: 600 }}>{e.device?.name}</td>
+                    <td>{e.eventLabel}</td>
+                    <td style={{ color: 'var(--text-secondary)' }}>{formatDuration(e.durationMs)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -646,7 +649,11 @@ export default function RedeDashboard({ can }) {
           {alerts.length === 0 ? 'Nada em aberto no momento.' : `${alerts.length} alerta(s) em aberto.`}
         </p>
         {alerts.slice(0, 10).map((a) => (
-          <div className="service-row" key={a.id}>
+          <div
+            className="service-row"
+            key={a.id}
+            style={{ '--card-accent': a.severity === 'critical' ? 'var(--danger-500)' : 'var(--warning-500)' }}
+          >
             <div>
               <div style={{ fontWeight: 600, fontSize: 14 }}>{a.message}</div>
               <div className="field-hint">{new Date(a.createdAt).toLocaleString('pt-BR')}</div>
@@ -679,15 +686,15 @@ export default function RedeDashboard({ can }) {
               <div className="field-hint">Nenhum equipamento encontrado para "{deviceFilter}".</div>
             ) : (
               <>
-                <div style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13.5 }}>
+                <div className="table-wrap">
+                  <table className="data-table">
                     <thead>
-                      <tr style={{ textAlign: 'left', color: 'var(--text-tertiary)' }}>
-                        <th style={{ padding: '8px 12px', fontWeight: 600 }}>Nome</th>
-                        <th style={{ padding: '8px 12px', fontWeight: 600 }}>IP</th>
-                        <th style={{ padding: '8px 12px', fontWeight: 600 }}>Local</th>
-                        <th style={{ padding: '8px 12px', fontWeight: 600 }}>Tipo</th>
-                        <th style={{ padding: '8px 12px', fontWeight: 600 }}>Status</th>
+                      <tr>
+                        <th>Nome</th>
+                        <th>IP</th>
+                        <th>Local</th>
+                        <th>Tipo</th>
+                        <th>Status</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -695,13 +702,14 @@ export default function RedeDashboard({ can }) {
                         <tr
                           key={d.id}
                           onClick={() => setViewingDevice(d.id)}
-                          style={{ borderTop: '1px solid var(--border-subtle)', cursor: 'pointer' }}
+                          className={d.status === 'offline' ? 'row-tone-danger' : d.status === 'degraded' ? 'row-tone-warning' : ''}
+                          style={{ cursor: 'pointer' }}
                         >
-                          <td style={{ padding: '10px 12px', fontWeight: 600 }}>{d.name}</td>
-                          <td style={{ padding: '10px 12px', color: 'var(--text-secondary)' }}>{d.ip}</td>
-                          <td style={{ padding: '10px 12px', color: 'var(--text-secondary)' }}>{d.location || '—'}</td>
-                          <td style={{ padding: '10px 12px', color: 'var(--text-secondary)' }}>{d.type}</td>
-                          <td style={{ padding: '10px 12px' }}>
+                          <td style={{ fontWeight: 600 }}>{d.name}</td>
+                          <td style={{ color: 'var(--text-secondary)' }}>{d.ip}</td>
+                          <td style={{ color: 'var(--text-secondary)' }}>{d.location || '—'}</td>
+                          <td style={{ color: 'var(--text-secondary)' }}>{d.type}</td>
+                          <td>
                             <StatusBadge status={d.status} />
                           </td>
                         </tr>
