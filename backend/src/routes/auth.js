@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import { db } from '../db/sqlite.js';
 import { config, MODULE_KEYS } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
+import { getSecuritySettings } from '../services/securitySettingsService.js';
 
 export const authRouter = Router();
 
@@ -41,9 +42,9 @@ const recordLoginEvent = db.prepare(
 // (já gravado a cada tentativa) em vez de criar uma tabela/contador à
 // parte. Conta por username OU ip pra barrar tanto "adivinhar a senha de
 // um usuário" quanto "um IP tentando vários usuários", sem precisar de
-// desbloqueio manual: a janela de tempo já reseta sozinha.
-const RATE_LIMIT_WINDOW_MIN = 15;
-const RATE_LIMIT_MAX_FAILURES = 10;
+// desbloqueio manual: a janela de tempo já reseta sozinha. Os limites em si
+// vêm de security_settings (configurável em Configurações > Segurança),
+// lidos a cada tentativa pra valer imediatamente sem reiniciar o backend.
 const countRecentFailures = db.prepare(
   `SELECT COUNT(*) AS c FROM login_events
    WHERE success = 0 AND created_at >= datetime('now', '-' || ? || ' minutes')
@@ -59,7 +60,9 @@ authRouter.post('/login', (req, res) => {
     return res.status(400).json({ error: 'Usuário e senha são obrigatórios' });
   }
 
-  if (countRecentFailures.get(RATE_LIMIT_WINDOW_MIN, username, ip).c >= RATE_LIMIT_MAX_FAILURES) {
+  const { maxLoginFailures, loginWindowMinutes, sessionHours } = getSecuritySettings();
+
+  if (countRecentFailures.get(loginWindowMinutes, username, ip).c >= maxLoginFailures) {
     return res.status(429).json({ error: 'Muitas tentativas de login. Aguarde alguns minutos e tente novamente.' });
   }
 
@@ -73,7 +76,7 @@ authRouter.post('/login', (req, res) => {
   const token = jwt.sign(
     { sub: user.id, username: user.username, displayName: user.display_name, role: user.role },
     config.auth.jwtSecret,
-    { expiresIn: config.auth.jwtExpiresIn }
+    { expiresIn: `${sessionHours}h` }
   );
 
   const { modules, deviceIds, openDeviceIds } = permissionsFor(user);
@@ -89,4 +92,26 @@ authRouter.get('/me', requireAuth, (req, res) => {
 
   const { modules, deviceIds, openDeviceIds } = permissionsFor(user);
   res.json({ id: user.id, username: user.username, displayName: user.display_name, role: user.role, modules, deviceIds, openDeviceIds });
+});
+
+// Autoatendimento: qualquer usuário logado troca a PRÓPRIA senha, sem
+// precisar do dono — pede a senha atual pra confirmar (mesma exigência de
+// qualquer troca de senha de conta própria). À parte de PUT /api/users/:id
+// (que exige requireOwner e serve pra o dono trocar a senha de outra conta).
+authRouter.put('/me/password', requireAuth, (req, res) => {
+  const { currentPassword, newPassword } = req.body || {};
+  if (!currentPassword || !newPassword) {
+    return res.status(400).json({ error: 'Informe a senha atual e a nova senha' });
+  }
+  if (newPassword.length < 6) {
+    return res.status(400).json({ error: 'A nova senha precisa ter pelo menos 6 caracteres' });
+  }
+
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.sub);
+  if (!user || !bcrypt.compareSync(currentPassword, user.password_hash)) {
+    return res.status(401).json({ error: 'Senha atual incorreta' });
+  }
+
+  db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(bcrypt.hashSync(newPassword, 10), user.id);
+  res.status(204).end();
 });

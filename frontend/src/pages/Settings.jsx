@@ -289,6 +289,101 @@ function BrandingCard() {
   );
 }
 
+function SecurityCard() {
+  const [maxLoginFailures, setMaxLoginFailures] = useState(10);
+  const [loginWindowMinutes, setLoginWindowMinutes] = useState(15);
+  const [sessionHours, setSessionHours] = useState(8);
+  const [loaded, setLoaded] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const toast = useToast();
+
+  useEffect(() => {
+    api.settings.getSecurity().then((s) => {
+      setMaxLoginFailures(s.maxLoginFailures);
+      setLoginWindowMinutes(s.loginWindowMinutes);
+      setSessionHours(s.sessionHours);
+      setLoaded(true);
+    });
+  }, []);
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      await api.settings.saveSecurity({
+        maxLoginFailures: Number(maxLoginFailures),
+        loginWindowMinutes: Number(loginWindowMinutes),
+        sessionHours: Number(sessionHours),
+      });
+      toast('Segurança atualizada.');
+    } catch (err) {
+      toast(err.message, 'error');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="surface" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div>
+        <div style={{ fontWeight: 700 }}>Segurança</div>
+        <div className="field-hint">Regras de login válidas para todos os usuários do Portal.</div>
+      </div>
+
+      {!loaded ? (
+        <div className="skeleton" style={{ height: 90, borderRadius: 12 }} />
+      ) : (
+        <>
+          <div className="grid-2">
+            <div className="field">
+              <label className="field-label">Tentativas de login antes de bloquear</label>
+              <input
+                className="input"
+                type="number"
+                min={3}
+                max={50}
+                value={maxLoginFailures}
+                onChange={(e) => setMaxLoginFailures(e.target.value)}
+              />
+            </div>
+            <div className="field">
+              <label className="field-label">Janela de bloqueio (minutos)</label>
+              <input
+                className="input"
+                type="number"
+                min={1}
+                max={120}
+                value={loginWindowMinutes}
+                onChange={(e) => setLoginWindowMinutes(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="field">
+            <label className="field-label">Duração da sessão (horas)</label>
+            <input
+              className="input"
+              type="number"
+              min={1}
+              max={720}
+              value={sessionHours}
+              onChange={(e) => setSessionHours(e.target.value)}
+              style={{ maxWidth: 140 }}
+            />
+            <span className="field-hint">
+              Depois de logar, a sessão expira sozinha após esse tempo. Só vale pra quem logar de novo — quem já
+              está logado continua com o prazo antigo até sair e entrar outra vez.
+            </span>
+          </div>
+          <div>
+            <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
+              {saving ? <span className="spinner" /> : 'Salvar'}
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function Settings() {
   const [gateways, setGateways] = useState(null);
 
@@ -312,6 +407,8 @@ export default function Settings() {
       </div>
 
       <BrandingCard />
+
+      <SecurityCard />
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         {gateways === null ? (

@@ -168,5 +168,11 @@ export const api = {
     getGateways: () => request('/api/settings/gateways'),
     saveGateway: (moduleKey, payload) => request(`/api/settings/gateways/${moduleKey}`, { method: 'PUT', body: payload }),
     testGateway: (moduleKey) => request(`/api/settings/gateways/${moduleKey}/test-connection`, { method: 'POST' }),
+    getSecurity: () => request('/api/settings/security'),
+    saveSecurity: (payload) => request('/api/settings/security', { method: 'PUT', body: payload }),
+  },
+
+  account: {
+    changePassword: (payload) => request('/api/auth/me/password', { method: 'PUT', body: payload }),
   },
 };
