@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import Icon from '../components/Icon.jsx';
 import { api } from '../api/client.js';
-import DevicesList from './AccessControl/DevicesList.jsx';
 
 function levelFor(percent, { warn = 60, danger = 85 } = {}) {
   if (percent === null || percent === undefined) return 'ok';
@@ -80,9 +79,16 @@ const MODULE_META = {
     color: 'var(--module-interfone)',
     glow: 'var(--module-interfone-glow)',
   },
+  acesso: {
+    title: 'Controle de acesso',
+    icon: 'shieldFace',
+    desc: 'Porteiros com reconhecimento facial — cadastro de moradores, fotos e abertura remota.',
+    color: 'var(--module-acesso)',
+    glow: 'var(--module-acesso-glow)',
+  },
 };
 
-export default function Home({ user, onNavigate, onOpenDevice }) {
+export default function Home({ user, onNavigate }) {
   const [modules, setModules] = useState(null);
   const isOwner = user.role === 'owner';
 
@@ -95,7 +101,6 @@ export default function Home({ user, onNavigate, onOpenDevice }) {
   const greeting = hour < 12 ? 'Bom dia' : hour < 18 ? 'Boa tarde' : 'Boa noite';
 
   const linkModules = user.modules?.filter((k) => MODULE_META[k]) || [];
-  const hasAcesso = user.modules?.includes('acesso');
 
   return (
     <>
@@ -115,13 +120,29 @@ export default function Home({ user, onNavigate, onOpenDevice }) {
           {linkModules.map((key) => {
             const meta = MODULE_META[key];
             const info = modules?.[key];
-            // Rede agora é nativo dentro do Portal — só depende do gateway estar
-            // configurado (endereço + conta de serviço), não de link público nem
-            // de build embutido (isso ainda vale só para Interfone, via iframe).
-            const canOpen = key === 'rede' ? Boolean(info?.configured) : Boolean(info?.embedded || info?.publicUrl);
+            // Rede e Interfone são nativos dentro do Portal (consultam a API
+            // do gateway direto, sem iframe nem link externo) — só depende do
+            // gateway estar configurado (endereço + conta de serviço).
+            // "Controle de acesso" não depende de gateway nenhum, sempre abre
+            // (a própria tela mostra "nenhum equipamento cadastrado" se for
+            // o caso).
+            const needsGateway = key === 'rede' || key === 'interfone';
+            const configured = !needsGateway || Boolean(info?.configured);
+
+            function handleClick() {
+              // Sem gateway configurado ainda, manda o dono direto pra onde
+              // resolve isso em vez de abrir uma tela quebrada.
+              if (needsGateway && !configured && isOwner) onNavigate('configuracoes');
+              else onNavigate(key);
+            }
 
             return (
-              <div key={key} className="module-card surface" style={{ borderTop: `3px solid ${meta.color}` }}>
+              <div
+                key={key}
+                className="module-card surface"
+                style={{ borderTop: `3px solid ${meta.color}`, cursor: 'pointer' }}
+                onClick={handleClick}
+              >
                 <div className="module-card-icon" style={{ background: meta.glow, color: meta.color }}>
                   <Icon name={meta.icon} size={22} className="module-card-icon-svg" />
                 </div>
@@ -129,54 +150,14 @@ export default function Home({ user, onNavigate, onOpenDevice }) {
                   <div className="module-card-title">{meta.title}</div>
                   <div className="module-card-desc">{meta.desc}</div>
                 </div>
-
-                <div className="module-card-footer">
-                  {canOpen ? (
-                    <>
-                      <span className="badge badge-success">
-                        <span className="badge-dot" /> disponível
-                      </span>
-                      <button className="btn btn-secondary btn-sm" onClick={() => onNavigate(key)}>
-                        Abrir painel
-                      </button>
-                    </>
-                  ) : info?.configured ? (
-                    <>
-                      <span className="badge badge-warning">
-                        <span className="badge-dot" /> falta o link público
-                      </span>
-                      {isOwner && (
-                        <button className="btn btn-secondary btn-sm" onClick={() => onNavigate('configuracoes')}>
-                          Configurar
-                        </button>
-                      )}
-                    </>
-                  ) : (
-                    <>
-                      <span className="badge badge-warning">
-                        <span className="badge-dot" /> não configurado
-                      </span>
-                      {isOwner && (
-                        <button className="btn btn-secondary btn-sm" onClick={() => onNavigate('configuracoes')}>
-                          Configurar
-                        </button>
-                      )}
-                    </>
-                  )}
-                </div>
+                {needsGateway && !configured && (
+                  <div className="field-hint">
+                    Ainda não configurado{isOwner ? ' — clique para configurar.' : '.'}
+                  </div>
+                )}
               </div>
             );
           })}
-        </div>
-      )}
-
-      {hasAcesso && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <h2 style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 17, fontWeight: 700, color: 'var(--module-acesso)' }}>
-            <Icon name="shieldFace" size={19} />
-            Porteiros
-          </h2>
-          <DevicesList isOwner={isOwner} onOpenDevice={onOpenDevice} />
         </div>
       )}
 
