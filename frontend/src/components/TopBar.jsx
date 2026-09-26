@@ -32,67 +32,69 @@ export default function TopBar({ view, user, onLogout, theme, setTheme, onMenuCl
     .toUpperCase();
 
   return (
-    <header className="topbar">
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flex: '1 1 auto' }}>
-        <button className="btn btn-ghost btn-icon menu-btn" onClick={onMenuClick} aria-label="Abrir menu" style={{ flexShrink: 0 }}>
-          <Icon name="menu" size={20} />
-        </button>
-        <div style={{ minWidth: 0 }}>
-          <div className="topbar-title">{title}</div>
-          <div className="topbar-subtitle">{subtitle}</div>
-        </div>
-      </div>
-
-      <div className="topbar-actions">
-        <div className="theme-toggle">
-          <button className={theme === 'dark' ? 'active' : ''} onClick={() => setTheme('dark')} aria-label="Tema escuro">
-            <Icon name="moon" size={15} />
+    <>
+      <header className="topbar">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flex: '1 1 auto' }}>
+          <button className="btn btn-ghost btn-icon menu-btn" onClick={onMenuClick} aria-label="Abrir menu" style={{ flexShrink: 0 }}>
+            <Icon name="menu" size={20} />
           </button>
-          <button className={theme === 'light' ? 'active' : ''} onClick={() => setTheme('light')} aria-label="Tema claro">
-            <Icon name="sun" size={15} />
-          </button>
-        </div>
-
-        <div className="user-menu" ref={ref} onClick={() => setOpen((v) => !v)} style={{ position: 'relative' }}>
-          <div style={{ textAlign: 'right' }}>
-            <div className="user-menu-name">{user?.displayName}</div>
-            <div className="user-menu-role">{user?.role === 'owner' ? 'Administrador' : 'Usuário'}</div>
+          <div style={{ minWidth: 0 }}>
+            <div className="topbar-title">{title}</div>
+            <div className="topbar-subtitle">{subtitle}</div>
           </div>
-          <div className="avatar">{initials}</div>
+        </div>
 
-          {open && (
-            <div
-              className="surface"
-              style={{
-                position: 'absolute',
-                top: '110%',
-                right: 0,
-                minWidth: 160,
-                padding: 6,
-                zIndex: 20,
-              }}
-            >
-              <button
-                className="btn btn-ghost"
-                style={{ width: '100%', justifyContent: 'flex-start' }}
-                onClick={() => {
-                  setOpen(false);
-                  setShowAccountModal(true);
+        <div className="topbar-actions">
+          <div className="theme-toggle">
+            <button className={theme === 'dark' ? 'active' : ''} onClick={() => setTheme('dark')} aria-label="Tema escuro">
+              <Icon name="moon" size={15} />
+            </button>
+            <button className={theme === 'light' ? 'active' : ''} onClick={() => setTheme('light')} aria-label="Tema claro">
+              <Icon name="sun" size={15} />
+            </button>
+          </div>
+
+          <div className="user-menu" ref={ref} onClick={() => setOpen((v) => !v)} style={{ position: 'relative' }}>
+            <div style={{ textAlign: 'right' }}>
+              <div className="user-menu-name">{user?.displayName}</div>
+              <div className="user-menu-role">{user?.role === 'owner' ? 'Administrador' : 'Usuário'}</div>
+            </div>
+            <div className="avatar">{initials}</div>
+
+            {open && (
+              <div
+                className="surface"
+                style={{
+                  position: 'absolute',
+                  top: '110%',
+                  right: 0,
+                  minWidth: 160,
+                  padding: 6,
+                  zIndex: 20,
                 }}
               >
-                <Icon name="key" size={16} />
-                Minha conta
-              </button>
-              <button className="btn btn-ghost" style={{ width: '100%', justifyContent: 'flex-start' }} onClick={onLogout}>
-                <Icon name="logout" size={16} />
-                Sair
-              </button>
-            </div>
-          )}
+                <button
+                  className="btn btn-ghost"
+                  style={{ width: '100%', justifyContent: 'flex-start' }}
+                  onClick={() => {
+                    setOpen(false);
+                    setShowAccountModal(true);
+                  }}
+                >
+                  <Icon name="key" size={16} />
+                  Minha conta
+                </button>
+                <button className="btn btn-ghost" style={{ width: '100%', justifyContent: 'flex-start' }} onClick={onLogout}>
+                  <Icon name="logout" size={16} />
+                  Sair
+                </button>
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      </header>
 
       {showAccountModal && <ChangePasswordModal onClose={() => setShowAccountModal(false)} />}
-    </header>
+    </>
   );
 }
