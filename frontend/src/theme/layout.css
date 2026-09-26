@@ -27,6 +27,13 @@
     width: 252px;
     box-shadow: var(--shadow-lg);
   }
+  /* Trilho recolhido (só ícone, sem rótulo visível): centraliza o ícone e
+     zera o gap — sem isso, o gap do rótulo (usado quando o menu expande)
+     empurrava o ícone pra fora do centro do trilho de 76px. */
+  .nav-item {
+    justify-content: center;
+    gap: 0;
+  }
   /* Recolhida, o texto some de vez (em vez de cortar no meio da palavra) —
      só reaparece com o sidebar expandido. Além de opacity, zera a
      largura/altura pra não sobrar espaço vazio e desalinhar o ícone do
@@ -50,7 +57,7 @@
   .sidebar:hover .nav-item,
   .sidebar:focus-within .nav-item {
     justify-content: flex-start;
-    gap: var(--space-3);
+    gap: var(--space-4);
   }
   /* "Administração" tem padding vertical maior que os outros labels (é um
      título de seção) — os 24px genéricos do .nav-label cortavam a palavra
@@ -142,8 +149,8 @@
 .nav-item {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 0;
+  justify-content: flex-start;
+  gap: var(--space-4);
   padding: 10px 12px;
   border-radius: var(--radius-sm);
   color: var(--text-secondary);
