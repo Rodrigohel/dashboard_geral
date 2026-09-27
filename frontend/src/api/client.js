@@ -145,7 +145,7 @@ export const api = {
     // pode usar, só que o Portal nunca chamava. Formato (POST + { favorite })
     // é um palpite bem fundamentado, não testado contra o painel real.
     setFavorite: (id, favorite) => request(`/gateway/rede/api/devices/${id}/favorite`, { method: 'POST', body: { favorite } }),
-    history: () => request('/gateway/rede/api/history?limit=100'),
+    history: (limit = 100) => request(`/gateway/rede/api/history?limit=${limit}`),
     setFloorPosition: (deviceId, floorId, x, y) =>
       request(`/gateway/rede/api/devices/${deviceId}/floor-position`, { method: 'POST', body: { floorId, x, y } }),
     executiveReportBlob: async (days = 7) => {

@@ -464,12 +464,127 @@ function detectLatencyAnomaly(rows) {
   return { current: Math.round(last.avgLatencyMs), mean: Math.round(mean) };
 }
 
+// Linha simples por índice (sem depender de nenhum campo de data/hora nos
+// pontos — a API de histórico de rede nunca expôs isso em nenhum lugar do
+// código, só avgLatencyMs/p95LatencyMs). Mesmo truque do LatencySparkline,
+// só que genérico o bastante pra também servir de tendência mensal.
+function TrendLineChart({ values, color = 'var(--accent-500)', height = 70 }) {
+  const points = (values || []).filter((v) => typeof v === 'number');
+  if (points.length < 2) return <div className="field-hint">Sem dados suficientes ainda.</div>;
+  const w = 480;
+  const h = height;
+  const max = Math.max(...points);
+  const min = Math.min(...points);
+  const range = max - min || 1;
+  const path = points
+    .map((v, i) => {
+      const x = (i / (points.length - 1)) * w;
+      const y = h - ((v - min) / range) * h;
+      return `${i === 0 ? 'M' : 'L'} ${x.toFixed(1)} ${y.toFixed(1)}`;
+    })
+    .join(' ');
+  const area = `${path} L ${w} ${h} L 0 ${h} Z`;
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} width="100%" height={h} preserveAspectRatio="none">
+      <path d={area} fill={color} opacity="0.12" stroke="none" />
+      <path d={path} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+// Barras de 0h a 23h — conta quantas vezes cada horário do dia aparece no
+// conjunto de eventos filtrado (quedas, chamadas, etc.), pra achar o
+// "horário de pico". Uma cor só, com o pico em opacidade cheia e o resto
+// mais apagado — não é uma paleta categórica, é magnitude de uma métrica só.
+function PeakHoursChart({ hourCounts, color, unitLabel }) {
+  const max = Math.max(...hourCounts);
+  if (max === 0) return <div className="field-hint">Sem dados suficientes ainda.</div>;
+  const peakHour = hourCounts.indexOf(max);
+  const w = 480;
+  const h = 70;
+  const gap = 2;
+  const barWidth = (w - gap * 23) / 24;
+  return (
+    <div>
+      <svg viewBox={`0 0 ${w} ${h}`} width="100%" height={h} preserveAspectRatio="none">
+        {hourCounts.map((c, hour) => {
+          const barH = c === 0 ? 0 : Math.max((c / max) * h, 3);
+          return (
+            <rect
+              key={hour}
+              x={hour * (barWidth + gap)}
+              y={h - barH}
+              width={barWidth}
+              height={barH}
+              rx={2}
+              fill={color}
+              opacity={hour === peakHour ? 1 : 0.5}
+            >
+              <title>{`${String(hour).padStart(2, '0')}h: ${c} ${unitLabel}`}</title>
+            </rect>
+          );
+        })}
+      </svg>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          fontSize: 10,
+          color: 'var(--text-tertiary)',
+          fontFamily: 'var(--font-mono)',
+          marginTop: 2,
+        }}
+      >
+        <span>00h</span>
+        <span>06h</span>
+        <span>12h</span>
+        <span>18h</span>
+        <span>23h</span>
+      </div>
+      <div className="field-hint" style={{ marginTop: 8 }}>
+        Horário de pico: <strong style={{ color: 'var(--text-primary)' }}>{String(peakHour).padStart(2, '0')}h</strong> ({max}{' '}
+        {unitLabel}).
+      </div>
+    </div>
+  );
+}
+
+// Conta ocorrências por hora local (0-23) dos eventos que passarem no
+// filtro — usado tanto pra "horário de pico de queda" quanto, no Interfone,
+// pra "horário de pico de chamada".
+function countByHour(items, getDate, filter) {
+  const counts = new Array(24).fill(0);
+  for (const item of items) {
+    if (filter && !filter(item)) continue;
+    const d = getDate(item);
+    if (!d || Number.isNaN(d.getTime())) continue;
+    counts[d.getHours()] += 1;
+  }
+  return counts;
+}
+
 function AnaliseSection() {
   const [snapshot, setSnapshot] = useState(null);
   const [flappiest, setFlappiest] = useState([]);
   const [latencyAnomaly, setLatencyAnomaly] = useState(null);
+  const [monthlyLatency, setMonthlyLatency] = useState(null);
+  const [dropHourCounts, setDropHourCounts] = useState(null);
   const [downloading, setDownloading] = useState(false);
   const toast = useToast();
+
+  useEffect(() => {
+    api.rede
+      .networkHistory(24 * 30)
+      .then((nh) => setMonthlyLatency((nh.data || []).map((r) => r.avgLatencyMs)))
+      .catch(() => {});
+    api.rede
+      .history(300)
+      .then((hi) => {
+        const events = hi.data || [];
+        setDropHourCounts(countByHour(events, (e) => new Date(e.at), (e) => eventTone(e.eventLabel) === 'danger'));
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     Promise.all([api.rede.networkHistory(24), api.rede.flappiest()])
@@ -548,6 +663,24 @@ function AnaliseSection() {
             <span className="badge badge-warning">{d.drops} queda(s)</span>
           </div>
         ))
+      )}
+
+      <div style={{ fontWeight: 600, fontSize: 13.5, marginTop: 20, marginBottom: 8 }}>Horário de pico de quedas</div>
+      <p className="field-hint" style={{ marginBottom: 12 }}>Em que horário do dia as quedas mais acontecem (últimos ~300 eventos registrados).</p>
+      {dropHourCounts === null ? (
+        <div className="skeleton" style={{ height: 90, borderRadius: 8 }} />
+      ) : (
+        <PeakHoursChart hourCounts={dropHourCounts} color="var(--danger-500)" unitLabel="queda(s)" />
+      )}
+
+      <div style={{ fontWeight: 600, fontSize: 13.5, marginTop: 20, marginBottom: 8 }}>Tendência de latência (~30 dias)</div>
+      <p className="field-hint" style={{ marginBottom: 12 }}>
+        Cada ponto é uma rodada de checagem — sem data no eixo (o painel de Rede não expõe isso), só a evolução.
+      </p>
+      {monthlyLatency === null ? (
+        <div className="skeleton" style={{ height: 70, borderRadius: 8 }} />
+      ) : (
+        <TrendLineChart values={monthlyLatency} color="var(--accent-500)" />
       )}
     </div>
   );
