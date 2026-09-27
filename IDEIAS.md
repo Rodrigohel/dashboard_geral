@@ -14,11 +14,11 @@ Tela cheia, sem menu, rotacionando sozinha entre status de rede/interfone/portei
 pra ficar num monitor fixo na guarita/portaria. Mais rápido de fazer que o push, mas é mais
 estético que funcional (não abre nenhuma informação nova).
 
-## Detecção de anomalia nos dados já coletados
-Com o histórico de latência, quedas e aberturas de porta que o Portal já guarda, dava pra
-detectar padrão fora do comum (porteiro respondendo mais devagar que o normal, abertura em
-horário atípico) e avisar proativamente, em vez de só mostrar "offline"/"online". Mais
-avançado — depende de ter histórico suficiente acumulado pra saber o que é "normal".
+## ~~Detecção de anomalia nos dados já coletados~~ — feito
+Implementado: latência de rede fora do padrão (compara contra média + desvio-padrão das
+últimas 24h), perdidas do Interfone muito acima da média dos últimos dias, e abertura de
+porteiro em horário que aquele equipamento nunca tinha registrado antes (com no mínimo 15
+aberturas de histórico pra não acusar anomalia à toa nos primeiros usos).
 
 ## Multi-tenant de verdade (SaaS)
 Hoje cada instalação do Portal é fechada pra UM cliente (um banco SQLite, uma linha de marca).

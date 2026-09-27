@@ -138,6 +138,13 @@ export const api = {
     },
     networkHistory: (hours = 24) => request(`/gateway/rede/api/stats/network-history?hours=${hours}`),
     flappiest: () => request('/gateway/rede/api/stats/flappiest?hours=24&limit=5'),
+    // Achado indiretamente: o server.js do Portal tem uma exceção explícita
+    // pra caminhos terminados em "/favorite" na regra que bloqueia
+    // não-GET em /api/devices pra só o dono — ou seja, o painel de Rede
+    // original tem uma função de favoritar que QUALQUER usuário do módulo
+    // pode usar, só que o Portal nunca chamava. Formato (POST + { favorite })
+    // é um palpite bem fundamentado, não testado contra o painel real.
+    setFavorite: (id, favorite) => request(`/gateway/rede/api/devices/${id}/favorite`, { method: 'POST', body: { favorite } }),
     history: () => request('/gateway/rede/api/history?limit=100'),
     setFloorPosition: (deviceId, floorId, x, y) =>
       request(`/gateway/rede/api/devices/${deviceId}/floor-position`, { method: 'POST', body: { floorId, x, y } }),

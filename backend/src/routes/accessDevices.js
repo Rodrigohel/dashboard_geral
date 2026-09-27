@@ -47,11 +47,32 @@ function visibleDevices(req) {
 }
 
 const lastOpenStmt = db.prepare(
-  `SELECT username, success, created_at FROM door_open_events WHERE device_id = ? ORDER BY id DESC LIMIT 1`
+  `SELECT id, username, success, created_at, CAST(strftime('%H', created_at) AS INTEGER) AS hour
+   FROM door_open_events WHERE device_id = ? ORDER BY id DESC LIMIT 1`
 );
+const baselineOpenCountStmt = db.prepare(
+  `SELECT COUNT(*) AS c FROM door_open_events WHERE device_id = ? AND success = 1 AND id != ?`
+);
+const sameHourOpenCountStmt = db.prepare(
+  `SELECT COUNT(*) AS c FROM door_open_events
+   WHERE device_id = ? AND success = 1 AND id != ? AND CAST(strftime('%H', created_at) AS INTEGER) = ?`
+);
+// Só arrisca dizer "horário incomum" com histórico suficiente pra saber o
+// que é normal — sem isso, os primeiros usos de um porteiro novo seriam
+// TODOS "anômalos" (não tem nada com que comparar ainda).
+const ANOMALY_MIN_SAMPLE = 15;
+
 function getLastOpen(deviceId) {
   const row = lastOpenStmt.get(deviceId);
-  return row ? { username: row.username, success: Boolean(row.success), createdAt: row.created_at } : null;
+  if (!row) return null;
+  let anomaly = null;
+  if (row.success) {
+    const baseline = baselineOpenCountStmt.get(deviceId, row.id).c;
+    if (baseline >= ANOMALY_MIN_SAMPLE) {
+      anomaly = sameHourOpenCountStmt.get(deviceId, row.id, row.hour).c === 0;
+    }
+  }
+  return { username: row.username, success: Boolean(row.success), createdAt: row.created_at, anomaly };
 }
 
 function canOpenDevice(req, deviceId) {

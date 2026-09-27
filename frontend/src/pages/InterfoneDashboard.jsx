@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import Icon from '../components/Icon.jsx';
+import Modal from '../components/Modal.jsx';
 import { api } from '../api/client.js';
 
 // Interfone é só consulta no Portal, igual o Rede — cadastro de ramal e
@@ -62,6 +63,23 @@ const DISPOSITION_LABELS = {
 function formatDisposition(disposition) {
   if (!disposition) return '—';
   return DISPOSITION_LABELS[disposition.toUpperCase()] || disposition;
+}
+
+const DISPOSITION_BADGE = {
+  ANSWERED: 'badge-success',
+  'NO ANSWER': 'badge-warning',
+  BUSY: 'badge-warning',
+  FAILED: 'badge-danger',
+  CONGESTION: 'badge-danger',
+};
+function DispositionBadge({ disposition }) {
+  if (!disposition) return <span style={{ color: 'var(--text-secondary)' }}>—</span>;
+  const badge = DISPOSITION_BADGE[disposition.toUpperCase()] || 'badge-neutral';
+  return (
+    <span className={`badge ${badge}`}>
+      <span className="badge-dot" /> {formatDisposition(disposition)}
+    </span>
+  );
 }
 
 // Cores categóricas (identidade da série), de propósito DIFERENTES das
@@ -328,7 +346,7 @@ function CallHistorySection() {
                     <td style={{ fontWeight: 600 }}>{c.src}</td>
                     <td style={{ fontWeight: 600 }}>{c.dst}</td>
                     <td style={{ color: 'var(--text-secondary)' }}>{c.direction === 'made' ? 'realizada' : 'recebida'}</td>
-                    <td style={{ color: 'var(--text-secondary)' }}>{formatDisposition(c.disposition)}</td>
+                    <td><DispositionBadge disposition={c.disposition} /></td>
                     <td style={{ color: 'var(--text-secondary)' }}>{formatDuration(c.durationSeconds)}</td>
                   </tr>
                 ))}
@@ -354,11 +372,61 @@ function CallHistorySection() {
   );
 }
 
+// Endpoint já existia no client (api.interfone.extensionDetail) mas nunca
+// tinha sido chamado por nenhuma tela — não sabemos de antemão todo campo
+// que o painel de Interfone original devolve aqui, então em vez de supor
+// nomes específicos e arriscar mostrar tudo como "—", listamos o que vier
+// de verdade na resposta.
+function ExtensionDetailModal({ number, onClose }) {
+  const [detail, setDetail] = useState(null);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    api.interfone
+      .extensionDetail(number)
+      .then(setDetail)
+      .catch((err) => setError(err.message));
+  }, [number]);
+
+  const rows = detail
+    ? Object.entries(detail).filter(([, v]) => v !== null && v !== undefined && typeof v !== 'object')
+    : [];
+
+  return (
+    <Modal
+      title={`Ramal ${number}`}
+      onClose={onClose}
+      width={480}
+      footer={
+        <button className="btn btn-secondary" onClick={onClose}>
+          Fechar
+        </button>
+      }
+    >
+      {error && <div className="login-error">{error}</div>}
+      {!detail && !error && <div className="skeleton" style={{ height: 160, borderRadius: 12 }} />}
+      {detail && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: 14 }}>
+          {rows.map(([key, value]) => (
+            <div key={key} style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}>
+              <span className="field-hint" style={{ textTransform: 'capitalize' }}>
+                {key.replace(/([A-Z])/g, ' $1').trim()}
+              </span>
+              <span style={{ textAlign: 'right' }}>{String(value)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </Modal>
+  );
+}
+
 const EXTENSIONS_PAGE_SIZE = 10;
 
 function ExtensionsSection({ extensions }) {
   const [filter, setFilter] = useState('');
   const [page, setPage] = useState(1);
+  const [viewingExtension, setViewingExtension] = useState(null);
 
   const filtered = extensions.filter((e) => {
     const needle = filter.trim().toLowerCase();
@@ -373,7 +441,7 @@ function ExtensionsSection({ extensions }) {
     <div className="surface" style={{ padding: 24 }}>
       <div style={{ fontWeight: 700, marginBottom: 4 }}>Ramais</div>
       <p className="field-hint" style={{ marginBottom: 12 }}>
-        Consulta — cadastro de ramal é feito no painel de Interfone original.
+        Consulta — clique num ramal para ver mais detalhes. Cadastro é feito no painel de Interfone original.
       </p>
       {extensions.length === 0 ? (
         <div className="field-hint">Nenhum ramal configurado.</div>
@@ -405,7 +473,12 @@ function ExtensionsSection({ extensions }) {
                   </thead>
                   <tbody>
                     {pageExtensions.map((e) => (
-                      <tr key={e.number} className={e.state === 'offline' ? 'row-tone-warning' : ''}>
+                      <tr
+                        key={e.number}
+                        className={e.state === 'offline' ? 'row-tone-warning' : ''}
+                        style={{ cursor: 'pointer' }}
+                        onClick={() => setViewingExtension(e.number)}
+                      >
                         <td style={{ fontWeight: 600 }}>{e.number}</td>
                         <td style={{ color: 'var(--text-secondary)' }}>{e.name || '—'}</td>
                         <td>
@@ -434,8 +507,24 @@ function ExtensionsSection({ extensions }) {
           )}
         </>
       )}
+      {viewingExtension && <ExtensionDetailModal number={viewingExtension} onClose={() => setViewingExtension(null)} />}
     </div>
   );
+}
+
+// Perdidas hoje muito acima do normal — compara contra a média dos 6 dias
+// anteriores da mesma série de 7 dias (o último dia da série é hoje, por
+// isso fica de fora do cálculo da "normalidade"). Só acusa com um mínimo
+// de 3 perdidas hoje E pelo menos o dobro da média, pra não marcar como
+// anomalia uma variação pequena tipo "1 perdida hoje, 0.5 de média".
+function detectMissedAnomaly(today, trend) {
+  if (!today || !trend?.perdidas || trend.perdidas.length < 7) return null;
+  const missedToday = today.missed || 0;
+  const baseline = trend.perdidas.slice(0, -1);
+  if (baseline.length < 6 || missedToday < 3) return null;
+  const mean = baseline.reduce((a, b) => a + b, 0) / baseline.length;
+  if (missedToday < mean * 2) return null;
+  return { current: missedToday, mean: Math.round(mean * 10) / 10 };
 }
 
 export default function InterfoneDashboard() {
@@ -478,6 +567,8 @@ export default function InterfoneDashboard() {
     };
   }, []);
 
+  const missedAnomaly = detectMissedAnomaly(today, trend);
+
   return (
     <>
       <div className="page-header">
@@ -502,13 +593,31 @@ export default function InterfoneDashboard() {
           <MiniStat icon="phone" title="Chamadas ativas" value={activeCalls.length} />
           <MiniStat icon="phone" title="Recebidas hoje" value={today.received || 0} />
           <MiniStat icon="phone" title="Realizadas hoje" value={today.made || 0} />
-          <MiniStat icon="phone" title="Perdidas hoje" value={today.missed || 0} tone={today.missed > 0 ? 'warning' : undefined} />
+          <MiniStat
+            icon="phone"
+            title="Perdidas hoje"
+            value={today.missed || 0}
+            tone={missedAnomaly ? 'danger' : today.missed > 0 ? 'warning' : undefined}
+          />
         </div>
       )}
 
       <div className="surface" style={{ padding: 24 }}>
         <div style={{ fontWeight: 700, marginBottom: 4 }}>Chamadas nos últimos 7 dias</div>
         <p className="field-hint" style={{ marginBottom: 16 }}>Recebidas, realizadas, perdidas e falhas por dia.</p>
+
+        {missedAnomaly && (
+          <div className="service-row" style={{ '--card-accent': 'var(--danger-500)', marginBottom: 16 }}>
+            <div>
+              <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--danger-500)' }}>Perdidas hoje fora do normal</div>
+              <div className="field-hint">
+                {missedAnomaly.current} perdida(s) hoje, contra uma média de {missedAnomaly.mean} nos últimos 6 dias.
+              </div>
+            </div>
+            <span className="badge badge-danger"><span className="badge-dot" /> anomalia</span>
+          </div>
+        )}
+
         {trend === null ? <div className="skeleton" style={{ height: 160, borderRadius: 12 }} /> : <CallsTrendChart data={trend} />}
       </div>
 
