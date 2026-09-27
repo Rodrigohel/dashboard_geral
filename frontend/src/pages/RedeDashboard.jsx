@@ -96,9 +96,22 @@ function LatencySparkline({ checks }) {
       return `${i === 0 ? 'M' : 'L'} ${x.toFixed(1)} ${y.toFixed(1)}`;
     })
     .join(' ');
+  const area = `${path} L ${w} ${h} L 0 ${h} Z`;
   return (
     <svg viewBox={`0 0 ${w} ${h}`} width="100%" height={h} preserveAspectRatio="none">
-      <path d={path} fill="none" style={{ stroke: 'var(--accent-500)' }} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+      <defs>
+        <linearGradient id="latency-line-grad" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" style={{ stopColor: 'var(--viz-trend-1)' }} />
+          <stop offset="55%" style={{ stopColor: 'var(--viz-trend-2)' }} />
+          <stop offset="100%" style={{ stopColor: 'var(--viz-trend-3)' }} />
+        </linearGradient>
+        <linearGradient id="latency-area-grad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" style={{ stopColor: 'var(--viz-trend-2)' }} stopOpacity="0.32" />
+          <stop offset="100%" style={{ stopColor: 'var(--viz-trend-2)' }} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <path d={area} fill="url(#latency-area-grad)" stroke="none" />
+      <path d={path} fill="none" stroke="url(#latency-line-grad)" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
     </svg>
   );
 }
@@ -468,7 +481,7 @@ function detectLatencyAnomaly(rows) {
 // pontos — a API de histórico de rede nunca expôs isso em nenhum lugar do
 // código, só avgLatencyMs/p95LatencyMs). Mesmo truque do LatencySparkline,
 // só que genérico o bastante pra também servir de tendência mensal.
-function TrendLineChart({ values, color = 'var(--accent-500)', height = 70 }) {
+function TrendLineChart({ values, height = 70 }) {
   const points = (values || []).filter((v) => typeof v === 'number');
   if (points.length < 2) return <div className="field-hint">Sem dados suficientes ainda.</div>;
   const w = 480;
@@ -486,8 +499,19 @@ function TrendLineChart({ values, color = 'var(--accent-500)', height = 70 }) {
   const area = `${path} L ${w} ${h} L 0 ${h} Z`;
   return (
     <svg viewBox={`0 0 ${w} ${h}`} width="100%" height={h} preserveAspectRatio="none">
-      <path d={area} style={{ fill: color }} opacity="0.12" stroke="none" />
-      <path d={path} fill="none" style={{ stroke: color }} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+      <defs>
+        <linearGradient id="monthly-line-grad" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" style={{ stopColor: 'var(--viz-trend-1)' }} />
+          <stop offset="55%" style={{ stopColor: 'var(--viz-trend-2)' }} />
+          <stop offset="100%" style={{ stopColor: 'var(--viz-trend-3)' }} />
+        </linearGradient>
+        <linearGradient id="monthly-area-grad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" style={{ stopColor: 'var(--viz-trend-2)' }} stopOpacity="0.35" />
+          <stop offset="100%" style={{ stopColor: 'var(--viz-trend-2)' }} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <path d={area} fill="url(#monthly-area-grad)" stroke="none" />
+      <path d={path} fill="none" stroke="url(#monthly-line-grad)" strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" />
     </svg>
   );
 }
@@ -496,7 +520,7 @@ function TrendLineChart({ values, color = 'var(--accent-500)', height = 70 }) {
 // conjunto de eventos filtrado (quedas, chamadas, etc.), pra achar o
 // "horário de pico". Uma cor só, com o pico em opacidade cheia e o resto
 // mais apagado — não é uma paleta categórica, é magnitude de uma métrica só.
-function PeakHoursChart({ hourCounts, color, unitLabel }) {
+function PeakHoursChart({ hourCounts, gradId, unitLabel }) {
   const max = Math.max(...hourCounts);
   if (max === 0) return <div className="field-hint">Sem dados suficientes ainda.</div>;
   const peakHour = hourCounts.indexOf(max);
@@ -507,6 +531,16 @@ function PeakHoursChart({ hourCounts, color, unitLabel }) {
   return (
     <div>
       <svg viewBox={`0 0 ${w} ${h}`} width="100%" height={h} preserveAspectRatio="none">
+        <defs>
+          <linearGradient id={`${gradId}-hot`} x1="0" y1="1" x2="0" y2="0">
+            <stop offset="0%" style={{ stopColor: 'var(--viz-peak-hot-2)' }} />
+            <stop offset="100%" style={{ stopColor: 'var(--viz-peak-hot-1)' }} />
+          </linearGradient>
+          <linearGradient id={`${gradId}-dim`} x1="0" y1="1" x2="0" y2="0">
+            <stop offset="0%" style={{ stopColor: 'var(--viz-peak-dim-2)' }} />
+            <stop offset="100%" style={{ stopColor: 'var(--viz-peak-dim-1)' }} />
+          </linearGradient>
+        </defs>
         {hourCounts.map((c, hour) => {
           const barH = c === 0 ? 0 : Math.max((c / max) * h, 3);
           return (
@@ -516,9 +550,8 @@ function PeakHoursChart({ hourCounts, color, unitLabel }) {
               y={h - barH}
               width={barWidth}
               height={barH}
-              rx={2}
-              style={{ fill: color }}
-              opacity={hour === peakHour ? 1 : 0.5}
+              rx={3}
+              fill={hour === peakHour ? `url(#${gradId}-hot)` : `url(#${gradId}-dim)`}
             >
               <title>{`${String(hour).padStart(2, '0')}h: ${c} ${unitLabel}`}</title>
             </rect>
@@ -636,16 +669,30 @@ function AnaliseSection() {
         </div>
       )}
 
-      <div style={{ display: 'flex', gap: 32, flexWrap: 'wrap', marginBottom: 20 }}>
-        <div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14, marginBottom: 20 }}>
+        <div
+          style={{
+            borderRadius: 14,
+            padding: '16px 18px',
+            background: 'linear-gradient(135deg, rgba(76,141,255,0.16), rgba(139,92,246,0.1))',
+            border: '1px solid rgba(124,146,255,0.22)',
+          }}
+        >
           <div className="field-hint">Latência média</div>
-          <div style={{ fontSize: 22, fontWeight: 700, color: latencyColor(snapshot?.avgLatencyMs) }}>
+          <div style={{ fontSize: 30, fontWeight: 700, fontFamily: 'var(--font-display)', color: latencyColor(snapshot?.avgLatencyMs) }}>
             {snapshot?.avgLatencyMs != null ? `${Math.round(snapshot.avgLatencyMs)} ms` : '—'}
           </div>
         </div>
-        <div>
+        <div
+          style={{
+            borderRadius: 14,
+            padding: '16px 18px',
+            background: 'linear-gradient(135deg, rgba(45,212,191,0.16), rgba(76,141,255,0.1))',
+            border: '1px solid rgba(94,222,204,0.22)',
+          }}
+        >
           <div className="field-hint">Latência p95</div>
-          <div style={{ fontSize: 22, fontWeight: 700, color: latencyColor(snapshot?.p95LatencyMs) }}>
+          <div style={{ fontSize: 30, fontWeight: 700, fontFamily: 'var(--font-display)', color: latencyColor(snapshot?.p95LatencyMs) }}>
             {snapshot?.p95LatencyMs != null ? `${Math.round(snapshot.p95LatencyMs)} ms` : '—'}
           </div>
         </div>
@@ -670,7 +717,7 @@ function AnaliseSection() {
       {dropHourCounts === null ? (
         <div className="skeleton" style={{ height: 90, borderRadius: 8 }} />
       ) : (
-        <PeakHoursChart hourCounts={dropHourCounts} color="var(--danger-500)" unitLabel="queda(s)" />
+        <PeakHoursChart hourCounts={dropHourCounts} gradId="peak-drops" unitLabel="queda(s)" />
       )}
 
       <div style={{ fontWeight: 600, fontSize: 13.5, marginTop: 20, marginBottom: 8 }}>Tendência de latência (~30 dias)</div>
@@ -680,7 +727,7 @@ function AnaliseSection() {
       {monthlyLatency === null ? (
         <div className="skeleton" style={{ height: 70, borderRadius: 8 }} />
       ) : (
-        <TrendLineChart values={monthlyLatency} color="var(--accent-500)" />
+        <TrendLineChart values={monthlyLatency} />
       )}
     </div>
   );
