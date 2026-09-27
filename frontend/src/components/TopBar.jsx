@@ -12,7 +12,7 @@ const TITLES = {
   configuracoes: ['Configurações', 'Integrações e preferências gerais'],
 };
 
-export default function TopBar({ view, user, onLogout, theme, setTheme, onMenuClick }) {
+export default function TopBar({ view, user, onLogout, theme, setTheme, onMenuClick, onSearchClick }) {
   const [open, setOpen] = useState(false);
   const [showAccountModal, setShowAccountModal] = useState(false);
   const ref = useRef(null);
@@ -45,6 +45,15 @@ export default function TopBar({ view, user, onLogout, theme, setTheme, onMenuCl
         </div>
 
         <div className="topbar-actions">
+          <button
+            className="btn btn-ghost btn-icon"
+            onClick={onSearchClick}
+            aria-label="Busca rápida"
+            title="Busca rápida (Ctrl+K)"
+          >
+            <Icon name="search" size={17} />
+          </button>
+
           <div className="theme-toggle">
             <button className={theme === 'dark' ? 'active' : ''} onClick={() => setTheme('dark')} aria-label="Tema escuro">
               <Icon name="moon" size={15} />

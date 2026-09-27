@@ -37,9 +37,10 @@ const paths = {
   cpu: 'M9 3v3M15 3v3M9 18v3M15 18v3M3 9h3M3 15h3M18 9h3M18 15h3M7 7h10v10H7z',
   menu: 'M4 6h16M4 12h16M4 18h16',
   star: 'M12 2 15.1 8.3 22 9.3 17 14.1 18.2 21 12 17.8 5.8 21 7 14.1 2 9.3 8.9 8.3Z',
+  activity: 'M3 12h4l2-8 6 16 2-8h4',
 };
 
-export default function Icon({ name, size = 18, strokeWidth = 1.8, className }) {
+export default function Icon({ name, size = 18, strokeWidth = 1.8, className, style }) {
   const d = paths[name];
   if (!d) return null;
   return (
@@ -53,6 +54,7 @@ export default function Icon({ name, size = 18, strokeWidth = 1.8, className }) 
       strokeLinecap="round"
       strokeLinejoin="round"
       className={className}
+      style={style}
       aria-hidden="true"
     >
       <path d={d} />
