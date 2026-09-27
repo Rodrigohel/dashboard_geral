@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import Icon from '../components/Icon.jsx';
 import { api } from '../api/client.js';
+import { timeAgo } from '../utils/relativeTime.js';
 
 function levelFor(percent, { warn = 60, danger = 85 } = {}) {
   if (percent === null || percent === undefined) return 'ok';
@@ -60,6 +61,67 @@ function ServerHealthWidget({ onNavigate }) {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+// Junta em uma linha do tempo só o que hoje só dava pra ver em 3 telas
+// separadas — queda/recuperação de rede, chamada perdida, abertura de
+// porteiro. Cada fonte é opcional (só entra se o usuário tiver acesso ao
+// módulo e permissão pro dado): a lista mescla o que existir de verdade,
+// sem inventar nada pras fontes indisponíveis.
+function ActivityFeed({ events }) {
+  if (events.length === 0) {
+    return (
+      <div className="surface" style={{ padding: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700, marginBottom: 4 }}>
+          <Icon name="activity" size={17} />
+          Atividade recente
+        </div>
+        <p className="field-hint">Nada de novo por aqui ainda.</p>
+      </div>
+    );
+  }
+  return (
+    <div className="surface" style={{ padding: 20 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700, marginBottom: 12 }}>
+        <Icon name="activity" size={17} />
+        Atividade recente
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column' }}>
+        {events.map((e) => (
+          <div key={e.id} className="service-row">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+              <div
+                style={{
+                  width: 30,
+                  height: 30,
+                  borderRadius: 9,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                  background: e.glow,
+                  color: e.color,
+                }}
+              >
+                <Icon name={e.icon} size={14} />
+              </div>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontWeight: 600, fontSize: 13.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {e.title}
+                </div>
+                <div className="field-hint" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {e.subtitle}
+                </div>
+              </div>
+            </div>
+            <span className="field-hint" style={{ flexShrink: 0 }}>
+              {timeAgo(e.at)}
+            </span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -125,10 +187,14 @@ export default function Home({ user, onNavigate, can }) {
   const [redePoints, setRedePoints] = useState(null);
   const [interfoneSummary, setInterfoneSummary] = useState(null);
   const [interfonePoints, setInterfonePoints] = useState(null);
+  const [redeActivity, setRedeActivity] = useState([]);
+  const [interfoneActivity, setInterfoneActivity] = useState([]);
+  const [acessoActivity, setAcessoActivity] = useState([]);
   const isOwner = user.role === 'owner';
 
   const hasRede = Boolean(user.modules?.includes('rede'));
   const hasInterfone = Boolean(user.modules?.includes('interfone'));
+  const hasAcesso = Boolean(user.modules?.includes('acesso'));
   const canSeeRedeAnalise = Boolean(can?.('rede.analise'));
 
   useEffect(() => {
@@ -163,6 +229,85 @@ export default function Home({ user, onNavigate, can }) {
       })
       .catch(() => {});
   }, [hasInterfone]);
+
+  // Feed de atividade — junta o que hoje só dava pra ver em 3 telas
+  // separadas. Cada fonte já é a mesma API que a tela correspondente usa
+  // (histórico de eventos da Rede, chamadas perdidas do Interfone, última
+  // abertura de cada porteiro), só reorganizada numa linha do tempo só.
+  useEffect(() => {
+    if (!hasRede || !canSeeRedeAnalise) return;
+    api.rede
+      .history(20)
+      .then((hi) => {
+        setRedeActivity(
+          (hi.data || []).map((e) => ({
+            id: `rede-${e.id}`,
+            icon: 'network',
+            color: 'var(--module-rede)',
+            glow: 'var(--module-rede-glow)',
+            title: e.device?.name || 'Equipamento',
+            subtitle: e.eventLabel,
+            at: e.at,
+          }))
+        );
+      })
+      .catch(() => {});
+  }, [hasRede, canSeeRedeAnalise]);
+
+  useEffect(() => {
+    if (!hasInterfone) return;
+    api.interfone
+      .missedToday()
+      .then((miss) => {
+        setInterfoneActivity(
+          (miss || []).map((m, i) => ({
+            id: `interfone-${m.number}-${i}`,
+            icon: 'phone',
+            color: 'var(--module-interfone)',
+            glow: 'var(--module-interfone-glow)',
+            title: 'Chamada perdida',
+            subtitle: m.total > 1 ? `${m.number} · ${m.total}x hoje` : m.number,
+            at: m.lastAt,
+          }))
+        );
+      })
+      .catch(() => {});
+  }, [hasInterfone]);
+
+  useEffect(() => {
+    if (!hasAcesso) return;
+    api.accessDevices
+      .list()
+      .then((devices) => {
+        setAcessoActivity(
+          (devices || [])
+            .filter((d) => d.lastOpen)
+            .map((d) => ({
+              id: `acesso-${d.id}`,
+              icon: 'key',
+              color: d.lastOpen.success ? 'var(--module-acesso)' : 'var(--danger-500)',
+              glow: d.lastOpen.success ? 'var(--module-acesso-glow)' : 'var(--danger-soft)',
+              title: d.lastOpen.success ? `${d.name} aberto` : `Falha ao abrir ${d.name}`,
+              subtitle: `por ${d.lastOpen.username}`,
+              at: d.lastOpen.createdAt,
+            }))
+        );
+      })
+      .catch(() => {});
+  }, [hasAcesso]);
+
+  // Os "at" de cada fonte vêm em formatos diferentes (ISO com 'Z' da Rede/
+  // Interfone, "YYYY-MM-DD HH:MM:SS" sem 'Z' do nosso próprio SQLite pro
+  // Acesso) — sem normalizar isso aqui, o navegador interpretaria o do
+  // Acesso como horário local e desalinharia a ordem da lista.
+  function toTimestamp(at) {
+    if (!at) return 0;
+    const iso = at.includes('T') || at.endsWith('Z') ? at : `${at.replace(' ', 'T')}Z`;
+    return new Date(iso).getTime();
+  }
+  const activityFeed = [...redeActivity, ...interfoneActivity, ...acessoActivity]
+    .sort((a, b) => toTimestamp(b.at) - toTimestamp(a.at))
+    .slice(0, 10);
 
   const firstName = (user.displayName || user.username).split(' ')[0];
   const hour = new Date().getHours();
@@ -234,6 +379,8 @@ export default function Home({ user, onNavigate, can }) {
           <p>Aqui está um resumo do que você tem acesso.</p>
         </div>
       </div>
+
+      {(hasRede || hasInterfone || hasAcesso) && <ActivityFeed events={activityFeed} />}
 
       {isOwner && <ServerHealthWidget onNavigate={onNavigate} />}
 

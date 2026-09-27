@@ -6,6 +6,7 @@ import { applyAccentColor } from './theme/applyAccent.js';
 import LoadingScreen from './components/LoadingScreen.jsx';
 import Sidebar from './components/Sidebar.jsx';
 import TopBar from './components/TopBar.jsx';
+import CommandPalette from './components/CommandPalette.jsx';
 import Login from './pages/Login.jsx';
 import Home from './pages/Home.jsx';
 import RedeDashboard from './pages/RedeDashboard.jsx';
@@ -23,10 +24,25 @@ export default function App() {
   const [view, setView] = useState('home');
   const [menuOpen, setMenuOpen] = useState(false);
   const [acessoDevice, setAcessoDevice] = useState(null);
+  const [paletteOpen, setPaletteOpen] = useState(false);
 
   useEffect(() => {
     document.title = branding.name;
   }, [branding.name]);
+
+  // Ctrl/Cmd+K abre a busca rápida de qualquer lugar do Portal — só depois
+  // de logado (esse listener não existe ainda na tela de login).
+  useEffect(() => {
+    if (!user) return;
+    function handleKeyDown(e) {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setPaletteOpen(true);
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [user]);
 
   useEffect(() => {
     applyAccentColor(branding.accentColor);
@@ -87,9 +103,25 @@ export default function App() {
     <div className="shell">
       <Sidebar branding={branding} view={view} onNavigate={navigate} can={can} isOwner={isOwner} open={menuOpen} onClose={() => setMenuOpen(false)} />
       <div className="shell-main">
-        <TopBar view={view} user={user} onLogout={logout} theme={theme} setTheme={setTheme} onMenuClick={() => setMenuOpen(true)} />
+        <TopBar
+          view={view}
+          user={user}
+          onLogout={logout}
+          theme={theme}
+          setTheme={setTheme}
+          onMenuClick={() => setMenuOpen(true)}
+          onSearchClick={() => setPaletteOpen(true)}
+        />
         <main className="content">{renderView()}</main>
       </div>
+      <CommandPalette
+        open={paletteOpen}
+        onClose={() => setPaletteOpen(false)}
+        can={can}
+        isOwner={isOwner}
+        onNavigate={navigate}
+        onOpenDevice={openDeviceFromHome}
+      />
     </div>
   );
 }
