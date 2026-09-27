@@ -98,7 +98,7 @@ function LatencySparkline({ checks }) {
     .join(' ');
   return (
     <svg viewBox={`0 0 ${w} ${h}`} width="100%" height={h} preserveAspectRatio="none">
-      <path d={path} fill="none" stroke="var(--accent-500)" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+      <path d={path} fill="none" style={{ stroke: 'var(--accent-500)' }} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
     </svg>
   );
 }
@@ -486,8 +486,8 @@ function TrendLineChart({ values, color = 'var(--accent-500)', height = 70 }) {
   const area = `${path} L ${w} ${h} L 0 ${h} Z`;
   return (
     <svg viewBox={`0 0 ${w} ${h}`} width="100%" height={h} preserveAspectRatio="none">
-      <path d={area} fill={color} opacity="0.12" stroke="none" />
-      <path d={path} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+      <path d={area} style={{ fill: color }} opacity="0.12" stroke="none" />
+      <path d={path} fill="none" style={{ stroke: color }} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
     </svg>
   );
 }
@@ -517,7 +517,7 @@ function PeakHoursChart({ hourCounts, color, unitLabel }) {
               width={barWidth}
               height={barH}
               rx={2}
-              fill={color}
+              style={{ fill: color }}
               opacity={hour === peakHour ? 1 : 0.5}
             >
               <title>{`${String(hour).padStart(2, '0')}h: ${c} ${unitLabel}`}</title>
