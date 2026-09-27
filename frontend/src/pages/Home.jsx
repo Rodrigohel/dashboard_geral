@@ -288,9 +288,9 @@ export default function Home({ user, onNavigate, can }) {
                   <div className="module-card-trend">
                     <div className="module-card-trend-label">{data.trendLabel}</div>
                     <svg viewBox="0 0 100 28" className="module-card-chart" preserveAspectRatio="none">
-                      <path d={spark.area} fill={meta.color} opacity="0.14" stroke="none" />
-                      <path d={spark.line} fill="none" stroke={meta.color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                      <circle cx={spark.lastX} cy={spark.lastY} r="2.6" fill={meta.color} />
+                      <path d={spark.area} style={{ fill: meta.color }} opacity="0.14" stroke="none" />
+                      <path d={spark.line} fill="none" style={{ stroke: meta.color }} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                      <circle cx={spark.lastX} cy={spark.lastY} r="2.6" style={{ fill: meta.color }} />
                     </svg>
                   </div>
                 )}

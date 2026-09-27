@@ -71,7 +71,7 @@ export default function HealthHistoryChart({ samples }) {
         {SERIES.map((s) => (
           <div key={s.key} style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-secondary)' }}>
             <svg width="16" height="8" aria-hidden="true">
-              <line x1="0" y1="4" x2="16" y2="4" stroke={`var(${s.var})`} strokeWidth="2" strokeLinecap="round" />
+              <line x1="0" y1="4" x2="16" y2="4" style={{ stroke: `var(${s.var})` }} strokeWidth="2" strokeLinecap="round" />
             </svg>
             {s.label}
           </div>
@@ -91,30 +91,46 @@ export default function HealthHistoryChart({ samples }) {
       >
         {TICKS.map((t) => (
           <g key={t}>
-            <line x1={PAD.left} x2={W - PAD.right} y1={yAt(t)} y2={yAt(t)} stroke="var(--border-subtle)" strokeWidth="1" />
-            <text x={PAD.left - 8} y={yAt(t)} textAnchor="end" dominantBaseline="middle" fontSize="10.5" fill="var(--text-tertiary)">
+            <line x1={PAD.left} x2={W - PAD.right} y1={yAt(t)} y2={yAt(t)} style={{ stroke: 'var(--border-subtle)' }} strokeWidth="1" />
+            <text x={PAD.left - 8} y={yAt(t)} textAnchor="end" dominantBaseline="middle" fontSize="10.5" style={{ fill: 'var(--text-tertiary)' }}>
               {t}%
             </text>
           </g>
         ))}
 
         {SERIES.map((s) => (
-          <path key={s.key} d={pathFor(samples, s.key, n)} fill="none" stroke={`var(${s.var})`} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          <path
+            key={s.key}
+            d={pathFor(samples, s.key, n)}
+            fill="none"
+            style={{ stroke: `var(${s.var})` }}
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
         ))}
 
         {lastPoint &&
           SERIES.map((s) => (
             <g key={s.key}>
-              <circle cx={xAt(n - 1, n)} cy={yAt(lastPoint[s.key])} r="6" fill="var(--bg-surface)" />
-              <circle cx={xAt(n - 1, n)} cy={yAt(lastPoint[s.key])} r="4" fill={`var(${s.var})`} />
-              <text x={xAt(n - 1, n) + 9} y={yAt(lastPoint[s.key])} dominantBaseline="middle" fontSize="11" fontWeight="700" fill="var(--text-primary)">
+              <circle cx={xAt(n - 1, n)} cy={yAt(lastPoint[s.key])} r="6" style={{ fill: 'var(--bg-surface)' }} />
+              <circle cx={xAt(n - 1, n)} cy={yAt(lastPoint[s.key])} r="4" style={{ fill: `var(${s.var})` }} />
+              <text x={xAt(n - 1, n) + 9} y={yAt(lastPoint[s.key])} dominantBaseline="middle" fontSize="11" fontWeight="700" style={{ fill: 'var(--text-primary)' }}>
                 {Math.round(lastPoint[s.key])}%
               </text>
             </g>
           ))}
 
         {hovered && (
-          <line x1={xAt(hoverIndex, n)} x2={xAt(hoverIndex, n)} y1={PAD.top} y2={PAD.top + PLOT_H} stroke="var(--text-tertiary)" strokeWidth="1" strokeDasharray="2,3" />
+          <line
+            x1={xAt(hoverIndex, n)}
+            x2={xAt(hoverIndex, n)}
+            y1={PAD.top}
+            y2={PAD.top + PLOT_H}
+            style={{ stroke: 'var(--text-tertiary)' }}
+            strokeWidth="1"
+            strokeDasharray="2,3"
+          />
         )}
       </svg>
 
@@ -137,7 +153,7 @@ export default function HealthHistoryChart({ samples }) {
           {SERIES.map((s) => (
             <div key={s.key} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5 }}>
               <svg width="10" height="8" aria-hidden="true" style={{ flexShrink: 0 }}>
-                <line x1="0" y1="4" x2="10" y2="4" stroke={`var(${s.var})`} strokeWidth="2" strokeLinecap="round" />
+                <line x1="0" y1="4" x2="10" y2="4" style={{ stroke: `var(${s.var})` }} strokeWidth="2" strokeLinecap="round" />
               </svg>
               <span style={{ color: 'var(--text-secondary)' }}>{s.label}</span>
               <strong style={{ marginLeft: 'auto', color: 'var(--text-primary)' }}>{Math.round(hovered[s.key])}%</strong>

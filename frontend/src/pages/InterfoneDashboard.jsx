@@ -186,8 +186,8 @@ function CallsTrendChart({ data }) {
           const y = yAt(t);
           return (
             <g key={t}>
-              <line x1={pad.left} x2={W - pad.right} y1={y} y2={y} stroke="var(--border-subtle)" strokeWidth="1" />
-              <text x={pad.left - 8} y={y + 3} textAnchor="end" fontSize="10" fill="var(--text-tertiary)">
+              <line x1={pad.left} x2={W - pad.right} y1={y} y2={y} style={{ stroke: 'var(--border-subtle)' }} strokeWidth="1" />
+              <text x={pad.left - 8} y={y + 3} textAnchor="end" fontSize="10" style={{ fill: 'var(--text-tertiary)' }}>
                 {t}
               </text>
             </g>
@@ -195,21 +195,21 @@ function CallsTrendChart({ data }) {
         })}
 
         {categories.map((cat, i) => (
-          <text key={cat} x={xAt(i)} y={H - 6} textAnchor="middle" fontSize="10" fill="var(--text-tertiary)">
+          <text key={cat} x={xAt(i)} y={H - 6} textAnchor="middle" fontSize="10" style={{ fill: 'var(--text-tertiary)' }}>
             {cat}
           </text>
         ))}
 
         {seriesPoints.map((s) => (
           <g key={s.key}>
-            <path d={s.areaPath} fill={s.color} opacity="0.1" stroke="none" />
-            <path d={s.linePath} fill="none" stroke={s.color} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
-            <circle cx={s.points[n - 1].x} cy={s.points[n - 1].y} r="4" fill={s.color} stroke="var(--bg-surface)" strokeWidth="2" />
+            <path d={s.areaPath} style={{ fill: s.color }} opacity="0.1" stroke="none" />
+            <path d={s.linePath} fill="none" style={{ stroke: s.color }} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+            <circle cx={s.points[n - 1].x} cy={s.points[n - 1].y} r="4" style={{ fill: s.color, stroke: 'var(--bg-surface)' }} strokeWidth="2" />
           </g>
         ))}
 
         {endLabels.map((l) => (
-          <text key={l.key} x={W - pad.right + 8} y={l.y + 3} fontSize="10.5" fontWeight="700" fill="var(--text-secondary)">
+          <text key={l.key} x={W - pad.right + 8} y={l.y + 3} fontSize="10.5" fontWeight="700" style={{ fill: 'var(--text-secondary)' }}>
             {l.value}
           </text>
         ))}
@@ -221,7 +221,7 @@ function CallsTrendChart({ data }) {
               x2={xAt(hoverIndex)}
               y1={pad.top}
               y2={pad.top + plotH}
-              stroke="var(--border-strong)"
+              style={{ stroke: 'var(--border-strong)' }}
               strokeWidth="1"
             />
             {seriesPoints.map((s) => (
@@ -230,8 +230,7 @@ function CallsTrendChart({ data }) {
                 cx={xAt(hoverIndex)}
                 cy={s.points[hoverIndex].y}
                 r="4"
-                fill={s.color}
-                stroke="var(--bg-surface)"
+                style={{ fill: s.color, stroke: 'var(--bg-surface)' }}
                 strokeWidth="2"
               />
             ))}
@@ -554,7 +553,7 @@ function PeakHoursChart({ hourCounts, color, unitLabel }) {
               width={barWidth}
               height={barH}
               rx={2}
-              fill={color}
+              style={{ fill: color }}
               opacity={hour === peakHour ? 1 : 0.5}
             >
               <title>{`${String(hour).padStart(2, '0')}h: ${c} ${unitLabel}`}</title>
