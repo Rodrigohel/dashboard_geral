@@ -36,6 +36,7 @@ const paths = {
   thermometer: 'M14 14.76V4a2 2 0 1 0-4 0v10.76a4 4 0 1 0 4 0Z',
   cpu: 'M9 3v3M15 3v3M9 18v3M15 18v3M3 9h3M3 15h3M18 9h3M18 15h3M7 7h10v10H7z',
   menu: 'M4 6h16M4 12h16M4 18h16',
+  star: 'M12 2 15.1 8.3 22 9.3 17 14.1 18.2 21 12 17.8 5.8 21 7 14.1 2 9.3 8.9 8.3Z',
 };
 
 export default function Icon({ name, size = 18, strokeWidth = 1.8, className }) {

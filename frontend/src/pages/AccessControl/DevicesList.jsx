@@ -158,6 +158,11 @@ export default function DevicesList({ isOwner, onOpenDevice }) {
                   <span>
                     {d.lastOpen.success ? 'Aberto' : 'Falha ao abrir'} por <strong>{d.lastOpen.username}</strong>, {timeAgo(d.lastOpen.createdAt)}
                   </span>
+                  {d.lastOpen.anomaly && (
+                    <span className="badge badge-warning" title="Esse porteiro nunca tinha sido aberto nesse horário antes.">
+                      <span className="badge-dot" /> horário incomum
+                    </span>
+                  )}
                 </div>
               )}
               {d.canOpen && (

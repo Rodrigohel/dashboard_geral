@@ -437,9 +437,37 @@ function formatDuration(ms) {
   return `${Math.round(hours / 24)} d`;
 }
 
+// Faixas genéricas de latência de rede local — não vêm de nenhuma
+// configuração, é só uma régua razoável pra colorir o número (abaixo de
+// 100ms é bom em qualquer rede local, acima de 300ms já é perceptível).
+function latencyColor(ms) {
+  if (ms == null) return 'var(--text-primary)';
+  if (ms >= 300) return 'var(--danger-500)';
+  if (ms >= 100) return 'var(--warning-500)';
+  return 'var(--success-500)';
+}
+
+// Detecção de pico de latência: compara a última rodada contra a média +
+// desvio-padrão das rodadas anteriores da mesma janela de 24h — só acusa
+// anomalia com pelo menos 6 pontos anteriores pra ter uma "normalidade"
+// minimamente confiável com que comparar (rede muito nova ainda não tem).
+function detectLatencyAnomaly(rows) {
+  if (!rows || rows.length < 7) return null;
+  const last = rows[rows.length - 1];
+  if (last?.avgLatencyMs == null) return null;
+  const baseline = rows.slice(0, -1).map((r) => r.avgLatencyMs).filter((v) => typeof v === 'number');
+  if (baseline.length < 6) return null;
+  const mean = baseline.reduce((a, b) => a + b, 0) / baseline.length;
+  const variance = baseline.reduce((a, b) => a + (b - mean) ** 2, 0) / baseline.length;
+  const stdev = Math.sqrt(variance);
+  if (stdev <= 0 || last.avgLatencyMs <= mean + 2 * stdev) return null;
+  return { current: Math.round(last.avgLatencyMs), mean: Math.round(mean) };
+}
+
 function AnaliseSection() {
   const [snapshot, setSnapshot] = useState(null);
   const [flappiest, setFlappiest] = useState([]);
+  const [latencyAnomaly, setLatencyAnomaly] = useState(null);
   const [downloading, setDownloading] = useState(false);
   const toast = useToast();
 
@@ -449,6 +477,7 @@ function AnaliseSection() {
         const rows = nh.data || [];
         setSnapshot(rows[rows.length - 1] || null);
         setFlappiest(fl.data || []);
+        setLatencyAnomaly(detectLatencyAnomaly(rows));
       })
       .catch(() => {});
   }, []);
@@ -479,14 +508,31 @@ function AnaliseSection() {
         </button>
       </div>
       <p className="field-hint" style={{ marginBottom: 16 }}>Latência da última rodada de checagem e equipamentos mais instáveis (24h).</p>
+
+      {latencyAnomaly && (
+        <div className="service-row" style={{ '--card-accent': 'var(--danger-500)', marginBottom: 16 }}>
+          <div>
+            <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--danger-500)' }}>Latência fora do normal</div>
+            <div className="field-hint">
+              {latencyAnomaly.current} ms agora, contra uma média de {latencyAnomaly.mean} ms nas últimas 24h.
+            </div>
+          </div>
+          <span className="badge badge-danger"><span className="badge-dot" /> anomalia</span>
+        </div>
+      )}
+
       <div style={{ display: 'flex', gap: 32, flexWrap: 'wrap', marginBottom: 20 }}>
         <div>
           <div className="field-hint">Latência média</div>
-          <div style={{ fontSize: 22, fontWeight: 700 }}>{snapshot?.avgLatencyMs != null ? `${Math.round(snapshot.avgLatencyMs)} ms` : '—'}</div>
+          <div style={{ fontSize: 22, fontWeight: 700, color: latencyColor(snapshot?.avgLatencyMs) }}>
+            {snapshot?.avgLatencyMs != null ? `${Math.round(snapshot.avgLatencyMs)} ms` : '—'}
+          </div>
         </div>
         <div>
           <div className="field-hint">Latência p95</div>
-          <div style={{ fontSize: 22, fontWeight: 700 }}>{snapshot?.p95LatencyMs != null ? `${Math.round(snapshot.p95LatencyMs)} ms` : '—'}</div>
+          <div style={{ fontSize: 22, fontWeight: 700, color: latencyColor(snapshot?.p95LatencyMs) }}>
+            {snapshot?.p95LatencyMs != null ? `${Math.round(snapshot.p95LatencyMs)} ms` : '—'}
+          </div>
         </div>
       </div>
       <div style={{ fontWeight: 600, fontSize: 13.5, marginBottom: 8 }}>Mais instáveis</div>
@@ -581,6 +627,7 @@ export default function RedeDashboard({ can }) {
   const [page, setPage] = useState(1);
   const [viewingDevice, setViewingDevice] = useState(null);
   const PAGE_SIZE = 10;
+  const toast = useToast();
 
   const canSeeFloorPlan = can('rede.plantaBaixa');
   const canSeeAnalise = can('rede.analise');
@@ -606,14 +653,30 @@ export default function RedeDashboard({ can }) {
     };
   }, []);
 
-  const filteredDevices = devices.filter((d) => {
-    const needle = deviceFilter.trim().toLowerCase();
-    if (!needle) return true;
-    return d.name.toLowerCase().includes(needle) || d.ip.includes(needle) || (d.location || '').toLowerCase().includes(needle);
-  });
+  const filteredDevices = devices
+    .filter((d) => {
+      const needle = deviceFilter.trim().toLowerCase();
+      if (!needle) return true;
+      return d.name.toLowerCase().includes(needle) || d.ip.includes(needle) || (d.location || '').toLowerCase().includes(needle);
+    })
+    .sort((a, b) => (b.favorite ? 1 : 0) - (a.favorite ? 1 : 0));
   const totalPages = Math.max(1, Math.ceil(filteredDevices.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
   const pageDevices = filteredDevices.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+
+  // "Favoritar" é do painel de Rede original — descoberto por uma exceção no
+  // server.js do Portal, nunca chamado daqui antes. Se o formato do endpoint
+  // estiver errado, isso só mostra um toast de erro (não quebra a tela).
+  async function handleToggleFavorite(e, device) {
+    e.stopPropagation();
+    const next = !device.favorite;
+    try {
+      await api.rede.setFavorite(device.id, next);
+      setDevices((prev) => prev.map((d) => (d.id === device.id ? { ...d, favorite: next } : d)));
+    } catch (err) {
+      toast(`Não foi possível favoritar: ${err.message}`, 'error');
+    }
+  }
 
   return (
     <>
@@ -690,6 +753,7 @@ export default function RedeDashboard({ can }) {
                   <table className="data-table">
                     <thead>
                       <tr>
+                        <th></th>
                         <th>Nome</th>
                         <th>IP</th>
                         <th>Local</th>
@@ -705,6 +769,17 @@ export default function RedeDashboard({ can }) {
                           className={d.status === 'offline' ? 'row-tone-danger' : d.status === 'degraded' ? 'row-tone-warning' : ''}
                           style={{ cursor: 'pointer' }}
                         >
+                          <td style={{ width: 32 }}>
+                            <button
+                              type="button"
+                              className="btn btn-ghost btn-icon btn-sm"
+                              onClick={(e) => handleToggleFavorite(e, d)}
+                              title={d.favorite ? 'Remover dos favoritos' : 'Favoritar'}
+                              style={{ color: d.favorite ? 'var(--warning-500)' : 'var(--text-tertiary)' }}
+                            >
+                              <Icon name="star" size={15} />
+                            </button>
+                          </td>
                           <td style={{ fontWeight: 600 }}>{d.name}</td>
                           <td style={{ color: 'var(--text-secondary)' }}>{d.ip}</td>
                           <td style={{ color: 'var(--text-secondary)' }}>{d.location || '—'}</td>
