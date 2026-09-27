@@ -79,6 +79,9 @@
   --shadow-md: 0 8px 24px -8px rgba(0, 0, 0, 0.55);
   --shadow-lg: 0 24px 64px -16px rgba(0, 0, 0, 0.6);
   --overlay-scrim: rgba(5, 7, 16, 0.72);
+  /* Zebra sutil pra tabela longa — sobreposição bem fraca de propósito, só
+     pra guiar o olho de linha em linha sem competir com as cores de status. */
+  --table-stripe: rgba(255, 255, 255, 0.025);
 }
 
 :root[data-theme='light'] {
@@ -97,4 +100,5 @@
   --shadow-md: 0 8px 24px -10px rgba(15, 23, 42, 0.14);
   --shadow-lg: 0 24px 64px -20px rgba(15, 23, 42, 0.22);
   --overlay-scrim: rgba(15, 20, 36, 0.4);
+  --table-stripe: rgba(15, 23, 42, 0.025);
 }

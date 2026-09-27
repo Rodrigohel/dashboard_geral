@@ -217,20 +217,39 @@ table.data-table {
   background: var(--bg-surface);
   transition: background-color 0.15s var(--ease);
 }
+/* Zebra sutil — ajuda a acompanhar uma linha em tabelas compridas (lista de
+   equipamentos, histórico). Vem antes do :hover de propósito, pra passar o
+   mouse continuar dando o destaque de sempre mesmo numa linha "zebrada". */
+.data-table tbody tr:nth-child(even) {
+  background: var(--table-stripe);
+}
 .data-table tbody tr:hover {
   background: var(--bg-surface-hover);
 }
 .data-table tbody tr:last-child td {
   border-bottom: none;
 }
-/* Tinta sutil de fundo pra linha problemática pular aos olhos sem precisar
-   ler o badge — vem depois do :hover (mesma especificidade) de propósito,
-   pra continuar visível mesmo passando o mouse por cima. */
+/* Tinta de fundo pra linha problemática pular aos olhos sem precisar ler o
+   badge — vem depois do :hover (mesma especificidade) de propósito, pra
+   continuar visível mesmo passando o mouse por cima. O !important no texto
+   é intencional: cada célula já define sua própria cor por inline style
+   (ver Rede/InterfoneDashboard.jsx) pra hierarquia visual normal — nada em
+   CSS "puro" vence um inline style, e o texto secundário (cinza) cai muito
+   o contraste em cima do fundo colorido. É a única exceção no projeto pra
+   esse padrão, e só se aplica dentro de uma linha já marcada como
+   problema. */
+/* Mais opacas que --warning-soft/--danger-soft (pensadas pra badge pequeno)
+   — numa linha inteira de tabela, 0.16 de opacidade passava batido; aqui
+   precisa realmente saltar aos olhos. */
 .data-table tbody tr.row-tone-warning {
-  background: var(--warning-soft);
+  background: rgba(245, 166, 35, 0.22);
 }
 .data-table tbody tr.row-tone-danger {
-  background: var(--danger-soft);
+  background: rgba(239, 68, 68, 0.24);
+}
+.data-table tbody tr.row-tone-warning td,
+.data-table tbody tr.row-tone-danger td {
+  color: var(--text-primary) !important;
 }
 .row-actions {
   display: flex;

@@ -553,6 +553,27 @@ function AnaliseSection() {
   );
 }
 
+// O rótulo do evento vem pronto do painel original ("ficou online", "ficou
+// offline" etc.) — não temos um campo de tipo separado, então detectamos
+// pela própria frase. Fallback neutro pra qualquer texto que não bata com
+// nenhum padrão conhecido, em vez de arriscar colorir errado.
+function eventTone(label) {
+  const l = (label || '').toLowerCase();
+  if (/offline|caiu|queda|down/.test(l)) return 'danger';
+  if (/online|recuper|voltou|subiu/.test(l)) return 'success';
+  return null;
+}
+
+function EventBadge({ label }) {
+  const tone = eventTone(label);
+  if (!tone) return <span>{label}</span>;
+  return (
+    <span className={`badge badge-${tone}`}>
+      <span className="badge-dot" /> {label}
+    </span>
+  );
+}
+
 const HISTORY_PAGE_SIZE = 10;
 
 function HistoricoSection() {
@@ -589,10 +610,12 @@ function HistoricoSection() {
               </thead>
               <tbody>
                 {pageHistory.map((e) => (
-                  <tr key={e.id}>
+                  <tr key={e.id} className={eventTone(e.eventLabel) === 'danger' ? 'row-tone-danger' : ''}>
                     <td style={{ color: 'var(--text-secondary)' }}>{new Date(e.at).toLocaleString('pt-BR')}</td>
                     <td style={{ fontWeight: 600 }}>{e.device?.name}</td>
-                    <td>{e.eventLabel}</td>
+                    <td>
+                      <EventBadge label={e.eventLabel} />
+                    </td>
                     <td style={{ color: 'var(--text-secondary)' }}>{formatDuration(e.durationMs)}</td>
                   </tr>
                 ))}
