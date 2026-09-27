@@ -536,6 +536,8 @@ table.data-table {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
   padding: 12px 0 12px 12px;
   border-left: 3px solid var(--card-accent, transparent);
   border-bottom: 1px solid var(--border-subtle);

@@ -527,6 +527,75 @@ function detectMissedAnomaly(today, trend) {
   return { current: missedToday, mean: Math.round(mean * 10) / 10 };
 }
 
+// Barras de 0h a 23h — mesma ideia usada na Rede pra "horário de pico de
+// queda", aqui pra "horário de pico de chamada". Duplicado em vez de
+// compartilhado entre os dois arquivos de painel de propósito — cada
+// painel já é autocontido no resto do código (StatusBadge, MiniStat/
+// SummaryCard etc. também existem em cópias próprias), então manter esse
+// padrão em vez de criar um módulo novo só pra isso.
+function PeakHoursChart({ hourCounts, color, unitLabel }) {
+  const max = Math.max(...hourCounts);
+  if (max === 0) return <div className="field-hint">Sem dados suficientes ainda.</div>;
+  const peakHour = hourCounts.indexOf(max);
+  const w = 480;
+  const h = 70;
+  const gap = 2;
+  const barWidth = (w - gap * 23) / 24;
+  return (
+    <div>
+      <svg viewBox={`0 0 ${w} ${h}`} width="100%" height={h} preserveAspectRatio="none">
+        {hourCounts.map((c, hour) => {
+          const barH = c === 0 ? 0 : Math.max((c / max) * h, 3);
+          return (
+            <rect
+              key={hour}
+              x={hour * (barWidth + gap)}
+              y={h - barH}
+              width={barWidth}
+              height={barH}
+              rx={2}
+              fill={color}
+              opacity={hour === peakHour ? 1 : 0.5}
+            >
+              <title>{`${String(hour).padStart(2, '0')}h: ${c} ${unitLabel}`}</title>
+            </rect>
+          );
+        })}
+      </svg>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          fontSize: 10,
+          color: 'var(--text-tertiary)',
+          fontFamily: 'var(--font-mono)',
+          marginTop: 2,
+        }}
+      >
+        <span>00h</span>
+        <span>06h</span>
+        <span>12h</span>
+        <span>18h</span>
+        <span>23h</span>
+      </div>
+      <div className="field-hint" style={{ marginTop: 8 }}>
+        Horário de pico: <strong style={{ color: 'var(--text-primary)' }}>{String(peakHour).padStart(2, '0')}h</strong> ({max}{' '}
+        {unitLabel}).
+      </div>
+    </div>
+  );
+}
+
+function countByHour(items, getDate) {
+  const counts = new Array(24).fill(0);
+  for (const item of items) {
+    const d = getDate(item);
+    if (!d || Number.isNaN(d.getTime())) continue;
+    counts[d.getHours()] += 1;
+  }
+  return counts;
+}
+
 export default function InterfoneDashboard() {
   const [summary, setSummary] = useState(null);
   const [today, setToday] = useState(null);
@@ -534,6 +603,9 @@ export default function InterfoneDashboard() {
   const [activeCalls, setActiveCalls] = useState([]);
   const [missed, setMissed] = useState([]);
   const [trend, setTrend] = useState(null);
+  const [trendRange, setTrendRange] = useState('7d');
+  const [trend30, setTrend30] = useState(null);
+  const [callHourCounts, setCallHourCounts] = useState(null);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -567,7 +639,30 @@ export default function InterfoneDashboard() {
     };
   }, []);
 
+  // Buscado sob demanda só quando o usuário troca pra "30 dias" — o de 7
+  // dias já vem sempre (é usado também na detecção de anomalia de perdidas).
+  useEffect(() => {
+    if (trendRange === '30d' && trend30 === null) {
+      api.interfone
+        .callsSummary('30d')
+        .then(setTrend30)
+        .catch(() => setTrend30({ categories: [] }));
+    }
+  }, [trendRange, trend30]);
+
+  // Horário de pico de chamada — calculado aqui a partir do histórico já
+  // existente (não é um endpoint novo/não confirmado), com uma amostra
+  // maior que a paginação normal de 10 por página pra ter um padrão
+  // minimamente confiável.
+  useEffect(() => {
+    api.interfone
+      .callHistory({ pageSize: 500 })
+      .then((res) => setCallHourCounts(countByHour(res.data || [], (c) => new Date(c.at))))
+      .catch(() => {});
+  }, []);
+
   const missedAnomaly = detectMissedAnomaly(today, trend);
+  const displayedTrend = trendRange === '30d' ? trend30 : trend;
 
   return (
     <>
@@ -603,7 +698,17 @@ export default function InterfoneDashboard() {
       )}
 
       <div className="surface" style={{ padding: 24 }}>
-        <div style={{ fontWeight: 700, marginBottom: 4 }}>Chamadas nos últimos 7 dias</div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: 4 }}>
+          <div style={{ fontWeight: 700 }}>Chamadas nos últimos {trendRange === '30d' ? '30 dias' : '7 dias'}</div>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button className={`btn btn-sm ${trendRange === '7d' ? 'btn-secondary' : 'btn-ghost'}`} onClick={() => setTrendRange('7d')}>
+              7 dias
+            </button>
+            <button className={`btn btn-sm ${trendRange === '30d' ? 'btn-secondary' : 'btn-ghost'}`} onClick={() => setTrendRange('30d')}>
+              30 dias
+            </button>
+          </div>
+        </div>
         <p className="field-hint" style={{ marginBottom: 16 }}>Recebidas, realizadas, perdidas e falhas por dia.</p>
 
         {missedAnomaly && (
@@ -618,7 +723,19 @@ export default function InterfoneDashboard() {
           </div>
         )}
 
-        {trend === null ? <div className="skeleton" style={{ height: 160, borderRadius: 12 }} /> : <CallsTrendChart data={trend} />}
+        {displayedTrend === null ? (
+          <div className="skeleton" style={{ height: 160, borderRadius: 12 }} />
+        ) : (
+          <CallsTrendChart data={displayedTrend} />
+        )}
+
+        <div style={{ fontWeight: 600, fontSize: 13.5, marginTop: 24, marginBottom: 8 }}>Horário de pico de chamadas</div>
+        <p className="field-hint" style={{ marginBottom: 12 }}>Em que horário do dia mais chamadas acontecem (últimas até 500 do histórico).</p>
+        {callHourCounts === null ? (
+          <div className="skeleton" style={{ height: 90, borderRadius: 8 }} />
+        ) : (
+          <PeakHoursChart hourCounts={callHourCounts} color="var(--accent-500)" unitLabel="chamada(s)" />
+        )}
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 'var(--space-4)' }}>
