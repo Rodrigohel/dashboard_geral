@@ -65,12 +65,21 @@ function ServerHealthWidget({ onNavigate }) {
   );
 }
 
+const ACTIVITY_PAGE_SIZE = 5;
+
 // Junta em uma linha do tempo só o que hoje só dava pra ver em 3 telas
 // separadas — queda/recuperação de rede, chamada perdida, abertura de
 // porteiro. Cada fonte é opcional (só entra se o usuário tiver acesso ao
 // módulo e permissão pro dado): a lista mescla o que existir de verdade,
-// sem inventar nada pras fontes indisponíveis.
+// sem inventar nada pras fontes indisponíveis. Paginado (5 por página) e
+// colocado por último na tela — sem isso, no celular o card ficava
+// comprido e empurrava os cards de módulo lá pra baixo.
 function ActivityFeed({ events }) {
+  const [page, setPage] = useState(1);
+  const totalPages = Math.max(1, Math.ceil(events.length / ACTIVITY_PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const pageEvents = events.slice((safePage - 1) * ACTIVITY_PAGE_SIZE, safePage * ACTIVITY_PAGE_SIZE);
+
   if (events.length === 0) {
     return (
       <div className="surface" style={{ padding: 20 }}>
@@ -89,7 +98,7 @@ function ActivityFeed({ events }) {
         Atividade recente
       </div>
       <div style={{ display: 'flex', flexDirection: 'column' }}>
-        {events.map((e) => (
+        {pageEvents.map((e) => (
           <div key={e.id} className="service-row">
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
               <div
@@ -122,6 +131,23 @@ function ActivityFeed({ events }) {
           </div>
         ))}
       </div>
+      {totalPages > 1 && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 10, marginTop: 12 }}>
+          <span className="field-hint">
+            Página {safePage} de {totalPages}
+          </span>
+          <button className="btn btn-secondary btn-sm" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={safePage <= 1}>
+            Anterior
+          </button>
+          <button
+            className="btn btn-secondary btn-sm"
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            disabled={safePage >= totalPages}
+          >
+            Próxima
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -307,7 +333,7 @@ export default function Home({ user, onNavigate, can }) {
   }
   const activityFeed = [...redeActivity, ...interfoneActivity, ...acessoActivity]
     .sort((a, b) => toTimestamp(b.at) - toTimestamp(a.at))
-    .slice(0, 10);
+    .slice(0, 25);
 
   const firstName = (user.displayName || user.username).split(' ')[0];
   const hour = new Date().getHours();
@@ -379,8 +405,6 @@ export default function Home({ user, onNavigate, can }) {
           <p>Aqui está um resumo do que você tem acesso.</p>
         </div>
       </div>
-
-      {(hasRede || hasInterfone || hasAcesso) && <ActivityFeed events={activityFeed} />}
 
       {isOwner && <ServerHealthWidget onNavigate={onNavigate} />}
 
@@ -499,6 +523,8 @@ export default function Home({ user, onNavigate, can }) {
           Você ainda não tem nenhum módulo liberado. Peça ao administrador para configurar seu acesso.
         </div>
       )}
+
+      {(hasRede || hasInterfone || hasAcesso) && <ActivityFeed events={activityFeed} />}
     </>
   );
 }
