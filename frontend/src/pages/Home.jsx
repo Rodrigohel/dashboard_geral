@@ -70,6 +70,7 @@ const MODULE_META = {
     icon: 'network',
     desc: 'Câmeras, NVRs, switches e porteiros monitorados em tempo real — status, alertas e histórico de queda.',
     color: 'var(--module-rede)',
+    colorEnd: 'var(--module-rede-end)',
     glow: 'var(--module-rede-glow)',
   },
   interfone: {
@@ -77,6 +78,7 @@ const MODULE_META = {
     icon: 'phone',
     desc: 'Ramais, chamadas ativas e saúde do PBX/Asterisk.',
     color: 'var(--module-interfone)',
+    colorEnd: 'var(--module-interfone-end)',
     glow: 'var(--module-interfone-glow)',
   },
   acesso: {
@@ -84,6 +86,7 @@ const MODULE_META = {
     icon: 'shieldFace',
     desc: 'Porteiros com reconhecimento facial — cadastro de moradores, fotos e abertura remota.',
     color: 'var(--module-acesso)',
+    colorEnd: 'var(--module-acesso-end)',
     glow: 'var(--module-acesso-glow)',
   },
 };
@@ -288,9 +291,26 @@ export default function Home({ user, onNavigate, can }) {
                   <div className="module-card-trend">
                     <div className="module-card-trend-label">{data.trendLabel}</div>
                     <svg viewBox="0 0 100 28" className="module-card-chart" preserveAspectRatio="none">
-                      <path d={spark.area} style={{ fill: meta.color }} opacity="0.14" stroke="none" />
-                      <path d={spark.line} fill="none" style={{ stroke: meta.color }} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                      <circle cx={spark.lastX} cy={spark.lastY} r="2.6" style={{ fill: meta.color }} />
+                      <defs>
+                        <linearGradient id={`spark-line-${key}`} x1="0" y1="0" x2="1" y2="0">
+                          <stop offset="0%" style={{ stopColor: meta.color }} />
+                          <stop offset="100%" style={{ stopColor: meta.colorEnd }} />
+                        </linearGradient>
+                        <linearGradient id={`spark-area-${key}`} x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" style={{ stopColor: meta.colorEnd }} stopOpacity="0.35" />
+                          <stop offset="100%" style={{ stopColor: meta.colorEnd }} stopOpacity="0" />
+                        </linearGradient>
+                      </defs>
+                      <path d={spark.area} fill={`url(#spark-area-${key})`} stroke="none" />
+                      <path
+                        d={spark.line}
+                        fill="none"
+                        stroke={`url(#spark-line-${key})`}
+                        strokeWidth="2.25"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                      <circle cx={spark.lastX} cy={spark.lastY} r="2.8" style={{ fill: meta.colorEnd }} />
                     </svg>
                   </div>
                 )}

@@ -200,10 +200,19 @@ function CallsTrendChart({ data }) {
           </text>
         ))}
 
+        <defs>
+          {seriesPoints.map((s) => (
+            <linearGradient key={s.key} id={`trend-area-${s.key}`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" style={{ stopColor: s.color }} stopOpacity="0.28" />
+              <stop offset="100%" style={{ stopColor: s.color }} stopOpacity="0" />
+            </linearGradient>
+          ))}
+        </defs>
+
         {seriesPoints.map((s) => (
           <g key={s.key}>
-            <path d={s.areaPath} style={{ fill: s.color }} opacity="0.1" stroke="none" />
-            <path d={s.linePath} fill="none" style={{ stroke: s.color }} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+            <path d={s.areaPath} fill={`url(#trend-area-${s.key})`} stroke="none" />
+            <path d={s.linePath} fill="none" style={{ stroke: s.color }} strokeWidth="2.25" strokeLinejoin="round" strokeLinecap="round" />
             <circle cx={s.points[n - 1].x} cy={s.points[n - 1].y} r="4" style={{ fill: s.color, stroke: 'var(--bg-surface)' }} strokeWidth="2" />
           </g>
         ))}
@@ -532,7 +541,7 @@ function detectMissedAnomaly(today, trend) {
 // painel já é autocontido no resto do código (StatusBadge, MiniStat/
 // SummaryCard etc. também existem em cópias próprias), então manter esse
 // padrão em vez de criar um módulo novo só pra isso.
-function PeakHoursChart({ hourCounts, color, unitLabel }) {
+function PeakHoursChart({ hourCounts, gradId, unitLabel }) {
   const max = Math.max(...hourCounts);
   if (max === 0) return <div className="field-hint">Sem dados suficientes ainda.</div>;
   const peakHour = hourCounts.indexOf(max);
@@ -543,6 +552,16 @@ function PeakHoursChart({ hourCounts, color, unitLabel }) {
   return (
     <div>
       <svg viewBox={`0 0 ${w} ${h}`} width="100%" height={h} preserveAspectRatio="none">
+        <defs>
+          <linearGradient id={`${gradId}-hot`} x1="0" y1="1" x2="0" y2="0">
+            <stop offset="0%" style={{ stopColor: 'var(--viz-call-hot-1)' }} />
+            <stop offset="100%" style={{ stopColor: 'var(--viz-call-hot-2)' }} />
+          </linearGradient>
+          <linearGradient id={`${gradId}-dim`} x1="0" y1="1" x2="0" y2="0">
+            <stop offset="0%" style={{ stopColor: 'var(--viz-call-dim-1)' }} />
+            <stop offset="100%" style={{ stopColor: 'var(--viz-call-dim-2)' }} />
+          </linearGradient>
+        </defs>
         {hourCounts.map((c, hour) => {
           const barH = c === 0 ? 0 : Math.max((c / max) * h, 3);
           return (
@@ -552,9 +571,8 @@ function PeakHoursChart({ hourCounts, color, unitLabel }) {
               y={h - barH}
               width={barWidth}
               height={barH}
-              rx={2}
-              style={{ fill: color }}
-              opacity={hour === peakHour ? 1 : 0.5}
+              rx={3}
+              fill={hour === peakHour ? `url(#${gradId}-hot)` : `url(#${gradId}-dim)`}
             >
               <title>{`${String(hour).padStart(2, '0')}h: ${c} ${unitLabel}`}</title>
             </rect>
@@ -733,7 +751,7 @@ export default function InterfoneDashboard() {
         {callHourCounts === null ? (
           <div className="skeleton" style={{ height: 90, borderRadius: 8 }} />
         ) : (
-          <PeakHoursChart hourCounts={callHourCounts} color="var(--accent-500)" unitLabel="chamada(s)" />
+          <PeakHoursChart hourCounts={callHourCounts} gradId="peak-calls" unitLabel="chamada(s)" />
         )}
       </div>
 

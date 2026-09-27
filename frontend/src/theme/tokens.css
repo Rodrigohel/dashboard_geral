@@ -35,6 +35,28 @@
   --module-acesso: #b39ddb;
   --module-acesso-glow: rgba(179, 157, 219, 0.35);
 
+  /* Segunda parada de cor pra gradiente dos gráficos de cada módulo — só
+     decorativo (sparkline, linha de tendência), nunca usado sozinho pra
+     identidade/status. Combina com a cor principal do módulo acima. */
+  --module-rede-end: #8b5cf6;
+  --module-interfone-end: #4c8dff;
+  --module-acesso-end: #f472b6;
+
+  /* Gradientes só dos gráficos de análise (Rede/Interfone) — decorativo,
+     pedido explicitamente pelo cliente pra ficar mais vivo que uma cor só.
+     "peak-hot" é a barra do horário de pico; "peak-dim" as demais barras. */
+  --viz-trend-1: #6fa3ff;
+  --viz-trend-2: #b98bff;
+  --viz-trend-3: #ff8bcf;
+  --viz-peak-hot-1: #ff9f6b;
+  --viz-peak-hot-2: #ff6b6b;
+  --viz-peak-dim-1: #8a5a4a;
+  --viz-peak-dim-2: #7d3b52;
+  --viz-call-hot-1: #4c8dff;
+  --viz-call-hot-2: #2dd4bf;
+  --viz-call-dim-1: #2a5f8f;
+  --viz-call-dim-2: #1f6e66;
+
   --success-500: #22c55e;
   --success-soft: rgba(34, 197, 94, 0.16);
   --warning-500: #f5a623;
