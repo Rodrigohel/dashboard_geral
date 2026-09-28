@@ -2,6 +2,11 @@ import { Router } from 'express';
 import { MODULE_KEYS } from '../config.js';
 import { getGatewayConfig, saveGatewayConfig, testGatewayConnection } from '../services/gatewayService.js';
 import { getSecuritySettings, saveSecuritySettings, validateSecuritySettings } from '../services/securitySettingsService.js';
+import {
+  getRetentionSettings,
+  saveRetentionSettings,
+  validateRetentionSettings,
+} from '../services/retentionSettingsService.js';
 
 export const settingsRouter = Router();
 const GATEWAY_MODULES = MODULE_KEYS.filter((k) => k !== 'acesso'); // 'rede' | 'interfone'
@@ -51,4 +56,15 @@ settingsRouter.put('/security', (req, res) => {
   if (error) return res.status(400).json({ error });
   saveSecuritySettings(req.body);
   res.json(getSecuritySettings());
+});
+
+settingsRouter.get('/retention', (req, res) => {
+  res.json(getRetentionSettings());
+});
+
+settingsRouter.put('/retention', (req, res) => {
+  const error = validateRetentionSettings(req.body || {});
+  if (error) return res.status(400).json({ error });
+  saveRetentionSettings(req.body);
+  res.json(getRetentionSettings());
 });

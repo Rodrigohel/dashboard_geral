@@ -152,10 +152,10 @@ export default function DeviceUsers({ device, onBack }) {
             <thead>
               <tr>
                 <th>Nome</th>
-                <th>Matrícula</th>
+                <th className="hide-mobile">Matrícula</th>
                 <th>Apartamento</th>
                 <th>Facial</th>
-                <th>Cartão</th>
+                <th className="hide-mobile">Cartão</th>
                 <th>Expira em</th>
                 <th></th>
               </tr>
@@ -164,7 +164,7 @@ export default function DeviceUsers({ device, onBack }) {
               {filtered.map((u) => (
                 <tr key={u.id}>
                   <td style={{ fontWeight: 600 }}>{u.name}</td>
-                  <td>{u.registration || '—'}</td>
+                  <td className="hide-mobile">{u.registration || '—'}</td>
                   <td>{u.apartment || '—'}</td>
                   <td>
                     <button
@@ -178,7 +178,7 @@ export default function DeviceUsers({ device, onBack }) {
                       ver foto
                     </button>
                   </td>
-                  <td>{u.cardNumber || '—'}</td>
+                  <td className="hide-mobile">{u.cardNumber || '—'}</td>
                   <td>{u.expiration ? new Date(u.expiration).toLocaleDateString('pt-BR') : 'Sem prazo'}</td>
                   <td>
                     <div className="row-actions">

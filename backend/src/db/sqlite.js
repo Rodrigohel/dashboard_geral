@@ -126,6 +126,28 @@ db.exec(`
     session_hours INTEGER NOT NULL DEFAULT 8
   );
   INSERT OR IGNORE INTO security_settings (id) VALUES (1);
+
+  -- Sensibilidade da detecção de anomalia de cada módulo ('baixa' | 'media'
+  -- | 'alta') — uma linha só, igual 'security_settings'. Os valores
+  -- numéricos reais (multiplicador de desvio-padrão, mínimo de amostra
+  -- etc.) ficam só no código (anomalySettingsService.js): aqui guarda só o
+  -- nível escolhido, então mudar a régua não exige migração.
+  CREATE TABLE IF NOT EXISTS anomaly_settings (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    rede_sensitivity TEXT NOT NULL DEFAULT 'media',
+    interfone_sensitivity TEXT NOT NULL DEFAULT 'media',
+    acesso_sensitivity TEXT NOT NULL DEFAULT 'media'
+  );
+  INSERT OR IGNORE INTO anomaly_settings (id) VALUES (1);
+
+  -- Por quantos dias manter login_events/door_open_events antes de apagar
+  -- sozinho (ver auditRetentionPruner.js). 0 = nunca apagar automaticamente
+  -- (comportamento de sempre, antes desta tabela existir).
+  CREATE TABLE IF NOT EXISTS retention_settings (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    audit_retention_days INTEGER NOT NULL DEFAULT 0
+  );
+  INSERT OR IGNORE INTO retention_settings (id) VALUES (1);
 `);
 
 // Última checagem periódica de saúde de cada porteiro (ver

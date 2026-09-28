@@ -464,7 +464,7 @@ function latencyColor(ms) {
 // desvio-padrão das rodadas anteriores da mesma janela de 24h — só acusa
 // anomalia com pelo menos 6 pontos anteriores pra ter uma "normalidade"
 // minimamente confiável com que comparar (rede muito nova ainda não tem).
-function detectLatencyAnomaly(rows) {
+function detectLatencyAnomaly(rows, stdevMultiplier = 2) {
   if (!rows || rows.length < 7) return null;
   const last = rows[rows.length - 1];
   if (last?.avgLatencyMs == null) return null;
@@ -473,7 +473,7 @@ function detectLatencyAnomaly(rows) {
   const mean = baseline.reduce((a, b) => a + b, 0) / baseline.length;
   const variance = baseline.reduce((a, b) => a + (b - mean) ** 2, 0) / baseline.length;
   const stdev = Math.sqrt(variance);
-  if (stdev <= 0 || last.avgLatencyMs <= mean + 2 * stdev) return null;
+  if (stdev <= 0 || last.avgLatencyMs <= mean + stdevMultiplier * stdev) return null;
   return { current: Math.round(last.avgLatencyMs), mean: Math.round(mean) };
 }
 
@@ -620,12 +620,12 @@ function AnaliseSection() {
   }, []);
 
   useEffect(() => {
-    Promise.all([api.rede.networkHistory(24), api.rede.flappiest()])
-      .then(([nh, fl]) => {
+    Promise.all([api.rede.networkHistory(24), api.rede.flappiest(), api.settings.getAnomaly().catch(() => null)])
+      .then(([nh, fl, anomalySettings]) => {
         const rows = nh.data || [];
         setSnapshot(rows[rows.length - 1] || null);
         setFlappiest(fl.data || []);
-        setLatencyAnomaly(detectLatencyAnomaly(rows));
+        setLatencyAnomaly(detectLatencyAnomaly(rows, anomalySettings?.redeLatencyStdevMultiplier));
       })
       .catch(() => {});
   }, []);
@@ -785,7 +785,7 @@ function HistoricoSection() {
                   <th>Quando</th>
                   <th>Equipamento</th>
                   <th>Evento</th>
-                  <th>Durou</th>
+                  <th className="hide-mobile">Durou</th>
                 </tr>
               </thead>
               <tbody>
@@ -796,7 +796,7 @@ function HistoricoSection() {
                     <td>
                       <EventBadge label={e.eventLabel} />
                     </td>
-                    <td style={{ color: 'var(--text-secondary)' }}>{formatDuration(e.durationMs)}</td>
+                    <td className="hide-mobile" style={{ color: 'var(--text-secondary)' }}>{formatDuration(e.durationMs)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -958,9 +958,9 @@ export default function RedeDashboard({ can }) {
                       <tr>
                         <th></th>
                         <th>Nome</th>
-                        <th>IP</th>
+                        <th className="hide-mobile">IP</th>
                         <th>Local</th>
-                        <th>Tipo</th>
+                        <th className="hide-mobile">Tipo</th>
                         <th>Status</th>
                       </tr>
                     </thead>
@@ -984,9 +984,9 @@ export default function RedeDashboard({ can }) {
                             </button>
                           </td>
                           <td style={{ fontWeight: 600 }}>{d.name}</td>
-                          <td style={{ color: 'var(--text-secondary)' }}>{d.ip}</td>
+                          <td className="hide-mobile" style={{ color: 'var(--text-secondary)' }}>{d.ip}</td>
                           <td style={{ color: 'var(--text-secondary)' }}>{d.location || '—'}</td>
-                          <td style={{ color: 'var(--text-secondary)' }}>{d.type}</td>
+                          <td className="hide-mobile" style={{ color: 'var(--text-secondary)' }}>{d.type}</td>
                           <td>
                             <StatusBadge status={d.status} />
                           </td>

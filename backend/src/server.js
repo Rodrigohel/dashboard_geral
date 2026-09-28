@@ -9,12 +9,14 @@ import { accessDevicesRouter } from './routes/accessDevices.js';
 import { brandingRouter } from './routes/branding.js';
 import { manifestRouter } from './routes/manifest.js';
 import { settingsRouter } from './routes/settings.js';
+import { anomalySettingsRouter } from './routes/anomalySettings.js';
 import { modulesRouter } from './routes/modules.js';
 import { systemRouter } from './routes/system.js';
 import { auditRouter } from './routes/audit.js';
 import { requireAuth, requireOwner, requireModule } from './middleware/auth.js';
 import { gatewayProxy } from './services/gatewayService.js';
 import { startDeviceHealthPoller } from './services/deviceHealthPoller.js';
+import { startAuditRetentionPruner } from './services/auditRetentionPruner.js';
 import './db/sqlite.js';
 
 const app = express();
@@ -41,6 +43,11 @@ app.use('/api/auth', authRouter);
 app.use('/api/modules', requireAuth, modulesRouter);
 app.use('/api/users', requireAuth, requireOwner, usersRouter);
 app.use('/api/access/devices', requireAuth, requireModule('acesso'), accessDevicesRouter);
+// Precisa vir antes do mount geral de '/api/settings' (dono-só) logo abaixo
+// — como os dois prefixos se sobrepõem, o Express usa o primeiro que
+// casar, e aqui o GET precisa ficar aberto a qualquer usuário autenticado
+// (ver comentário em anomalySettings.js).
+app.use('/api/settings/anomaly', requireAuth, anomalySettingsRouter);
 app.use('/api/settings', requireAuth, requireOwner, settingsRouter);
 app.use('/api/system', requireAuth, requireOwner, systemRouter);
 app.use('/api/audit', requireAuth, requireOwner, auditRouter);
@@ -135,3 +142,4 @@ app.listen(config.port, '0.0.0.0', () => {
 });
 
 startDeviceHealthPoller();
+startAuditRetentionPruner();
