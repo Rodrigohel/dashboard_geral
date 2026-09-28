@@ -148,6 +148,32 @@ db.exec(`
     audit_retention_days INTEGER NOT NULL DEFAULT 0
   );
   INSERT OR IGNORE INTO retention_settings (id) VALUES (1);
+
+  -- Liga/desliga a funcionalidade de notificação push (Web Push) pro Portal
+  -- inteiro — desligada por padrão (feature nova, opt-in do dono). O par de
+  -- chaves VAPID é gerado sozinho na primeira vez que o dono ativa (ver
+  -- pushService.js) e reaproveitado depois, senão toda assinatura já feita
+  -- pelos navegadores viraria inválida ao desligar/ligar de novo.
+  CREATE TABLE IF NOT EXISTS push_settings (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    enabled INTEGER NOT NULL DEFAULT 0,
+    vapid_public_key TEXT NOT NULL DEFAULT '',
+    vapid_private_key_enc TEXT NOT NULL DEFAULT ''
+  );
+  INSERT OR IGNORE INTO push_settings (id) VALUES (1);
+
+  -- Uma linha por navegador/dispositivo inscrito (um usuário pode ter mais
+  -- de um — celular e PC, por exemplo). endpoint é único por natureza do
+  -- Web Push (a URL do serviço de push do navegador), por isso serve de
+  -- chave pra evitar duplicata ao reinscrever o mesmo dispositivo.
+  CREATE TABLE IF NOT EXISTS push_subscriptions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    endpoint TEXT NOT NULL UNIQUE,
+    p256dh TEXT NOT NULL,
+    auth TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
 `);
 
 // Última checagem periódica de saúde de cada porteiro (ver

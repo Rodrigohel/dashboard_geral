@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import EmptyState from '../components/EmptyState.jsx';
 import Icon from '../components/Icon.jsx';
 import { api } from '../api/client.js';
@@ -120,6 +120,7 @@ export default function AuditLog() {
   const [loginEvents, setLoginEvents] = useState(null);
   const [doorEvents, setDoorEvents] = useState(null);
   const [error, setError] = useState('');
+  const [filter, setFilter] = useState('');
 
   useEffect(() => {
     setError('');
@@ -131,11 +132,26 @@ export default function AuditLog() {
     }
   }, [tab, loginEvents, doorEvents]);
 
+  // Zera a busca ao trocar de aba — um filtro por IP não faz sentido na
+  // aba de aberturas de porteiro (e vice-versa com "porteiro").
+  useEffect(() => setFilter(''), [tab]);
+
   const events = tab === 'logins' ? loginEvents : doorEvents;
+
+  const filteredEvents = useMemo(() => {
+    if (!events) return events;
+    const q = filter.trim().toLowerCase();
+    if (!q) return events;
+    return events.filter((e) =>
+      tab === 'logins'
+        ? e.username.toLowerCase().includes(q) || (e.ip || '').toLowerCase().includes(q)
+        : e.username.toLowerCase().includes(q) || (e.device_name || '').toLowerCase().includes(q)
+    );
+  }, [events, filter, tab]);
 
   function handleExport() {
     const filename = tab === 'logins' ? 'auditoria-logins.csv' : 'auditoria-aberturas.csv';
-    downloadCsv(filename, events || [], CSV_COLUMNS[tab]);
+    downloadCsv(filename, filteredEvents || [], CSV_COLUMNS[tab]);
   }
 
   return (
@@ -145,7 +161,7 @@ export default function AuditLog() {
           <h1>Auditoria de acesso</h1>
           <p>{TABS[tab].desc}</p>
         </div>
-        <button className="btn btn-secondary" onClick={handleExport} disabled={!events || events.length === 0}>
+        <button className="btn btn-secondary" onClick={handleExport} disabled={!filteredEvents || filteredEvents.length === 0}>
           <Icon name="copy" size={15} /> Exportar CSV
         </button>
       </div>
@@ -167,7 +183,23 @@ export default function AuditLog() {
 
       {!error && events === null && <div className="skeleton" style={{ height: 220, borderRadius: 20 }} />}
 
-      {!error && events !== null && (tab === 'logins' ? <LoginEventsTable events={events} /> : <DoorOpenEventsTable events={events} />)}
+      {!error && events !== null && events.length > 0 && (
+        <input
+          className="input"
+          style={{ marginBottom: 12, maxWidth: 320 }}
+          placeholder={tab === 'logins' ? 'Buscar por usuário ou IP...' : 'Buscar por usuário ou porteiro...'}
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+        />
+      )}
+
+      {!error && events !== null && events.length > 0 && filteredEvents.length === 0 && (
+        <div className="field-hint">Nenhum resultado para "{filter}".</div>
+      )}
+
+      {!error && events !== null && (events.length === 0 || filteredEvents.length > 0) && (
+        tab === 'logins' ? <LoginEventsTable events={filteredEvents} /> : <DoorOpenEventsTable events={filteredEvents} />
+      )}
     </>
   );
 }
