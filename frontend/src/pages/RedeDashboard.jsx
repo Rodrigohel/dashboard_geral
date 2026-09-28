@@ -42,22 +42,21 @@ function SeverityBadge({ severity }) {
   );
 }
 
-function SummaryCard({ icon, title, value, sub, tone }) {
-  const style = tone ? { '--card-accent': `var(--${tone}-500)`, '--card-accent-soft': `var(--${tone}-soft)` } : undefined;
+// Mesmo cartãozinho usado no resumo do Interfone (.mini-stat-card) — antes
+// esse resumo usava .metric-card (o card grande de detalhe), o que deixava
+// esses 4 cards visivelmente maiores que o resto do app sem motivo (só
+// mostram um número).
+function SummaryCard({ icon, title, value, tone }) {
+  const style = tone ? { '--card-accent': `var(--${tone}-500)` } : undefined;
   return (
-    <div className="metric-card surface" style={style}>
-      <div className="metric-card-head">
-        <div className="metric-card-title">
-          <span className="icon-badge">
-            <Icon name={icon} size={14} />
-          </span>
-          {title}
-        </div>
+    <div className="mini-stat-card surface" style={style}>
+      <div className="mini-stat-card-title">
+        <Icon name={icon} size={13} />
+        {title}
       </div>
-      <div className="metric-card-value" style={tone ? { color: `var(--${tone}-500)` } : undefined}>
+      <div className="mini-stat-card-value" style={tone ? { color: `var(--${tone}-500)` } : undefined}>
         {value}
       </div>
-      {sub && <div className="metric-card-sub">{sub}</div>}
     </div>
   );
 }
@@ -902,7 +901,7 @@ export default function RedeDashboard({ can }) {
         // 4 colunas lado a lado no PC; no celular, Equipamentos numa linha e
         // os outros três em 3 colunas embaixo (ver .rede-summary-grid).
         <div className="rede-summary-grid">
-          <SummaryCard icon="network" title="Equipamentos" value={summary.total} sub="monitorados" />
+          <SummaryCard icon="network" title="Equipamentos monitorados" value={summary.total} />
           <SummaryCard icon="wifi" title="Online" value={summary.online || 0} tone="success" />
           <SummaryCard icon="wifi" title="Degradado" value={summary.degraded || 0} tone="warning" />
           <SummaryCard icon="wifi" title="Offline" value={summary.offline || 0} tone="danger" />
