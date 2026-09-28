@@ -26,10 +26,17 @@ function ExtensionStatusBadge({ state }) {
   );
 }
 
-function MiniStat({ icon, title, value, tone }) {
+// Clicável de propósito — rola até a seção com o detalhe daquele número
+// (ex.: "Perdidas hoje" leva pro card "Chamadas perdidas hoje" mais abaixo
+// na mesma tela), em vez de deixar o usuário procurar rolando manualmente.
+function scrollToSection(id) {
+  document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function MiniStat({ icon, title, value, tone, onClick }) {
   const style = tone ? { '--card-accent': `var(--${tone}-500)` } : undefined;
   return (
-    <div className="mini-stat-card surface" style={style}>
+    <div className="mini-stat-card surface" style={{ ...style, cursor: onClick ? 'pointer' : undefined }} onClick={onClick}>
       <div className="mini-stat-card-title">
         <Icon name={icon} size={13} />
         {title}
@@ -340,7 +347,7 @@ function CallHistorySection() {
   }
 
   return (
-    <div className="surface" style={{ padding: 24 }}>
+    <div className="surface" style={{ padding: 24 }} id="call-history-section">
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
         <div>
           <div style={{ fontWeight: 700, marginBottom: 4 }}>Histórico de chamadas</div>
@@ -481,7 +488,7 @@ function ExtensionsSection({ extensions }) {
   const pageExtensions = filtered.slice((safePage - 1) * EXTENSIONS_PAGE_SIZE, safePage * EXTENSIONS_PAGE_SIZE);
 
   return (
-    <div className="surface" style={{ padding: 24 }}>
+    <div className="surface" style={{ padding: 24 }} id="extensions-section">
       <div style={{ fontWeight: 700, marginBottom: 4 }}>Ramais</div>
       <p className="field-hint" style={{ marginBottom: 12 }}>
         Consulta — clique num ramal para ver mais detalhes. Cadastro é feito no painel de Interfone original.
@@ -740,16 +747,23 @@ export default function InterfoneDashboard() {
         <div className="skeleton" style={{ height: 100, borderRadius: 20 }} />
       ) : (
         <div className="mini-stat-grid">
-          <MiniStat icon="phone" title="Ramais online" value={summary.online || 0} tone="success" />
-          <MiniStat icon="phone" title="Ramais offline" value={summary.offline || 0} tone={summary.offline > 0 ? 'danger' : undefined} />
-          <MiniStat icon="phone" title="Chamadas ativas" value={activeCalls.length} />
-          <MiniStat icon="phone" title="Recebidas hoje" value={today.received || 0} />
-          <MiniStat icon="phone" title="Realizadas hoje" value={today.made || 0} />
+          <MiniStat icon="phone" title="Ramais online" value={summary.online || 0} tone="success" onClick={() => scrollToSection('extensions-section')} />
+          <MiniStat
+            icon="phone"
+            title="Ramais offline"
+            value={summary.offline || 0}
+            tone={summary.offline > 0 ? 'danger' : undefined}
+            onClick={() => scrollToSection('extensions-section')}
+          />
+          <MiniStat icon="phone" title="Chamadas ativas" value={activeCalls.length} onClick={() => scrollToSection('active-calls-section')} />
+          <MiniStat icon="phone" title="Recebidas hoje" value={today.received || 0} onClick={() => scrollToSection('call-history-section')} />
+          <MiniStat icon="phone" title="Realizadas hoje" value={today.made || 0} onClick={() => scrollToSection('call-history-section')} />
           <MiniStat
             icon="phone"
             title="Perdidas hoje"
             value={today.missed || 0}
             tone={missedAnomaly ? 'danger' : today.missed > 0 ? 'warning' : undefined}
+            onClick={() => scrollToSection('missed-calls-section')}
           />
         </div>
       )}
@@ -796,7 +810,7 @@ export default function InterfoneDashboard() {
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 'var(--space-4)' }}>
-        <div className="surface" style={{ padding: 24 }}>
+        <div className="surface" style={{ padding: 24 }} id="active-calls-section">
           <div style={{ fontWeight: 700, marginBottom: 4 }}>Chamadas ativas agora</div>
           <p className="field-hint" style={{ marginBottom: 12 }}>
             {activeCalls.length === 0 ? 'Nenhuma chamada em andamento.' : `${activeCalls.length} chamada(s) em andamento.`}
@@ -829,7 +843,7 @@ export default function InterfoneDashboard() {
           )}
         </div>
 
-        <div className="surface" style={{ padding: 24 }}>
+        <div className="surface" style={{ padding: 24 }} id="missed-calls-section">
           <div style={{ fontWeight: 700, marginBottom: 4 }}>Chamadas perdidas hoje</div>
           <p className="field-hint" style={{ marginBottom: 12 }}>
             {missed.length === 0 ? 'Nenhuma chamada perdida hoje.' : `${missed.length} número(s) com chamada perdida.`}

@@ -47,10 +47,18 @@ function SeverityBadge({ severity }) {
 // esse resumo usava .metric-card (o card grande de detalhe), o que deixava
 // esses 4 cards visivelmente maiores que o resto do app sem motivo (só
 // mostram um número).
-function SummaryCard({ icon, title, value, tone }) {
+// Clicável de propósito (rola até a lista de equipamentos logo abaixo) —
+// os 4 cards levam pro mesmo lugar porque hoje só existe essa lista única
+// (com status de cada equipamento nela), diferente do Interfone que tem
+// uma seção própria por card.
+function scrollToSection(id) {
+  document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function SummaryCard({ icon, title, value, tone, onClick }) {
   const style = tone ? { '--card-accent': `var(--${tone}-500)` } : undefined;
   return (
-    <div className="mini-stat-card surface" style={style}>
+    <div className="mini-stat-card surface" style={{ ...style, cursor: onClick ? 'pointer' : undefined }} onClick={onClick}>
       <div className="mini-stat-card-title">
         <Icon name={icon} size={13} />
         {title}
@@ -902,10 +910,10 @@ export default function RedeDashboard({ can }) {
         // 4 colunas lado a lado no PC; no celular, Equipamentos numa linha e
         // os outros três em 3 colunas embaixo (ver .rede-summary-grid).
         <div className="rede-summary-grid">
-          <SummaryCard icon="network" title="Equipamentos monitorados" value={summary.total} />
-          <SummaryCard icon="wifi" title="Online" value={summary.online || 0} tone="success" />
-          <SummaryCard icon="wifi" title="Degradado" value={summary.degraded || 0} tone="warning" />
-          <SummaryCard icon="wifi" title="Offline" value={summary.offline || 0} tone="danger" />
+          <SummaryCard icon="network" title="Equipamentos monitorados" value={summary.total} onClick={() => scrollToSection('equipamentos-section')} />
+          <SummaryCard icon="wifi" title="Online" value={summary.online || 0} tone="success" onClick={() => scrollToSection('equipamentos-section')} />
+          <SummaryCard icon="wifi" title="Degradado" value={summary.degraded || 0} tone="warning" onClick={() => scrollToSection('equipamentos-section')} />
+          <SummaryCard icon="wifi" title="Offline" value={summary.offline || 0} tone="danger" onClick={() => scrollToSection('equipamentos-section')} />
         </div>
       )}
 
@@ -929,7 +937,7 @@ export default function RedeDashboard({ can }) {
         ))}
       </div>
 
-      <div className="surface" style={{ padding: 24 }}>
+      <div className="surface" style={{ padding: 24 }} id="equipamentos-section">
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
           <div>
             <div style={{ fontWeight: 700, marginBottom: 4 }}>Equipamentos</div>
