@@ -16,6 +16,23 @@ const STATUS_META = {
   unknown: { label: 'verificando...', badge: 'badge-neutral', accent: 'var(--border-strong)' },
 };
 
+// Mesmo cartãozinho de resumo já usado na Rede/Interfone — faltava aqui
+// (o dado já vem de graça no /api/access/devices, via deviceHealthPoller).
+function MiniStat({ icon, title, value, tone }) {
+  const style = tone ? { '--card-accent': `var(--${tone}-500)` } : undefined;
+  return (
+    <div className="mini-stat-card surface" style={style}>
+      <div className="mini-stat-card-title">
+        <Icon name={icon} size={13} />
+        {title}
+      </div>
+      <div className="mini-stat-card-value" style={tone ? { color: `var(--${tone}-500)` } : undefined}>
+        {value}
+      </div>
+    </div>
+  );
+}
+
 export default function DevicesList({ isOwner, onOpenDevice }) {
   const [devices, setDevices] = useState(null);
   const [showForm, setShowForm] = useState(false);
@@ -79,6 +96,19 @@ export default function DevicesList({ isOwner, onOpenDevice }) {
 
   return (
     <>
+      {devices?.length > 0 && (
+        <div className="mini-stat-grid">
+          <MiniStat icon="shieldFace" title="Porteiros" value={devices.length} />
+          <MiniStat icon="wifi" title="Online" value={devices.filter((d) => d.lastStatus === 'online').length} tone="success" />
+          <MiniStat
+            icon="wifi"
+            title="Offline"
+            value={devices.filter((d) => d.lastStatus === 'offline').length}
+            tone={devices.some((d) => d.lastStatus === 'offline') ? 'danger' : undefined}
+          />
+        </div>
+      )}
+
       {devices?.length > 1 && <UserSearch devices={devices} onOpenDevice={onOpenDevice} />}
 
       <div className="toolbar">

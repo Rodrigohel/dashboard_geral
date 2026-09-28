@@ -3,6 +3,7 @@ import Icon from '../components/Icon.jsx';
 import Modal from '../components/Modal.jsx';
 import { api } from '../api/client.js';
 import { useToast } from '../hooks/useToast.jsx';
+import { downloadCsv } from '../utils/csv.js';
 
 // Rede é só consulta no Portal — cadastro, edição, exclusão de
 // equipamento e tudo de planta baixa (criar pavimento, posicionar) são
@@ -929,10 +930,30 @@ export default function RedeDashboard({ can }) {
       </div>
 
       <div className="surface" style={{ padding: 24 }}>
-        <div style={{ fontWeight: 700, marginBottom: 4 }}>Equipamentos</div>
-        <p className="field-hint" style={{ marginBottom: 12 }}>
-          Consulta — clique num equipamento para ver todos os dados. Cadastro, edição e exclusão são feitos no painel de Rede original.
-        </p>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+          <div>
+            <div style={{ fontWeight: 700, marginBottom: 4 }}>Equipamentos</div>
+            <p className="field-hint" style={{ marginBottom: 12 }}>
+              Consulta — clique num equipamento para ver todos os dados. Cadastro, edição e exclusão são feitos no painel de Rede original.
+            </p>
+          </div>
+          {devices.length > 0 && (
+            <button
+              className="btn btn-secondary btn-sm"
+              onClick={() =>
+                downloadCsv('equipamentos-rede.csv', filteredDevices, [
+                  { header: 'Nome', get: (d) => d.name },
+                  { header: 'IP', get: (d) => d.ip },
+                  { header: 'Local', get: (d) => d.location || '' },
+                  { header: 'Tipo', get: (d) => d.type },
+                  { header: 'Status', get: (d) => d.status },
+                ])
+              }
+            >
+              <Icon name="copy" size={14} /> Exportar CSV
+            </button>
+          )}
+        </div>
         {devices.length === 0 ? (
           <div className="field-hint">Nenhum equipamento cadastrado ainda.</div>
         ) : (

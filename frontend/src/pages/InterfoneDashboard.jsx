@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import Icon from '../components/Icon.jsx';
 import Modal from '../components/Modal.jsx';
 import { api } from '../api/client.js';
+import { downloadCsv } from '../utils/csv.js';
+import { useToast } from '../hooks/useToast.jsx';
 
 // Interfone é só consulta no Portal, igual o Rede — cadastro de ramal e
 // configurações continuam no painel de Interfone original.
@@ -291,11 +293,22 @@ function CallsTrendChart({ data }) {
 
 const HISTORY_PAGE_SIZE = 10;
 
+const CALL_HISTORY_CSV_COLUMNS = [
+  { header: 'Quando', get: (c) => formatDateTime(c.at) },
+  { header: 'De', get: (c) => c.src },
+  { header: 'Para', get: (c) => c.dst },
+  { header: 'Sentido', get: (c) => (c.direction === 'made' ? 'realizada' : 'recebida') },
+  { header: 'Resultado', get: (c) => c.disposition || '' },
+  { header: 'Duração (s)', get: (c) => c.durationSeconds ?? '' },
+];
+
 function CallHistorySection() {
   const [result, setResult] = useState(null);
   const [q, setQ] = useState('');
   const [page, setPage] = useState(1);
   const [error, setError] = useState('');
+  const [exporting, setExporting] = useState(false);
+  const toast = useToast();
 
   useEffect(() => {
     let cancelled = false;
@@ -311,10 +324,32 @@ function CallHistorySection() {
   const rows = result?.data || [];
   const totalPages = Math.max(1, Math.ceil((result?.total || 0) / HISTORY_PAGE_SIZE));
 
+  // Exporta um lote maior que a paginação normal da tela (até 500, igual o
+  // teto já usado na Auditoria) em vez de só as 10 linhas da página atual
+  // — busca à parte, sob demanda, só quando clica no botão.
+  async function handleExport() {
+    setExporting(true);
+    try {
+      const full = await api.interfone.callHistory({ q, page: 1, pageSize: 500 });
+      downloadCsv('chamadas-interfone.csv', full?.data || [], CALL_HISTORY_CSV_COLUMNS);
+    } catch (err) {
+      toast(err.message, 'error');
+    } finally {
+      setExporting(false);
+    }
+  }
+
   return (
     <div className="surface" style={{ padding: 24 }}>
-      <div style={{ fontWeight: 700, marginBottom: 4 }}>Histórico de chamadas</div>
-      <p className="field-hint" style={{ marginBottom: 12 }}>Consulta — cadastro de ramal e configurações continuam no painel de Interfone original.</p>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+        <div>
+          <div style={{ fontWeight: 700, marginBottom: 4 }}>Histórico de chamadas</div>
+          <p className="field-hint" style={{ marginBottom: 12 }}>Consulta — cadastro de ramal e configurações continuam no painel de Interfone original.</p>
+        </div>
+        <button className="btn btn-secondary btn-sm" onClick={handleExport} disabled={exporting}>
+          {exporting ? <span className="spinner spinner-dark" /> : <Icon name="copy" size={14} />} Exportar CSV
+        </button>
+      </div>
 
       {error && <div className="login-error" style={{ marginBottom: 12 }}>{error}</div>}
 
