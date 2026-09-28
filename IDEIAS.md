@@ -2,12 +2,15 @@
 
 Backlog de ideias discutidas mas não implementadas — não é compromisso de fazer, só pra não esquecer.
 
-## Notificações push (PWA)
-Já dá pra instalar o Portal como app (manifest + service worker já existem). Faltaria gerar
-chaves VAPID, um handler de push no service worker, e o usuário aceitar a permissão do
-navegador. Avisaria em tempo real: porteiro caiu, alerta crítico de rede, trava de força
-bruta disparada. Limitação conhecida: no iPhone só funciona se o usuário instalou de verdade
-("Adicionar à Tela de Início"), Safari não manda push de aba aberta no navegador.
+## ~~Notificações push (PWA)~~ — feito (parcial)
+Implementado: liga/desliga em Configurações (dono), cada administrador ativa depois no
+próprio navegador em "Minha conta". Avisa: porteiro ficou offline (transição, não repete
+enquanto continuar caído) e trava de força bruta disparada (com cooldown de 15min por
+usuário+IP pra não virar spam). Só manda pra quem tem papel "owner" — mesmo público de
+Auditoria/Saúde do servidor. NÃO incluído ainda: "alerta crítico de rede" (viria do painel
+de Rede original via gateway, exigiria um poller novo do lado do servidor só pra isso — fica
+pra depois se fizer falta). Limitação conhecida: no iPhone só funciona se o usuário instalou
+de verdade ("Adicionar à Tela de Início"), Safari não manda push de aba aberta no navegador.
 
 ## Modo TV / painel de portaria
 Tela cheia, sem menu, rotacionando sozinha entre status de rede/interfone/porteiros — pensada

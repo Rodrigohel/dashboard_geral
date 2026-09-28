@@ -540,6 +540,57 @@ function RetentionCard() {
   );
 }
 
+function PushSettingsCard() {
+  const [enabled, setEnabled] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const toast = useToast();
+
+  useEffect(() => {
+    api.settings.getPush().then((s) => {
+      setEnabled(s.enabled);
+      setLoaded(true);
+    });
+  }, []);
+
+  async function handleToggle() {
+    setSaving(true);
+    try {
+      const s = await api.settings.savePush({ enabled: !enabled });
+      setEnabled(s.enabled);
+      toast(s.enabled ? 'Notificações push ativadas.' : 'Notificações push desativadas.');
+    } catch (err) {
+      toast(err.message, 'error');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="surface" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div>
+        <div style={{ fontWeight: 700 }}>Notificações push</div>
+        <div className="field-hint">
+          Avisa os administradores (dono) no navegador quando um porteiro fica offline ou a trava de força bruta do
+          login dispara. Desligada por padrão — cada administrador ainda precisa ativar em "Minha conta" no próprio
+          navegador depois de ligar aqui. No iPhone só funciona se o Portal foi instalado como app (Adicionar à Tela
+          de Início); o Safari não entrega push de aba aberta.
+        </div>
+      </div>
+
+      {!loaded ? (
+        <div className="skeleton" style={{ height: 40, borderRadius: 12 }} />
+      ) : (
+        <div>
+          <button className="btn btn-primary" onClick={handleToggle} disabled={saving}>
+            {saving ? <span className="spinner" /> : enabled ? 'Desativar' : 'Ativar'}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Settings() {
   const [gateways, setGateways] = useState(null);
 
@@ -569,6 +620,8 @@ export default function Settings() {
       <AnomalyCard />
 
       <RetentionCard />
+
+      <PushSettingsCard />
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         {gateways === null ? (

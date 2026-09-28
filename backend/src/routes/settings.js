@@ -7,6 +7,7 @@ import {
   saveRetentionSettings,
   validateRetentionSettings,
 } from '../services/retentionSettingsService.js';
+import { getPushSettings, setPushEnabled } from '../services/pushService.js';
 
 export const settingsRouter = Router();
 const GATEWAY_MODULES = MODULE_KEYS.filter((k) => k !== 'acesso'); // 'rede' | 'interfone'
@@ -67,4 +68,12 @@ settingsRouter.put('/retention', (req, res) => {
   if (error) return res.status(400).json({ error });
   saveRetentionSettings(req.body);
   res.json(getRetentionSettings());
+});
+
+settingsRouter.get('/push', (req, res) => {
+  res.json(getPushSettings());
+});
+
+settingsRouter.put('/push', (req, res) => {
+  res.json(setPushEnabled(Boolean(req.body?.enabled)));
 });

@@ -10,6 +10,7 @@ import { brandingRouter } from './routes/branding.js';
 import { manifestRouter } from './routes/manifest.js';
 import { settingsRouter } from './routes/settings.js';
 import { anomalySettingsRouter } from './routes/anomalySettings.js';
+import { pushRouter } from './routes/push.js';
 import { modulesRouter } from './routes/modules.js';
 import { systemRouter } from './routes/system.js';
 import { auditRouter } from './routes/audit.js';
@@ -49,6 +50,7 @@ app.use('/api/access/devices', requireAuth, requireModule('acesso'), accessDevic
 // (ver comentário em anomalySettings.js).
 app.use('/api/settings/anomaly', requireAuth, anomalySettingsRouter);
 app.use('/api/settings', requireAuth, requireOwner, settingsRouter);
+app.use('/api/push', requireAuth, pushRouter);
 app.use('/api/system', requireAuth, requireOwner, systemRouter);
 app.use('/api/audit', requireAuth, requireOwner, auditRouter);
 

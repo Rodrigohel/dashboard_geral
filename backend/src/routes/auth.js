@@ -5,6 +5,7 @@ import { db } from '../db/sqlite.js';
 import { config, MODULE_KEYS } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
 import { getSecuritySettings } from '../services/securitySettingsService.js';
+import { notifyLoginLockout } from '../services/pushService.js';
 
 export const authRouter = Router();
 
@@ -51,6 +52,20 @@ const countRecentFailures = db.prepare(
    AND (username = ? OR ip = ?)`
 );
 
+// Sem isso, cada tentativa nova enquanto a trava já está ativa dispararia
+// um push repetido (a mesma pessoa martelando login gera dezenas de 429
+// na mesma janela) — um aviso a cada 15 minutos por username+ip já avisa
+// sem virar spam.
+const lockoutNotifyCooldown = new Map();
+const LOCKOUT_NOTIFY_COOLDOWN_MS = 15 * 60 * 1000;
+function notifyLockoutOnce(username, ip) {
+  const key = `${username}|${ip}`;
+  const last = lockoutNotifyCooldown.get(key) || 0;
+  if (Date.now() - last < LOCKOUT_NOTIFY_COOLDOWN_MS) return;
+  lockoutNotifyCooldown.set(key, Date.now());
+  notifyLoginLockout(username, ip);
+}
+
 authRouter.post('/login', (req, res) => {
   const { username, password } = req.body || {};
   const ip = req.ip || '';
@@ -63,6 +78,7 @@ authRouter.post('/login', (req, res) => {
   const { maxLoginFailures, loginWindowMinutes, sessionHours } = getSecuritySettings();
 
   if (countRecentFailures.get(loginWindowMinutes, username, ip).c >= maxLoginFailures) {
+    notifyLockoutOnce(username, ip);
     return res.status(429).json({ error: 'Muitas tentativas de login. Aguarde alguns minutos e tente novamente.' });
   }
 

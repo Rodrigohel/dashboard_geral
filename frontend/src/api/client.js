@@ -181,6 +181,14 @@ export const api = {
     saveAnomaly: (payload) => request('/api/settings/anomaly', { method: 'PUT', body: payload }),
     getRetention: () => request('/api/settings/retention'),
     saveRetention: (payload) => request('/api/settings/retention', { method: 'PUT', body: payload }),
+    getPush: () => request('/api/settings/push'),
+    savePush: (payload) => request('/api/settings/push', { method: 'PUT', body: payload }),
+  },
+
+  push: {
+    getPublicInfo: () => request('/api/push/public-key'),
+    subscribe: (subscription) => request('/api/push/subscribe', { method: 'POST', body: { subscription } }),
+    unsubscribe: (endpoint) => request('/api/push/unsubscribe', { method: 'POST', body: { endpoint } }),
   },
 
   account: {
