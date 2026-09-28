@@ -257,6 +257,20 @@ table.data-table {
   justify-content: flex-end;
 }
 
+/* No celular a tabela some com as colunas menos essenciais (marcadas com
+   .hide-mobile em cada página) em vez de espremer tudo — era isso que
+   forçava rolagem horizontal em toda tabela do app. */
+@media (max-width: 640px) {
+  .data-table thead th,
+  .data-table tbody td {
+    padding: 10px 12px;
+    font-size: 13px;
+  }
+  .data-table .hide-mobile {
+    display: none;
+  }
+}
+
 /* ---------- Modal ---------- */
 .modal-overlay {
   position: fixed;
@@ -515,6 +529,10 @@ table.data-table {
   gap: 4px;
   text-align: center;
   border-top: 3px solid var(--card-accent, var(--border-subtle));
+  /* Sem isso, um grid item nunca encolhe além do conteúdo (min-width:
+     auto por padrão) — com o título abaixo em nowrap, isso empurrava as 3
+     colunas do grid pra fora da tela no celular. */
+  min-width: 0;
 }
 .mini-stat-card-title {
   display: flex;
@@ -524,7 +542,13 @@ table.data-table {
   font-size: 11.5px;
   font-weight: 600;
   color: var(--text-secondary);
-  white-space: nowrap;
+  white-space: normal;
+  line-height: 1.25;
+}
+@media (max-width: 420px) {
+  .mini-stat-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 .mini-stat-card-value {
   font-size: 22px;

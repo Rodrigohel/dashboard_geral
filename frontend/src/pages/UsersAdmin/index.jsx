@@ -77,9 +77,9 @@ export default function UsersAdmin({ currentUserId }) {
             <thead>
               <tr>
                 <th>Nome</th>
-                <th>Login</th>
+                <th className="hide-mobile">Login</th>
                 <th>Papel</th>
-                <th>Módulos</th>
+                <th className="hide-mobile">Módulos</th>
                 <th></th>
               </tr>
             </thead>
@@ -87,7 +87,7 @@ export default function UsersAdmin({ currentUserId }) {
               {users.map((u) => (
                 <tr key={u.id}>
                   <td style={{ fontWeight: 600 }}>{u.displayName}</td>
-                  <td>{u.username}</td>
+                  <td className="hide-mobile">{u.username}</td>
                   <td>
                     {u.role === 'owner' ? (
                       <span className="badge badge-accent">Administrador</span>
@@ -95,7 +95,7 @@ export default function UsersAdmin({ currentUserId }) {
                       <span className="badge badge-neutral">Usuário</span>
                     )}
                   </td>
-                  <td>
+                  <td className="hide-mobile">
                     {(u.role === 'owner' ? ALL_PERMISSIONS : u.modules).length === 0 ? (
                       <span className="field-hint">Nenhum</span>
                     ) : (

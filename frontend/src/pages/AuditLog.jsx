@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import EmptyState from '../components/EmptyState.jsx';
+import Icon from '../components/Icon.jsx';
 import { api } from '../api/client.js';
+import { downloadCsv } from '../utils/csv.js';
 
 function formatDateTime(iso) {
   // O SQLite guarda em UTC sem sufixo 'Z' — sem isso o navegador interpreta
@@ -21,8 +23,8 @@ function LoginEventsTable({ events }) {
             <th>Data/hora</th>
             <th>Usuário</th>
             <th>Resultado</th>
-            <th>IP</th>
-            <th>Dispositivo</th>
+            <th className="hide-mobile">IP</th>
+            <th className="hide-mobile">Dispositivo</th>
           </tr>
         </thead>
         <tbody>
@@ -37,8 +39,8 @@ function LoginEventsTable({ events }) {
                   <span className="badge badge-danger"><span className="badge-dot" /> falhou</span>
                 )}
               </td>
-              <td>{e.ip || '—'}</td>
-              <td style={{ maxWidth: 320, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={e.user_agent}>
+              <td className="hide-mobile">{e.ip || '—'}</td>
+              <td className="hide-mobile" style={{ maxWidth: 320, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={e.user_agent}>
                 {e.user_agent || '—'}
               </td>
             </tr>
@@ -96,6 +98,23 @@ const TABS = {
   doorOpens: { label: 'Aberturas de porteiro', desc: 'Últimas 500 tentativas de abertura remota — quem abriu, quando e qual porteiro.' },
 };
 
+const CSV_COLUMNS = {
+  logins: [
+    { header: 'Data/hora', get: (e) => formatDateTime(e.created_at) },
+    { header: 'Usuário', get: (e) => e.username },
+    { header: 'Resultado', get: (e) => (e.success ? 'sucesso' : 'falhou') },
+    { header: 'IP', get: (e) => e.ip || '' },
+    { header: 'Dispositivo', get: (e) => e.user_agent || '' },
+  ],
+  doorOpens: [
+    { header: 'Data/hora', get: (e) => formatDateTime(e.created_at) },
+    { header: 'Usuário', get: (e) => e.username },
+    { header: 'Porteiro', get: (e) => e.device_name },
+    { header: 'Resultado', get: (e) => (e.success ? 'abriu' : 'falhou') },
+    { header: 'Erro', get: (e) => e.error_message || '' },
+  ],
+};
+
 export default function AuditLog() {
   const [tab, setTab] = useState('logins');
   const [loginEvents, setLoginEvents] = useState(null);
@@ -114,6 +133,11 @@ export default function AuditLog() {
 
   const events = tab === 'logins' ? loginEvents : doorEvents;
 
+  function handleExport() {
+    const filename = tab === 'logins' ? 'auditoria-logins.csv' : 'auditoria-aberturas.csv';
+    downloadCsv(filename, events || [], CSV_COLUMNS[tab]);
+  }
+
   return (
     <>
       <div className="page-header">
@@ -121,6 +145,9 @@ export default function AuditLog() {
           <h1>Auditoria de acesso</h1>
           <p>{TABS[tab].desc}</p>
         </div>
+        <button className="btn btn-secondary" onClick={handleExport} disabled={!events || events.length === 0}>
+          <Icon name="copy" size={15} /> Exportar CSV
+        </button>
       </div>
 
       <div className="tabs">

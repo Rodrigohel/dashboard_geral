@@ -342,9 +342,9 @@ function CallHistorySection() {
                   <th>Quando</th>
                   <th>De</th>
                   <th>Para</th>
-                  <th>Sentido</th>
+                  <th className="hide-mobile">Sentido</th>
                   <th>Resultado</th>
-                  <th>Duração</th>
+                  <th className="hide-mobile">Duração</th>
                 </tr>
               </thead>
               <tbody>
@@ -353,9 +353,9 @@ function CallHistorySection() {
                     <td style={{ color: 'var(--text-secondary)' }}>{formatDateTime(c.at)}</td>
                     <td style={{ fontWeight: 600 }}>{c.src}</td>
                     <td style={{ fontWeight: 600 }}>{c.dst}</td>
-                    <td style={{ color: 'var(--text-secondary)' }}>{c.direction === 'made' ? 'realizada' : 'recebida'}</td>
+                    <td className="hide-mobile" style={{ color: 'var(--text-secondary)' }}>{c.direction === 'made' ? 'realizada' : 'recebida'}</td>
                     <td><DispositionBadge disposition={c.disposition} /></td>
-                    <td style={{ color: 'var(--text-secondary)' }}>{formatDuration(c.durationSeconds)}</td>
+                    <td className="hide-mobile" style={{ color: 'var(--text-secondary)' }}>{formatDuration(c.durationSeconds)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -476,7 +476,7 @@ function ExtensionsSection({ extensions }) {
                       <th>Ramal</th>
                       <th>Nome</th>
                       <th>Status</th>
-                      <th>Última atividade</th>
+                      <th className="hide-mobile">Última atividade</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -492,7 +492,7 @@ function ExtensionsSection({ extensions }) {
                         <td>
                           <ExtensionStatusBadge state={e.state} />
                         </td>
-                        <td style={{ color: 'var(--text-secondary)' }}>{formatDateTime(e.lastActivity)}</td>
+                        <td className="hide-mobile" style={{ color: 'var(--text-secondary)' }}>{formatDateTime(e.lastActivity)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -525,13 +525,13 @@ function ExtensionsSection({ extensions }) {
 // isso fica de fora do cálculo da "normalidade"). Só acusa com um mínimo
 // de 3 perdidas hoje E pelo menos o dobro da média, pra não marcar como
 // anomalia uma variação pequena tipo "1 perdida hoje, 0.5 de média".
-function detectMissedAnomaly(today, trend) {
+function detectMissedAnomaly(today, trend, minCount = 3, multiplier = 2) {
   if (!today || !trend?.perdidas || trend.perdidas.length < 7) return null;
   const missedToday = today.missed || 0;
   const baseline = trend.perdidas.slice(0, -1);
-  if (baseline.length < 6 || missedToday < 3) return null;
+  if (baseline.length < 6 || missedToday < minCount) return null;
   const mean = baseline.reduce((a, b) => a + b, 0) / baseline.length;
-  if (missedToday < mean * 2) return null;
+  if (missedToday < mean * multiplier) return null;
   return { current: missedToday, mean: Math.round(mean * 10) / 10 };
 }
 
@@ -623,7 +623,12 @@ export default function InterfoneDashboard() {
   const [trendRange, setTrendRange] = useState('7d');
   const [trend30, setTrend30] = useState(null);
   const [callHourCounts, setCallHourCounts] = useState(null);
+  const [anomalyParams, setAnomalyParams] = useState(null);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    api.settings.getAnomaly().then(setAnomalyParams).catch(() => {});
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -678,7 +683,7 @@ export default function InterfoneDashboard() {
       .catch(() => {});
   }, []);
 
-  const missedAnomaly = detectMissedAnomaly(today, trend);
+  const missedAnomaly = detectMissedAnomaly(today, trend, anomalyParams?.interfoneMissedMinCount, anomalyParams?.interfoneMissedMultiplier);
   const displayedTrend = trendRange === '30d' ? trend30 : trend;
 
   return (

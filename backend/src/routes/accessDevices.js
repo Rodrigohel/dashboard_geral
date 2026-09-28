@@ -4,6 +4,7 @@ import { db } from '../db/sqlite.js';
 import { encryptSecret, decryptSecret } from '../services/cryptoService.js';
 import { requireOwner, requireDeviceAccess, requireDeviceOpenAccess } from '../middleware/auth.js';
 import * as deviceApi from '../services/accessControlClient.js';
+import { getAnomalyParams } from '../services/anomalySettingsService.js';
 
 export const accessDevicesRouter = Router();
 const upload = multer({ limits: { fileSize: 5 * 1024 * 1024 } });
@@ -59,16 +60,16 @@ const sameHourOpenCountStmt = db.prepare(
 );
 // Só arrisca dizer "horário incomum" com histórico suficiente pra saber o
 // que é normal — sem isso, os primeiros usos de um porteiro novo seriam
-// TODOS "anômalos" (não tem nada com que comparar ainda).
-const ANOMALY_MIN_SAMPLE = 15;
-
+// TODOS "anômalos" (não tem nada com que comparar ainda). O mínimo de
+// amostra é configurável em Configurações > Sensibilidade de anomalia
+// (quanto menor, mais cedo passa a avaliar — e mais sensível fica).
 function getLastOpen(deviceId) {
   const row = lastOpenStmt.get(deviceId);
   if (!row) return null;
   let anomaly = null;
   if (row.success) {
     const baseline = baselineOpenCountStmt.get(deviceId, row.id).c;
-    if (baseline >= ANOMALY_MIN_SAMPLE) {
+    if (baseline >= getAnomalyParams().acessoMinSample) {
       anomaly = sameHourOpenCountStmt.get(deviceId, row.id, row.hour).c === 0;
     }
   }

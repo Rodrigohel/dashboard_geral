@@ -177,6 +177,10 @@ export const api = {
     testGateway: (moduleKey) => request(`/api/settings/gateways/${moduleKey}/test-connection`, { method: 'POST' }),
     getSecurity: () => request('/api/settings/security'),
     saveSecurity: (payload) => request('/api/settings/security', { method: 'PUT', body: payload }),
+    getAnomaly: () => request('/api/settings/anomaly'),
+    saveAnomaly: (payload) => request('/api/settings/anomaly', { method: 'PUT', body: payload }),
+    getRetention: () => request('/api/settings/retention'),
+    saveRetention: (payload) => request('/api/settings/retention', { method: 'PUT', body: payload }),
   },
 
   account: {

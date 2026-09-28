@@ -384,6 +384,162 @@ function SecurityCard() {
   );
 }
 
+const SENSITIVITY_OPTIONS = [
+  { value: 'baixa', label: 'Baixa — só acusa desvios bem grandes' },
+  { value: 'media', label: 'Média (padrão)' },
+  { value: 'alta', label: 'Alta — acusa desvios menores' },
+];
+
+function AnomalyCard() {
+  const [redeSensitivity, setRedeSensitivity] = useState('media');
+  const [interfoneSensitivity, setInterfoneSensitivity] = useState('media');
+  const [acessoSensitivity, setAcessoSensitivity] = useState('media');
+  const [loaded, setLoaded] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const toast = useToast();
+
+  useEffect(() => {
+    api.settings.getAnomaly().then((s) => {
+      setRedeSensitivity(s.redeSensitivity);
+      setInterfoneSensitivity(s.interfoneSensitivity);
+      setAcessoSensitivity(s.acessoSensitivity);
+      setLoaded(true);
+    });
+  }, []);
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      await api.settings.saveAnomaly({ redeSensitivity, interfoneSensitivity, acessoSensitivity });
+      toast('Sensibilidade de anomalia atualizada.');
+    } catch (err) {
+      toast(err.message, 'error');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="surface" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div>
+        <div style={{ fontWeight: 700 }}>Sensibilidade de anomalia</div>
+        <div className="field-hint">
+          Controla quando os avisos de "fora do normal" aparecem em cada módulo (pico de latência na Rede, chamadas
+          perdidas em excesso no Interfone, horário incomum de abertura no Acesso).
+        </div>
+      </div>
+
+      {!loaded ? (
+        <div className="skeleton" style={{ height: 90, borderRadius: 12 }} />
+      ) : (
+        <>
+          <div className="field">
+            <label className="field-label">Rede — pico de latência</label>
+            <select className="select" value={redeSensitivity} onChange={(e) => setRedeSensitivity(e.target.value)}>
+              {SENSITIVITY_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="field">
+            <label className="field-label">Interfone — chamadas perdidas</label>
+            <select className="select" value={interfoneSensitivity} onChange={(e) => setInterfoneSensitivity(e.target.value)}>
+              {SENSITIVITY_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="field">
+            <label className="field-label">Acesso — horário incomum de abertura</label>
+            <select className="select" value={acessoSensitivity} onChange={(e) => setAcessoSensitivity(e.target.value)}>
+              {SENSITIVITY_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+            <span className="field-hint">
+              "Alta" exige menos aberturas registradas antes de começar a avaliar horário incomum — mais rápido pra
+              avisar, mas com menos histórico pra confirmar o que é "normal".
+            </span>
+          </div>
+          <div>
+            <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
+              {saving ? <span className="spinner" /> : 'Salvar'}
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function RetentionCard() {
+  const [auditRetentionDays, setAuditRetentionDays] = useState(0);
+  const [loaded, setLoaded] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const toast = useToast();
+
+  useEffect(() => {
+    api.settings.getRetention().then((s) => {
+      setAuditRetentionDays(s.auditRetentionDays);
+      setLoaded(true);
+    });
+  }, []);
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      await api.settings.saveRetention({ auditRetentionDays: Number(auditRetentionDays) });
+      toast('Retenção de auditoria atualizada.');
+    } catch (err) {
+      toast(err.message, 'error');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="surface" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div>
+        <div style={{ fontWeight: 700 }}>Retenção do log de auditoria</div>
+        <div className="field-hint">
+          Por quantos dias manter o histórico de logins e aberturas de porteiro (tela Auditoria) antes de apagar
+          sozinho. Use 0 para nunca apagar automaticamente.
+        </div>
+      </div>
+
+      {!loaded ? (
+        <div className="skeleton" style={{ height: 60, borderRadius: 12 }} />
+      ) : (
+        <>
+          <div className="field">
+            <label className="field-label">Dias de retenção (0 = nunca apagar)</label>
+            <input
+              className="input"
+              type="number"
+              min={0}
+              max={3650}
+              value={auditRetentionDays}
+              onChange={(e) => setAuditRetentionDays(e.target.value)}
+              style={{ maxWidth: 140 }}
+            />
+          </div>
+          <div>
+            <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
+              {saving ? <span className="spinner" /> : 'Salvar'}
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function Settings() {
   const [gateways, setGateways] = useState(null);
 
@@ -409,6 +565,10 @@ export default function Settings() {
       <BrandingCard />
 
       <SecurityCard />
+
+      <AnomalyCard />
+
+      <RetentionCard />
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         {gateways === null ? (
