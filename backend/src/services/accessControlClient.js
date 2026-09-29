@@ -26,6 +26,7 @@
 import crypto from 'node:crypto';
 import http from 'node:http';
 import https from 'node:https';
+import * as segplaceClient from './segplaceClient.js';
 
 function baseUrlOf(device) {
   const scheme = device.use_https ? 'https' : 'http';
@@ -720,6 +721,28 @@ async function biotOpenDoor(device, password) {
 }
 
 // ======================================================================
+// Segplace / Axiom Wifi (portão) — ver segplaceClient.js pros detalhes e a
+// fonte de cada endpoint (código do APK oficial decompilado). Diferente
+// dos porteiros Intelbras: "device_username"/"device_password_enc" aqui
+// guardam o login da CONTA Segplace (não de um equipamento), e "remote_id"
+// guarda qual portão da conta esta linha representa.
+// ======================================================================
+
+async function segplaceUnsupported() {
+  throw new Error(
+    'Gestão de usuários/moradores não é suportada para portões Segplace/Axiom Wifi — a API deles só permite abrir remotamente e ver status.'
+  );
+}
+
+async function segplaceOpenDoor(device, password) {
+  await segplaceClient.openGate(device.device_username, password, device.remote_id);
+}
+
+async function segplaceTestConnection(device, password) {
+  return segplaceClient.testConnection(device.device_username, password);
+}
+
+// ======================================================================
 // Dispatcher — escolhe a implementação pelo modelo cadastrado.
 // ======================================================================
 
@@ -744,13 +767,23 @@ const CLIENTS = {
     testConnection: biotTestConnection,
     openDoor: biotOpenDoor,
   },
+  segplace: {
+    listUsers: segplaceUnsupported,
+    createUser: segplaceUnsupported,
+    updateUser: segplaceUnsupported,
+    deleteUser: segplaceUnsupported,
+    setUserPhoto: segplaceUnsupported,
+    getUserPhoto: segplaceUnsupported,
+    testConnection: segplaceTestConnection,
+    openDoor: segplaceOpenDoor,
+  },
 };
 
 function clientFor(device) {
   const client = CLIENTS[device.model];
   if (!client) {
     throw new Error(
-      `Modelo "${device.model}" não tem um cliente de API implementado — escolha "Intelbras XPE 3200 IP Face" ou "Intelbras SS 3532 MF" no cadastro do equipamento.`
+      `Modelo "${device.model}" não tem um cliente de API implementado — escolha "Intelbras XPE 3200 IP Face", "Intelbras SS 3532 MF" ou "Segplace/Axiom Wifi" no cadastro do equipamento.`
     );
   }
   return client;
