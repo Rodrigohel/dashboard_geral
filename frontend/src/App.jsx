@@ -7,6 +7,7 @@ import LoadingScreen from './components/LoadingScreen.jsx';
 import Sidebar from './components/Sidebar.jsx';
 import TopBar from './components/TopBar.jsx';
 import CommandPalette from './components/CommandPalette.jsx';
+import InstallAppBanner from './components/InstallAppBanner.jsx';
 import Login from './pages/Login.jsx';
 import Home from './pages/Home.jsx';
 import RedeDashboard from './pages/RedeDashboard.jsx';
@@ -112,7 +113,10 @@ export default function App() {
           onMenuClick={() => setMenuOpen(true)}
           onSearchClick={() => setPaletteOpen(true)}
         />
-        <main className="content">{renderView()}</main>
+        <main className="content">
+          <InstallAppBanner />
+          {renderView()}
+        </main>
       </div>
       <CommandPalette
         open={paletteOpen}

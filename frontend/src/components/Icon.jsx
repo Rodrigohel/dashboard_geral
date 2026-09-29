@@ -38,6 +38,7 @@ const paths = {
   menu: 'M4 6h16M4 12h16M4 18h16',
   star: 'M12 2 15.1 8.3 22 9.3 17 14.1 18.2 21 12 17.8 5.8 21 7 14.1 2 9.3 8.9 8.3Z',
   activity: 'M3 12h4l2-8 6 16 2-8h4',
+  download: 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3',
 };
 
 export default function Icon({ name, size = 18, strokeWidth = 1.8, className, style }) {
