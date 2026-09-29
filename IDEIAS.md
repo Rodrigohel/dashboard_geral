@@ -29,6 +29,22 @@ Pra virar uma plataforma hospedando vários clientes ao mesmo tempo (um servidor
 condomínios/prédios) precisaria de isolamento de dados por cliente em todo canto (tenant_id
 nas tabelas, roteamento por subdomínio) — reforma grande, não é "adicionar uma tela".
 
+## XPE 3200 — abrir porta às vezes volta HTML em vez de JSON
+Diagnóstico melhorado (não resolvido): `accessControlClient.js` já documentava que o
+`target/action` usado ("accessControl/openDoor") é uma tentativa embasada, herdada de um
+modelo irmão mais antigo da Intelbras (API diferente) — nunca confirmada contra o hardware
+real da XPE 3200. HTML de volta é sintoma mais coerente com "esse endpoint não existe pra
+essa API JSON" do que com "API HTTP desligada" (que já tinha mensagem própria). O erro agora
+diferencia os dois casos e cita o PDF oficial da Intelbras. Falta, pra resolver de verdade:
+o PDF oficial "XPE3200_IP_FACE_Http_API_de_Integração.pdf" (confirmar o nome certo de
+target/action) OU uma captura de tráfego de algum app que já abre a porta com sucesso nesse
+mesmo modelo — sem isso, não dá pra trocar o nome sem chutar às cegas de novo.
+
+## Segplace/Axiom Wifi — integração de portão
+Travado até capturar o tráfego de rede do app deles abrindo o portão (ver o que a API
+realmente espera — endpoint, autenticação, payload). Sem essa captura, qualquer tentativa
+de integração seria um chute sem base nenhuma contra uma API totalmente desconhecida.
+
 ## Feed de reconhecimento facial ao vivo
 HIPÓTESE, não confirmada: se a API dos porteiros (XPE3200/SS3532MF) expuser evento de
 reconhecimento facial (não só abrir porta), dava pra mostrar um feed tipo "Fulano passou pela
