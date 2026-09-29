@@ -6,8 +6,19 @@
     <title>Portal</title>
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" href="/icon-mark.svg" />
-    <link rel="apple-touch-icon" href="/icon-mark.svg" />
+    <!-- apple-touch-icon PRECISA ser PNG — o Safari ignora SVG nesse link
+         (ao contrário do manifest, que o Android lê certinho), então sem
+         isso o ícone na tela de início do iPhone saía errado/genérico. -->
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta name="theme-color" content="#14b8a6" />
+    <!-- Sem isso, "Adicionar à Tela de Início" no iPhone abre o Portal
+         dentro do Safari normal (com a barra de endereço) em vez de tela
+         cheia como um app de verdade — é o que fazia o botão "não
+         funcionar" de fato (a instalação em si sempre funcionou, só não
+         parecia um app depois de instalado). -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Portal" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
