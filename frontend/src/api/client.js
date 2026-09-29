@@ -52,6 +52,7 @@ export const api = {
     testConnection: (id) => request(`/api/access/devices/${id}/test-connection`, { method: 'POST' }),
     searchUsers: (q) => request(`/api/access/devices/search-users?q=${encodeURIComponent(q)}`),
     openDoor: (id) => request(`/api/access/devices/${id}/open`, { method: 'POST' }),
+    discoverSegplace: (payload) => request('/api/access/devices/segplace/discover', { method: 'POST', body: payload }),
 
     users: {
       list: (deviceId) => request(`/api/access/devices/${deviceId}/users`),
