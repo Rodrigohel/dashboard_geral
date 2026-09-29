@@ -188,6 +188,13 @@ if (!accessDeviceColumns.includes('last_checked_at')) {
 if (!accessDeviceColumns.includes('last_error')) {
   db.exec("ALTER TABLE access_devices ADD COLUMN last_error TEXT NOT NULL DEFAULT ''");
 }
+// Só usado pelo modelo 'segplace' (portão Segplace/Axiom Wifi) — o
+// identificador da "porta" na nuvem deles, já que host/porta/usuário não
+// servem pra distinguir qual portão é qual quando uma conta tem mais de um
+// (ver segplaceClient.js). Vazio nos modelos Intelbras.
+if (!accessDeviceColumns.includes('remote_id')) {
+  db.exec("ALTER TABLE access_devices ADD COLUMN remote_id TEXT NOT NULL DEFAULT ''");
+}
 
 const gatewayColumns = db.prepare('PRAGMA table_info(module_gateways)').all().map((c) => c.name);
 if (!gatewayColumns.includes('public_url')) {

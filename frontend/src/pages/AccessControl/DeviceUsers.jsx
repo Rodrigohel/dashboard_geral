@@ -108,7 +108,15 @@ export default function DeviceUsers({ device, onBack }) {
         </div>
       </div>
 
-      {error && /não é suportad/i.test(error) ? (
+      {error && device.model === 'segplace' ? (
+        <div className="surface" style={{ padding: 20, borderLeft: '3px solid var(--warning-500)' }}>
+          <strong style={{ color: 'var(--warning-500)' }}>Portões Segplace/Axiom Wifi não têm cadastro de moradores.</strong>
+          <p style={{ color: 'var(--text-secondary)', marginTop: 6, fontSize: 13.5 }}>
+            A API deles só permite abrir remotamente e ver status — não existe um endpoint pra listar/cadastrar quem
+            pode usar o portão. Isso é feito direto pelo app ou site da Segplace.
+          </p>
+        </div>
+      ) : error && /não é suportad/i.test(error) ? (
         <div className="surface" style={{ padding: 20, borderLeft: '3px solid var(--warning-500)' }}>
           <strong style={{ color: 'var(--warning-500)' }}>Listar usuários ainda não é suportado neste modelo.</strong>
           <p style={{ color: 'var(--text-secondary)', marginTop: 6, fontSize: 13.5 }}>

@@ -40,10 +40,18 @@ o PDF oficial "XPE3200_IP_FACE_Http_API_de_Integração.pdf" (confirmar o nome c
 target/action) OU uma captura de tráfego de algum app que já abre a porta com sucesso nesse
 mesmo modelo — sem isso, não dá pra trocar o nome sem chutar às cegas de novo.
 
-## Segplace/Axiom Wifi — integração de portão
-Travado até capturar o tráfego de rede do app deles abrindo o portão (ver o que a API
-realmente espera — endpoint, autenticação, payload). Sem essa captura, qualquer tentativa
-de integração seria um chute sem base nenhuma contra uma API totalmente desconhecida.
+## ~~Segplace/Axiom Wifi — integração de portão~~ — feito
+Implementado como novo modelo "segplace" em Controle de acesso. A API foi confirmada lendo o
+código-fonte real do APK oficial do Segplace (decompilado) — não por captura de tráfego (o
+certificate pinning do app bloqueou isso): login via `POST /api/entrar` (Basic auth com a
+conta Segplace, devolve cookie de sessão), lista de portões via `GET /api/dispositivos/get`,
+abrir via `POST /api/portas/abrir` com `{"id": <id>}`. Não existe IP local — tudo passa pela
+nuvem deles (segplace.seekat.com.br), por isso o cadastro pede usuário/senha da conta em vez
+de host/porta, com um botão "Buscar portões" pra escolher qual portão da conta cada linha do
+Portal representa (uma conta pode ter mais de um). NÃO suporta cadastro de moradores (a API
+deles não expõe isso, só abrir/ver status). Testado de ponta a ponta contra um servidor fake
+replicando o contrato real — nunca contra a nuvem de verdade (a rede daqui não alcança hosts
+de terceiros), então o primeiro teste real acontece no servidor do cliente.
 
 ## Feed de reconhecimento facial ao vivo
 HIPÓTESE, não confirmada: se a API dos porteiros (XPE3200/SS3532MF) expuser evento de

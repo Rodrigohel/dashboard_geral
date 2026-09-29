@@ -4,6 +4,7 @@ import { db } from '../db/sqlite.js';
 import { encryptSecret, decryptSecret } from '../services/cryptoService.js';
 import { requireOwner, requireDeviceAccess, requireDeviceOpenAccess } from '../middleware/auth.js';
 import * as deviceApi from '../services/accessControlClient.js';
+import * as segplaceClient from '../services/segplaceClient.js';
 import { getAnomalyParams } from '../services/anomalySettingsService.js';
 
 export const accessDevicesRouter = Router();
@@ -19,6 +20,7 @@ function serializeDevice(row) {
     port: row.port,
     useHttps: Boolean(row.use_https),
     deviceUsername: row.device_username,
+    remoteId: row.remote_id || null,
     notes: row.notes,
     createdAt: row.created_at,
     lastStatus: row.last_status,
@@ -92,6 +94,23 @@ function getDeviceOr404(req, res) {
   return device;
 }
 
+// Busca os portões já cadastrados numa conta Segplace — usado pelo
+// formulário "Novo equipamento" pra deixar o dono escolher qual portão
+// (a conta pode ter mais de um) essa linha do Portal vai representar, sem
+// precisar adivinhar o "id" interno da Segplace.
+accessDevicesRouter.post('/segplace/discover', requireOwner, async (req, res) => {
+  const { username, password } = req.body || {};
+  if (!username || !password) {
+    return res.status(400).json({ error: 'Usuário e senha do Segplace são obrigatórios' });
+  }
+  try {
+    const gates = await segplaceClient.listGates(username, password);
+    res.json(gates);
+  } catch (err) {
+    res.status(502).json({ error: err.message });
+  }
+});
+
 // --- CRUD do cadastro do equipamento (só owner) ---
 
 accessDevicesRouter.get('/', (req, res) => {
@@ -101,15 +120,27 @@ accessDevicesRouter.get('/', (req, res) => {
 });
 
 accessDevicesRouter.post('/', requireOwner, (req, res) => {
-  const { name, location, model, host, port, useHttps, deviceUsername, devicePassword, notes } = req.body || {};
-  if (!name || !host || !deviceUsername || !devicePassword) {
+  let { name, location, model, host, port, useHttps, deviceUsername, devicePassword, remoteId, notes } = req.body || {};
+
+  // Segplace não tem host/porta configurável (é sempre a nuvem deles) — em
+  // vez disso identifica o portão pelo "remoteId" escolhido via
+  // POST /segplace/discover.
+  if (model === 'segplace') {
+    host = 'segplace.seekat.com.br';
+    port = 443;
+    useHttps = true;
+    if (!name || !deviceUsername || !devicePassword || !remoteId) {
+      return res.status(400).json({ error: 'Nome, usuário, senha e o portão escolhido (remoteId) são obrigatórios' });
+    }
+  } else if (!name || !host || !deviceUsername || !devicePassword) {
     return res.status(400).json({ error: 'Nome, host, usuário e senha do equipamento são obrigatórios' });
   }
+
   const info = db
     .prepare(
       `INSERT INTO access_devices
-        (name, location, model, host, port, use_https, device_username, device_password_enc, notes)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        (name, location, model, host, port, use_https, device_username, device_password_enc, remote_id, notes)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .run(
       name,
@@ -120,6 +151,7 @@ accessDevicesRouter.post('/', requireOwner, (req, res) => {
       useHttps ? 1 : 0,
       deviceUsername,
       encryptSecret(devicePassword),
+      remoteId || '',
       notes || ''
     );
   res.status(201).json(serializeDevice(db.prepare('SELECT * FROM access_devices WHERE id = ?').get(info.lastInsertRowid)));
@@ -128,11 +160,17 @@ accessDevicesRouter.post('/', requireOwner, (req, res) => {
 accessDevicesRouter.put('/:id', requireOwner, (req, res) => {
   const device = getDeviceOr404(req, res);
   if (!device) return;
-  const { name, location, model, host, port, useHttps, deviceUsername, devicePassword, notes } = req.body || {};
+  let { name, location, model, host, port, useHttps, deviceUsername, devicePassword, remoteId, notes } = req.body || {};
+
+  if ((model ?? device.model) === 'segplace') {
+    host = 'segplace.seekat.com.br';
+    port = 443;
+    useHttps = true;
+  }
 
   db.prepare(
     `UPDATE access_devices SET
-      name = ?, location = ?, model = ?, host = ?, port = ?, use_https = ?, device_username = ?, notes = ?
+      name = ?, location = ?, model = ?, host = ?, port = ?, use_https = ?, device_username = ?, remote_id = ?, notes = ?
      WHERE id = ?`
   ).run(
     name ?? device.name,
@@ -142,6 +180,7 @@ accessDevicesRouter.put('/:id', requireOwner, (req, res) => {
     Number(port ?? device.port),
     useHttps === undefined ? device.use_https : useHttps ? 1 : 0,
     deviceUsername ?? device.device_username,
+    remoteId ?? device.remote_id,
     notes ?? device.notes,
     device.id
   );
