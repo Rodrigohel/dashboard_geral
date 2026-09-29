@@ -529,24 +529,54 @@ async function xpeTestConnection(device, password) {
   return true;
 }
 
-// TENTATIVA EMBASADA, ainda NÃO confirmada em hardware real: a Intelbras usa
-// target "accessControl" / action "openDoor" num modelo irmão mais antigo
-// (XPE 3101 IP, que usa a API CGI antiga — não a JSON API deste 3200) —
-// forte indício da convenção de nomenclatura da marca, mas não prova que a
-// API JSON deste equipamento aceita exatamente esses nomes. Falha segura:
-// se o nome estiver errado, xpeCall já devolve um erro claro (retcode/mensagem
-// do próprio equipamento) em vez de fazer algo indevido silenciosamente.
+// CONFIRMADO no manual oficial ("Manual_XPE_3200_IP_FACE_01-22_site.pdf",
+// seção "Acionamentos > Acionar Relé por HTTP", com URL de exemplo real) —
+// abrir a porta NÃO passa pela API JSON (/api/{target}/{action}) que o
+// resto deste arquivo usa; é uma URL GET separada, estilo CGI antigo:
+//   http://IP/fcgi/do?action=OpenDoor&UserName=U&Password=S&DoorNum=1
+// Isso também explica o bug antigo (HTML em vez de JSON): a tentativa
+// anterior usava target/action ("accessControl"/"openDoor") chutados pra
+// API JSON errada — essa API nunca teve esse endpoint, por isso o
+// equipamento respondia com a própria página web (HTML) em vez de um erro
+// JSON.
 //
-// BUG CONHECIDO relatado em campo: essa chamada às vezes volta HTML em vez
-// de JSON. xpeCall (acima) já trata esse caso com uma mensagem específica —
-// e o suspeito nº1 é justamente esse target/action não confirmado (ver
-// parágrafo acima). Falta confirmar contra o PDF oficial
-// "XPE3200_IP_FACE_Http_API_de_Integração.pdf" ou capturar o tráfego de um
-// app que abra a porta com sucesso nesse mesmo modelo de equipamento —
-// sem isso, não dá pra saber o nome certo sem arriscar um chute às cegas.
-// Ajustar aqui assim que confirmado contra o equipamento real.
+// Pré-requisito no equipamento (fora do controle do Portal): a opção
+// "Acionar Relé por HTTP" precisa estar HABILITADA em Acionamentos, com
+// usuário/senha configurados lá — o manual não deixa claro se são
+// obrigatoriamente os mesmos da conta usada no resto da API, então usamos
+// os mesmos por padrão (device_username/device_password já cadastrados) e
+// avisamos claramente se o equipamento recusar.
 async function xpeOpenDoor(device, password) {
-  await xpeCall(device, password, 'accessControl', 'openDoor', { channel: 1 });
+  const url =
+    `${baseUrlOf(device)}/fcgi/do?action=OpenDoor` +
+    `&UserName=${encodeURIComponent(device.device_username)}` +
+    `&Password=${encodeURIComponent(password)}` +
+    `&DoorNum=1`;
+  let res;
+  try {
+    res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+  } catch (err) {
+    throw new Error(`Não consegui alcançar ${url.replace(/Password=[^&]*/, 'Password=***')} (${err.message}).`);
+  }
+  const text = await res.text();
+  if (res.status === 401 || res.status === 403) {
+    throw new Error(
+      'Equipamento recusou usuário/senha para abrir a porta — confira se "Acionar Relé por HTTP" está habilitado ' +
+        'em Acionamentos, na interface web do equipamento, com o mesmo usuário/senha cadastrados aqui.'
+    );
+  }
+  // O manual não documenta o formato exato da resposta de sucesso (ao
+  // contrário da API JSON, que sempre devolve {retcode,...}) — só o
+  // comando em si. Uma página HTML de volta (login, por exemplo) é o sinal
+  // mais confiável de que a função não está habilitada/configurada certa
+  // no equipamento, então trata isso como falha; qualquer outra resposta
+  // 2xx é aceita como sucesso.
+  const looksLikeHtml = /^\s*<(!doctype|html)/i.test(text);
+  if (!res.ok || looksLikeHtml) {
+    throw new Error(
+      `Equipamento recusou abrir a porta (HTTP ${res.status})${looksLikeHtml ? ' — resposta parece a página de login, confira se "Acionar Relé por HTTP" está habilitado em Acionamentos' : ''}: ${text.slice(0, 200)}`
+    );
+  }
 }
 
 // ======================================================================
