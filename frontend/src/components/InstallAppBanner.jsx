@@ -13,16 +13,13 @@ function isIos() {
   return /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 }
 
-// No Android/Chrome o navegador decide sozinho quando oferecer a
-// instalação (dispara 'beforeinstallprompt') — a gente só guarda o evento
-// pra poder mostrar nosso próprio botão em vez do banner nativo do Chrome.
-// No iPhone a Apple não expõe NENHUMA forma de disparar isso por código —
-// o único caminho é manual (Compartilhar > Adicionar à Tela de Início), por
-// isso o aviso ali é só instrução, sem botão.
+// Só pro iPhone/iPad: a Apple não expõe NENHUMA API pra oferecer instalação
+// por código (nem 'beforeinstallprompt', nem nada equivalente) — o único
+// caminho é o passo a passo manual abaixo. No Android/Chrome não precisa de
+// nada daqui: o próprio navegador já mostra seu banner flutuante de
+// instalação sozinho, sem precisar de UI própria do Portal pra isso.
 export default function InstallAppBanner() {
-  const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [dismissed, setDismissed] = useState(true);
-  const [installing, setInstalling] = useState(false);
 
   useEffect(() => {
     try {
@@ -31,23 +28,6 @@ export default function InstallAppBanner() {
     } catch {
       setDismissed(false);
     }
-  }, []);
-
-  useEffect(() => {
-    function handleBeforeInstall(e) {
-      e.preventDefault();
-      setDeferredPrompt(e);
-    }
-    function handleInstalled() {
-      setDeferredPrompt(null);
-      dismiss();
-    }
-    window.addEventListener('beforeinstallprompt', handleBeforeInstall);
-    window.addEventListener('appinstalled', handleInstalled);
-    return () => {
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
-      window.removeEventListener('appinstalled', handleInstalled);
-    };
   }, []);
 
   function dismiss() {
@@ -59,25 +39,7 @@ export default function InstallAppBanner() {
     setDismissed(true);
   }
 
-  async function handleInstallClick() {
-    if (!deferredPrompt) return;
-    setInstalling(true);
-    try {
-      deferredPrompt.prompt();
-      await deferredPrompt.userChoice;
-    } finally {
-      setDeferredPrompt(null);
-      setInstalling(false);
-    }
-  }
-
-  const ios = isIos();
-
-  if (dismissed || isStandalone()) return null;
-  // No iPhone sempre vale mostrar a instrução (não tem como saber se o
-  // navegador "aceitaria" instalar) — fora do iOS, só mostra se o próprio
-  // navegador sinalizou que a instalação está disponível.
-  if (!ios && !deferredPrompt) return null;
+  if (dismissed || isStandalone() || !isIos()) return null;
 
   return (
     <div
@@ -87,20 +49,11 @@ export default function InstallAppBanner() {
       <Icon name="download" size={20} style={{ color: 'var(--accent-400)', flexShrink: 0 }} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontWeight: 700, fontSize: 14 }}>Instale o Portal como app</div>
-        {ios ? (
-          <p className="field-hint" style={{ marginTop: 2 }}>
-            Toque em <strong>Compartilhar</strong> (ícone com a seta pra cima) e depois em{' '}
-            <strong>"Adicionar à Tela de Início"</strong>.
-          </p>
-        ) : (
-          <p className="field-hint" style={{ marginTop: 2 }}>Acesso mais rápido, em tela cheia, sem a barra do navegador.</p>
-        )}
+        <p className="field-hint" style={{ marginTop: 2 }}>
+          Toque em <strong>Compartilhar</strong> (ícone com a seta pra cima) e depois em{' '}
+          <strong>"Adicionar à Tela de Início"</strong>.
+        </p>
       </div>
-      {!ios && (
-        <button className="btn btn-primary btn-sm" onClick={handleInstallClick} disabled={installing}>
-          {installing ? <span className="spinner" /> : 'Instalar'}
-        </button>
-      )}
       <button className="btn btn-ghost btn-icon btn-sm" onClick={dismiss} aria-label="Fechar aviso" title="Fechar">
         <Icon name="x" size={16} />
       </button>

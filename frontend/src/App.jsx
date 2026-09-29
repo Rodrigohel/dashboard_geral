@@ -29,6 +29,10 @@ export default function App() {
 
   useEffect(() => {
     document.title = branding.name;
+    // Nome mostrado embaixo do ícone quando adicionado à Tela de Início no
+    // iPhone — o Safari lê o <meta> atual da página no momento em que a
+    // pessoa toca em "Adicionar", não um valor fixo do HTML original.
+    document.querySelector('meta[name="apple-mobile-web-app-title"]')?.setAttribute('content', branding.name);
   }, [branding.name]);
 
   // Ctrl/Cmd+K abre a busca rápida de qualquer lugar do Portal — só depois
