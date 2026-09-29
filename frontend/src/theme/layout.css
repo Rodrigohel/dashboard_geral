@@ -21,59 +21,6 @@
   z-index: 40;
   transition: width 0.2s var(--ease), box-shadow 0.2s var(--ease);
 }
-@media (min-width: 861px) {
-  .sidebar:hover,
-  .sidebar:focus-within {
-    width: 252px;
-    box-shadow: var(--shadow-lg);
-  }
-  /* Trilho recolhido (só ícone, sem rótulo visível): centraliza o ícone e
-     zera o gap — sem isso, o gap do rótulo (usado quando o menu expande)
-     empurrava o ícone pra fora do centro do trilho de 76px. */
-  .nav-item {
-    justify-content: center;
-    gap: 0;
-  }
-  /* Recolhida, o texto some de vez (em vez de cortar no meio da palavra) —
-     só reaparece com o sidebar expandido. Além de opacity, zera a
-     largura/altura pra não sobrar espaço vazio e desalinhar o ícone do
-     centro do trilho recolhido. */
-  .nav-label {
-    opacity: 0;
-    max-width: 0;
-    max-height: 0;
-    overflow: hidden;
-    transition: opacity 0.12s var(--ease), max-width 0.12s var(--ease), max-height 0.12s var(--ease);
-  }
-  .sidebar:hover .nav-label,
-  .sidebar:focus-within .nav-label {
-    opacity: 1;
-    max-width: 160px;
-    max-height: 24px;
-    transition-delay: 0.05s;
-  }
-  /* Ícone do menu centralizado no trilho recolhido; volta a alinhar à
-     esquerda (com o texto do lado) quando o sidebar expande. */
-  .sidebar:hover .nav-item,
-  .sidebar:focus-within .nav-item {
-    justify-content: flex-start;
-    gap: var(--space-4);
-  }
-  /* "Administração" tem padding vertical maior que os outros labels (é um
-     título de seção) — os 24px genéricos do .nav-label cortavam a palavra
-     e ela grudava no item de baixo. Precisa vir depois da regra genérica
-     acima pra sobrescrever (mesma especificidade, ordem decide). */
-  .sidebar:hover .nav-section-label,
-  .sidebar:focus-within .nav-section-label {
-    max-height: 48px;
-  }
-  /* Logo da marca cresce junto quando o sidebar expande. */
-  .sidebar:hover .brand-mark.brand-logo-img,
-  .sidebar:focus-within .brand-mark.brand-logo-img {
-    width: 112px;
-    height: 112px;
-  }
-}
 
 .shell-main {
   margin-left: 76px;
@@ -178,6 +125,65 @@
 }
 .nav-item.active svg {
   opacity: 1;
+}
+
+/* Este bloco precisa vir DEPOIS das regras base de .nav-item/.nav-label
+   acima (mesma especificidade — em caso de empate, quem vem por último no
+   arquivo vence). Antes ficava declarado mais cedo no arquivo e a regra
+   base de .nav-item (justify-content: flex-start) sempre vencia por
+   último, então os ícones nunca centralizavam de fato no trilho recolhido. */
+@media (min-width: 861px) {
+  .sidebar:hover,
+  .sidebar:focus-within {
+    width: 252px;
+    box-shadow: var(--shadow-lg);
+  }
+  /* Trilho recolhido (só ícone, sem rótulo visível): centraliza o ícone e
+     zera o gap — sem isso, o gap do rótulo (usado quando o menu expande)
+     empurrava o ícone pra fora do centro do trilho de 76px. */
+  .nav-item {
+    justify-content: center;
+    gap: 0;
+  }
+  /* Recolhida, o texto some de vez (em vez de cortar no meio da palavra) —
+     só reaparece com o sidebar expandido. Além de opacity, zera a
+     largura/altura pra não sobrar espaço vazio e desalinhar o ícone do
+     centro do trilho recolhido. */
+  .nav-label {
+    opacity: 0;
+    max-width: 0;
+    max-height: 0;
+    overflow: hidden;
+    transition: opacity 0.12s var(--ease), max-width 0.12s var(--ease), max-height 0.12s var(--ease);
+  }
+  .sidebar:hover .nav-label,
+  .sidebar:focus-within .nav-label {
+    opacity: 1;
+    max-width: 160px;
+    max-height: 24px;
+    transition-delay: 0.05s;
+  }
+  /* Ícone do menu centralizado no trilho recolhido; volta a alinhar à
+     esquerda (com o texto do lado) quando o sidebar expande. */
+  .sidebar:hover .nav-item,
+  .sidebar:focus-within .nav-item {
+    justify-content: flex-start;
+    gap: var(--space-4);
+  }
+  /* "Administração" tem padding vertical maior que os outros labels (é um
+     título de seção) — os 24px genéricos do .nav-label cortavam a palavra
+     e ela grudava no item de baixo. Precisa vir depois da regra genérica
+     acima pra sobrescrever (mesma especificidade, ordem decide). */
+  .sidebar:hover .nav-section-label,
+  .sidebar:focus-within .nav-section-label {
+    max-height: 48px;
+  }
+  /* Logo da marca cresce junto quando o sidebar expande. */
+  .sidebar:hover .brand-mark.brand-logo-img,
+  .sidebar:focus-within .brand-mark.brand-logo-img {
+    width: 112px;
+    height: 112px;
+  }
 }
 
 .sidebar-footer {
