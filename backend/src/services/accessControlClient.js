@@ -62,6 +62,22 @@ async function xpeCall(device, password, target, action, data) {
   try {
     json = text ? JSON.parse(text) : {};
   } catch {
+    // Uma página HTML de volta (em vez de JSON) num POST /api/{target}/{action}
+    // é um sintoma diferente de "API HTTP desligada" — normalmente essa API
+    // JSON responde com JSON mesmo quando dá erro (ver xpeCall acima). HTML
+    // aqui é mais coerente com o servidor tratando a URL como se fosse da
+    // interface web legada (target/action que ela não reconhece, ou exige a
+    // sessão por cookie da tela web em vez de HTTP Basic) — mensagem
+    // separada pra não confundir com o caso de autenticação/API desligada.
+    const looksLikeHtml = /^\s*<(!doctype|html)/i.test(text);
+    if (looksLikeHtml) {
+      throw new Error(
+        `O equipamento respondeu com uma página HTML (${res.status}) em vez de JSON para ${target}/${action}, ` +
+          `em vez do JSON que essa API normalmente devolve mesmo em erro. Provável causa: "${target}/${action}" ` +
+          `não é o nome certo de target/action pra essa ação nesta API (ver o PDF oficial "XPE3200_IP_FACE_Http_API_de_Integração.pdf") ` +
+          `ou essa ação exige a sessão da tela web (cookie), não HTTP Basic. Início da resposta: ${text.slice(0, 300)}`
+      );
+    }
     throw new Error(
       `Resposta inesperada do equipamento (${res.status}): ${text.slice(0, 200)}. ` +
         `Confira se a "API HTTP" está habilitada em Segurança na interface web do equipamento.`
@@ -519,6 +535,14 @@ async function xpeTestConnection(device, password) {
 // API JSON deste equipamento aceita exatamente esses nomes. Falha segura:
 // se o nome estiver errado, xpeCall já devolve um erro claro (retcode/mensagem
 // do próprio equipamento) em vez de fazer algo indevido silenciosamente.
+//
+// BUG CONHECIDO relatado em campo: essa chamada às vezes volta HTML em vez
+// de JSON. xpeCall (acima) já trata esse caso com uma mensagem específica —
+// e o suspeito nº1 é justamente esse target/action não confirmado (ver
+// parágrafo acima). Falta confirmar contra o PDF oficial
+// "XPE3200_IP_FACE_Http_API_de_Integração.pdf" ou capturar o tráfego de um
+// app que abra a porta com sucesso nesse mesmo modelo de equipamento —
+// sem isso, não dá pra saber o nome certo sem arriscar um chute às cegas.
 // Ajustar aqui assim que confirmado contra o equipamento real.
 async function xpeOpenDoor(device, password) {
   await xpeCall(device, password, 'accessControl', 'openDoor', { channel: 1 });
