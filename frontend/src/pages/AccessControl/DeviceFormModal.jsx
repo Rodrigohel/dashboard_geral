@@ -62,18 +62,8 @@ export default function DeviceFormModal({ device, onClose, onSave }) {
         {error && <div className="login-error">{error}</div>}
 
         <div className="field">
-          <label className="field-label">Nome</label>
-          <input className="input" value={form.name} onChange={(e) => set('name', e.target.value)} placeholder="Porteiro — Portaria principal" />
-        </div>
-
-        <div className="field">
-          <label className="field-label">Local</label>
-          <input className="input" value={form.location} onChange={(e) => set('location', e.target.value)} placeholder="Portaria, Bloco A..." />
-        </div>
-
-        <div className="field">
           <label className="field-label">Modelo</label>
-          <select className="select" value={form.model} onChange={(e) => set('model', e.target.value)}>
+          <select className="select" value={form.model} onChange={(e) => set('model', e.target.value)} autoFocus>
             {MODELS.map((m) => (
               <option key={m.value} value={m.value}>
                 {m.label}
@@ -90,6 +80,16 @@ export default function DeviceFormModal({ device, onClose, onSave }) {
               Suporte a este modelo ainda não foi validado num equipamento real — cadastro/foto devem funcionar, mas listar/editar/excluir usuários ainda não.
             </span>
           )}
+        </div>
+
+        <div className="field">
+          <label className="field-label">Nome</label>
+          <input className="input" value={form.name} onChange={(e) => set('name', e.target.value)} placeholder="Porteiro — Portaria principal" />
+        </div>
+
+        <div className="field">
+          <label className="field-label">Local</label>
+          <input className="input" value={form.location} onChange={(e) => set('location', e.target.value)} placeholder="Portaria, Bloco A..." />
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 100px', gap: 12 }}>
