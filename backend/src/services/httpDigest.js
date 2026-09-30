@@ -20,10 +20,14 @@ function parseDigestChallenge(header) {
 // 401 com um desafio Digest, monta o header de autorização e tenta de novo
 // — igual o `fetch` faria automaticamente se suportasse Digest nativamente
 // (não suporta).
-export async function digestFetch(url, { method = 'GET', username, password, jsonBody } = {}) {
+// timeoutMs: 0 desliga o timeout de vez — usado pro stream MJPEG contínuo
+// (ver cameraClient.js), onde a conexão fica aberta por minutos de
+// propósito; quem limita isso é o cliente desistindo (aba fechada/troca de
+// tela), não um prazo fixo.
+export async function digestFetch(url, { method = 'GET', username, password, jsonBody, timeoutMs = 8000 } = {}) {
   const headers = jsonBody ? { 'Content-Type': 'application/json' } : {};
   const body = jsonBody ? JSON.stringify(jsonBody) : undefined;
-  const opts = { method, headers, body, signal: AbortSignal.timeout(8000) };
+  const opts = { method, headers, body, signal: timeoutMs ? AbortSignal.timeout(timeoutMs) : undefined };
 
   let res;
   try {

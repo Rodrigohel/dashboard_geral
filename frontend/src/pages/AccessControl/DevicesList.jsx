@@ -5,9 +5,10 @@ import ConfirmDialog from '../../components/ConfirmDialog.jsx';
 import DeviceFormModal from './DeviceFormModal.jsx';
 import MultiDeviceUserFormModal from './MultiDeviceUserFormModal.jsx';
 import UserSearch from './UserSearch.jsx';
-import { api } from '../../api/client.js';
+import { api, getToken } from '../../api/client.js';
 import { useToast } from '../../hooks/useToast.jsx';
 import { timeAgo } from '../../utils/relativeTime.js';
+import { streamMjpegFrames } from '../../utils/mjpeg.js';
 
 const MODEL_LABELS = { xpe3200: 'XPE 3200 IP Face', ss3532mf: 'SS 3532 MF' };
 const STATUS_META = {
@@ -16,40 +17,71 @@ const STATUS_META = {
   unknown: { label: 'verificando...', badge: 'badge-neutral', accent: 'var(--border-strong)' },
 };
 
-// Câmera IP avulsa apontada pro portão (não é vídeo de verdade — navegador
-// não toca RTSP nativo — é uma foto que se atualiza sozinha a cada 1.5s,
-// suficiente pra ver parado/abrindo/aberto). Busca autenticada + blob URL,
-// igual a foto de rosto do morador (ver api/client.js) — <img src> puro não
-// manda o header de autenticação. Falha (ex.: senha da câmera errada/
-// esquecida) não quebra o card inteiro, só mostra um aviso no lugar da foto.
+// Câmera IP avulsa apontada pro portão. Tenta primeiro um stream MJPEG
+// contínuo de verdade (EXPERIMENTAL, nem toda câmera/firmware expõe isso —
+// ver aviso em cameraClient.js); se essa câmera não suportar, cai sozinho
+// pro modo antigo (foto que se atualiza a cada 1.5s, suficiente pra ver
+// parado/abrindo/aberto mesmo sem ser vídeo fluido). Falha total (ex.:
+// senha da câmera errada/esquecida) não quebra o card inteiro, só mostra um
+// aviso no lugar da imagem.
 function CameraThumbnail({ deviceId }) {
   const [src, setSrc] = useState(null);
   const [error, setError] = useState('');
 
   useEffect(() => {
     let cancelled = false;
-    let currentUrl = null;
-    async function tick() {
+    let mode = 'stream';
+    let pollTimer = null;
+    const controller = new AbortController();
+
+    function setFrame(url) {
+      if (cancelled) {
+        URL.revokeObjectURL(url);
+        return;
+      }
+      setError('');
+      setSrc((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return url;
+      });
+    }
+
+    async function pollOnce() {
       try {
         const url = await api.accessDevices.getCameraSnapshotBlobUrl(deviceId);
-        if (cancelled) {
-          URL.revokeObjectURL(url);
-          return;
-        }
-        setError('');
-        setSrc(url);
-        if (currentUrl) URL.revokeObjectURL(currentUrl);
-        currentUrl = url;
+        setFrame(url);
       } catch (err) {
         if (!cancelled) setError(err.message);
       }
     }
-    tick();
-    const interval = setInterval(tick, 1500);
+
+    function fallBackToPolling() {
+      if (cancelled || mode === 'snapshot') return;
+      mode = 'snapshot';
+      pollOnce();
+      pollTimer = setInterval(pollOnce, 1500);
+    }
+
+    const token = getToken();
+    streamMjpegFrames(`/api/access/devices/${deviceId}/camera-stream`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      signal: controller.signal,
+      onFrame: setFrame,
+      onError: fallBackToPolling,
+    }).then(() => {
+      // Stream acabou sem lançar erro explícito (câmera fechou a conexão) —
+      // ainda assim cai pro modo foto em vez de deixar a imagem congelada.
+      fallBackToPolling();
+    });
+
     return () => {
       cancelled = true;
-      clearInterval(interval);
-      if (currentUrl) URL.revokeObjectURL(currentUrl);
+      controller.abort();
+      if (pollTimer) clearInterval(pollTimer);
+      setSrc((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return null;
+      });
     };
   }, [deviceId]);
 
