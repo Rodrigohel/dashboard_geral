@@ -24,19 +24,23 @@ manifestRouter.get('/', (req, res) => {
   const accentColor = row?.accent_color || '#14b8a6';
   const shortName = row?.short_name || (name.length > 20 ? name.slice(0, 20) : name);
 
-  // Prioridade: ícone quadrado dedicado > logo (pode não ser quadrado,
-  // mas é melhor que nada) > ícone padrão do Portal.
-  const iconFilename = row?.pwa_icon_filename || row?.logo_filename;
-  const iconUrl = row?.pwa_icon_filename ? '/api/branding/pwa-icon' : row?.logo_filename ? '/api/branding/logo' : null;
+  // Só o ícone quadrado dedicado (pwa_icon_filename) entra como ícone do
+  // app — NUNCA a logo (logo_filename). A logo é tipicamente um logotipo
+  // retangular (texto + símbolo), não um ícone quadrado; declarar ela como
+  // "192x192"/"512x512" quando o arquivo real é bem menor/não-quadrado faz
+  // o Chrome invalidar o manifest inteiro (ícone não bate com o tamanho
+  // declarado) e simplesmente nunca oferecer o banner de instalação — sem
+  // erro nenhum visível. Sem um ícone quadrado dedicado cadastrado, é mais
+  // seguro cair no ícone padrão do Portal do que arriscar isso.
   const icons = [];
-  if (iconFilename && iconUrl) {
-    const ext = iconFilename.slice(iconFilename.lastIndexOf('.')).toLowerCase();
+  if (row?.pwa_icon_filename) {
+    const ext = row.pwa_icon_filename.slice(row.pwa_icon_filename.lastIndexOf('.')).toLowerCase();
     const type = MIME_BY_EXT[ext] || 'image/png';
     // Mesmo arquivo declarado em todos os tamanhos — não temos como gerar
     // recortes de verdade em cada tamanho; o sistema operacional
     // escala/centraliza sozinho.
-    icons.push({ src: iconUrl, sizes: '192x192', type, purpose: 'any' });
-    icons.push({ src: iconUrl, sizes: '512x512', type, purpose: 'any' });
+    icons.push({ src: '/api/branding/pwa-icon', sizes: '192x192', type, purpose: 'any' });
+    icons.push({ src: '/api/branding/pwa-icon', sizes: '512x512', type, purpose: 'any' });
   } else {
     icons.push({ src: '/icon-mark.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' });
   }
