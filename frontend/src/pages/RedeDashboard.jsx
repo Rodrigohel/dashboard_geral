@@ -36,7 +36,9 @@ const TYPE_ICON_KEYWORDS = [
   [/porteiro/, 'shieldFace'],
   [/switch/, 'network'],
   [/access ?point|ponto de acesso|^ap$/, 'wifi'],
-  [/servidor|server/, 'cpu'],
+  // Mesmo ícone do NVR (rack) — mais reconhecível pra "servidor" do que um
+  // símbolo de chip/CPU, que ficou pouco intuitivo no pino pequeno.
+  [/servidor|server/, 'server'],
 ];
 
 function iconForDeviceType(type) {
@@ -389,8 +391,8 @@ function FullscreenFloorViewer({ floor, imageUrl, pins, onViewDevice, onClose })
                         left: `${d.floorX * 100}%`,
                         top: `${d.floorY * 100}%`,
                         transform: 'translate(-50%, -50%)',
-                        width: 26,
-                        height: 26,
+                        width: 32,
+                        height: 32,
                         borderRadius: '50%',
                         border: '2px solid white',
                         boxShadow: '0 0 0 1px rgba(0,0,0,.4)',
@@ -418,7 +420,7 @@ function FullscreenFloorViewer({ floor, imageUrl, pins, onViewDevice, onClose })
                       }
                 }
               >
-                {iconName && <Icon name={iconName} size={14} strokeWidth={2.2} />}
+                {iconName && <Icon name={iconName} size={19} strokeWidth={2} />}
               </div>
             );
           })}
