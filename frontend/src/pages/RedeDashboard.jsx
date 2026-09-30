@@ -13,6 +13,39 @@ import { downloadCsv } from '../utils/csv.js';
 
 const POLL_MS = 10000;
 
+// Mesmo espírito do que o painel de Rede acabou de implementar na própria
+// planta baixa dele: ícone automático pelo "Tipo de equipamento" (campo
+// `type`, já existia e já chegava aqui, só não era usado no pino). Sem
+// acesso ao código-fonte de lá pra saber a grafia exata gravada (acento,
+// maiúscula, "AP" vs "Ponto de acesso" etc.), comparamos normalizado
+// (sem acento, minúsculo) contra palavras-chave — assim qualquer variação
+// de escrita razoável cai no ícone certo, e o que não bater cai no
+// pontinho genérico de sempre (mesmo comportamento de "Outro").
+function normalizeDeviceType(type) {
+  return (type || '')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
+const TYPE_ICON_KEYWORDS = [
+  [/camera/, 'camera'],
+  [/nvr|gravador/, 'server'],
+  [/interfone/, 'phone'],
+  [/porteiro/, 'shieldFace'],
+  [/switch/, 'network'],
+  [/access ?point|ponto de acesso|^ap$/, 'wifi'],
+  [/servidor|server/, 'cpu'],
+];
+
+function iconForDeviceType(type) {
+  const normalized = normalizeDeviceType(type);
+  if (!normalized) return null;
+  const match = TYPE_ICON_KEYWORDS.find(([re]) => re.test(normalized));
+  return match ? match[1] : null;
+}
+
 const STATUS_META = {
   online: { label: 'online', badge: 'badge-success' },
   degraded: { label: 'degradado', badge: 'badge-warning' },
@@ -339,26 +372,56 @@ function FullscreenFloorViewer({ floor, imageUrl, pins, onViewDevice, onClose })
       ) : (
         <div onClick={(e) => e.stopPropagation()} style={{ position: 'relative', maxWidth: '95vw', maxHeight: '88vh' }}>
           <img src={imageUrl} alt={floor.name} style={{ maxWidth: '95vw', maxHeight: '88vh', display: 'block', borderRadius: 8 }} />
-          {pins.map((d) => (
-            <div
-              key={d.id}
-              title={`${d.name} (${d.status}) — clique para ver detalhes`}
-              onClick={() => onViewDevice(d.id)}
-              style={{
-                position: 'absolute',
-                left: `${d.floorX * 100}%`,
-                top: `${d.floorY * 100}%`,
-                transform: 'translate(-50%, -50%)',
-                width: 18,
-                height: 18,
-                borderRadius: '50%',
-                border: '2px solid white',
-                boxShadow: '0 0 0 1px rgba(0,0,0,.4)',
-                cursor: 'pointer',
-                background: d.status === 'online' ? 'var(--success-500)' : d.status === 'degraded' ? 'var(--warning-500)' : 'var(--danger-500)',
-              }}
-            />
-          ))}
+          {pins.map((d) => {
+            const statusColor = d.status === 'online' ? 'var(--success-500)' : d.status === 'degraded' ? 'var(--warning-500)' : 'var(--danger-500)';
+            const iconName = iconForDeviceType(d.type);
+            const animationClass = d.status === 'offline' ? 'status-offline' : d.status === 'online' ? 'status-online' : '';
+            return (
+              <div
+                key={d.id}
+                title={`${d.name} (${d.status}) — clique para ver detalhes`}
+                onClick={() => onViewDevice(d.id)}
+                className={iconName ? `floor-pin-icon ${animationClass}` : ''}
+                style={
+                  iconName
+                    ? {
+                        position: 'absolute',
+                        left: `${d.floorX * 100}%`,
+                        top: `${d.floorY * 100}%`,
+                        transform: 'translate(-50%, -50%)',
+                        width: 26,
+                        height: 26,
+                        borderRadius: '50%',
+                        border: '2px solid white',
+                        boxShadow: '0 0 0 1px rgba(0,0,0,.4)',
+                        cursor: 'pointer',
+                        background: statusColor,
+                        color: 'white',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }
+                    : {
+                        // Sem tipo reconhecido (ex.: "Outro") — pontinho genérico de
+                        // sempre, sem nenhuma mudança de comportamento.
+                        position: 'absolute',
+                        left: `${d.floorX * 100}%`,
+                        top: `${d.floorY * 100}%`,
+                        transform: 'translate(-50%, -50%)',
+                        width: 18,
+                        height: 18,
+                        borderRadius: '50%',
+                        border: '2px solid white',
+                        boxShadow: '0 0 0 1px rgba(0,0,0,.4)',
+                        cursor: 'pointer',
+                        background: statusColor,
+                      }
+                }
+              >
+                {iconName && <Icon name={iconName} size={14} strokeWidth={2.2} />}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
