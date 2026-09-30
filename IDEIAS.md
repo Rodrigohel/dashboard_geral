@@ -29,18 +29,24 @@ Pra virar uma plataforma hospedando vários clientes ao mesmo tempo (um servidor
 condomínios/prédios) precisaria de isolamento de dados por cliente em todo canto (tenant_id
 nas tabelas, roteamento por subdomínio) — reforma grande, não é "adicionar uma tela".
 
-## ~~XPE 3200 — abrir porta às vezes volta HTML em vez de JSON~~ — feito
+## ~~XPE 3200 — abrir porta às vezes volta HTML em vez de JSON~~ — feito e confirmado em hardware real
 Causa raiz confirmada lendo o manual oficial (Manual_XPE_3200_IP_FACE_01-22_site.pdf, seção
-"Acionamentos > Acionar Relé por HTTP", com URL de exemplo real): abrir a porta nunca fez
-parte da API JSON (`/api/{target}/{action}`) — é uma URL GET separada, estilo CGI antigo:
-`http://IP/fcgi/do?action=OpenDoor&UserName=U&Password=S&DoorNum=1`. A tentativa anterior
-("accessControl"/"openDoor" na API JSON) era só um chute nunca confirmado — por isso vinha
-HTML de volta (a API JSON nunca teve esse endpoint). Trocado para a URL confirmada. Pré-
-requisito no próprio equipamento (fora do controle do Portal): a opção "Acionar Relé por
-HTTP" precisa estar habilitada em Acionamentos, na interface web dele, com usuário/senha
-configurados lá — usamos por padrão os mesmos já cadastrados no Portal. Continua sem teste
-contra hardware real (só smoke test contra servidor fake reproduzindo o comportamento
-documentado) — se o dono tiver um XPE 3200 real pra testar, vale confirmar.
+"Controle de Acesso > Relé > Acionar Relé por HTTP", com URL de exemplo real): abrir a porta
+nunca fez parte da API JSON (`/api/{target}/{action}`) — é uma URL GET separada, estilo CGI
+antigo: `http://IP/fcgi/do?action=OpenDoor&UserName=U&Password=S&DoorNum=1`. A tentativa
+anterior ("accessControl"/"openDoor" na API JSON) era só um chute nunca confirmado — por isso
+vinha HTML de volta (a API JSON nunca teve esse endpoint). Trocado para a URL confirmada.
+
+Testado com um XPE 3200 real (porteiro "Torre X") — funciona. Pegadinha real encontrada nesse
+teste: o usuário/senha do "Acionar Relé por HTTP" é um campo **separado** dentro do
+equipamento (Controle de Acesso > Relé), independente do login principal usado pelo resto da
+API — se estiverem diferentes, o equipamento responde HTTP 200 normalmente (o Portal mostra
+"aberto com sucesso") mas o relé não é acionado de verdade, sem erro nenhum visível. Precisa
+que o usuário/senha cadastrados no Portal para aquele equipamento batam com o que está
+configurado nesse campo específico do relé (não necessariamente o login de admin do
+equipamento). Se algum porteiro tiver uma senha de relé diferente da senha principal, dá pra
+adicionar um campo separado no cadastro do Portal pra isso — não implementado ainda por não
+ter sido necessário até agora.
 
 ## ~~Segplace/Axiom Wifi — integração de portão~~ — feito
 Implementado como novo modelo "segplace" em Controle de acesso. A API foi confirmada lendo o
