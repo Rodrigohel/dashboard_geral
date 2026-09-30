@@ -377,3 +377,32 @@
   border: none;
   display: block;
 }
+
+/* ---------- Pino de equipamento na planta baixa (Rede) ---------- */
+/* Pisca quando offline (chama atenção) e pulsa bem sutil quando online (só
+   indica "monitorado e vivo", sem poluir a planta) — mesmo espírito do que
+   o painel de Rede original já faz na própria planta dele. */
+.floor-pin-icon.status-offline {
+  animation: floorPinBlink 1.2s ease-in-out infinite;
+}
+.floor-pin-icon.status-online {
+  animation: floorPinPulse 2.4s ease-in-out infinite;
+}
+@keyframes floorPinBlink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+@keyframes floorPinPulse {
+  0%,
+  100% {
+    transform: translate(-50%, -50%) scale(1);
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.1);
+  }
+}
