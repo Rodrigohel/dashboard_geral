@@ -16,6 +16,62 @@ const STATUS_META = {
   unknown: { label: 'verificando...', badge: 'badge-neutral', accent: 'var(--border-strong)' },
 };
 
+// Câmera IP avulsa apontada pro portão (não é vídeo de verdade — navegador
+// não toca RTSP nativo — é uma foto que se atualiza sozinha a cada 1.5s,
+// suficiente pra ver parado/abrindo/aberto). Busca autenticada + blob URL,
+// igual a foto de rosto do morador (ver api/client.js) — <img src> puro não
+// manda o header de autenticação. Falha (ex.: senha da câmera errada/
+// esquecida) não quebra o card inteiro, só mostra um aviso no lugar da foto.
+function CameraThumbnail({ deviceId }) {
+  const [src, setSrc] = useState(null);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    let currentUrl = null;
+    async function tick() {
+      try {
+        const url = await api.accessDevices.getCameraSnapshotBlobUrl(deviceId);
+        if (cancelled) {
+          URL.revokeObjectURL(url);
+          return;
+        }
+        setError('');
+        setSrc(url);
+        if (currentUrl) URL.revokeObjectURL(currentUrl);
+        currentUrl = url;
+      } catch (err) {
+        if (!cancelled) setError(err.message);
+      }
+    }
+    tick();
+    const interval = setInterval(tick, 1500);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+      if (currentUrl) URL.revokeObjectURL(currentUrl);
+    };
+  }, [deviceId]);
+
+  return (
+    <div
+      className="camera-thumb"
+      style={{ borderRadius: 12, overflow: 'hidden', background: 'var(--surface-2, rgba(0,0,0,0.15))', aspectRatio: '16/9', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+      onClick={(e) => e.stopPropagation()}
+    >
+      {error ? (
+        <span className="field-hint" style={{ padding: 8, textAlign: 'center' }} title={error}>
+          Câmera indisponível
+        </span>
+      ) : src ? (
+        <img src={src} alt="Câmera ao vivo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+      ) : (
+        <span className="spinner spinner-dark" />
+      )}
+    </div>
+  );
+}
+
 // Mesmo cartãozinho de resumo já usado na Rede/Interfone — faltava aqui
 // (o dado já vem de graça no /api/access/devices, via deviceHealthPoller).
 function MiniStat({ icon, title, value, tone }) {
@@ -195,6 +251,7 @@ export default function DevicesList({ isOwner, onOpenDevice }) {
                   )}
                 </div>
               )}
+              {d.hasCamera && d.canOpen && <CameraThumbnail deviceId={d.id} />}
               {d.canOpen && (
                 <div className="module-card-footer">
                   <button

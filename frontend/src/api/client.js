@@ -53,6 +53,25 @@ export const api = {
     searchUsers: (q) => request(`/api/access/devices/search-users?q=${encodeURIComponent(q)}`),
     openDoor: (id) => request(`/api/access/devices/${id}/open`, { method: 'POST' }),
     discoverSegplace: (payload) => request('/api/access/devices/segplace/discover', { method: 'POST', body: payload }),
+    // Mesmo motivo do getPhotoBlobUrl abaixo: resposta é binária (JPEG), e
+    // <img src="..."> puro não manda Authorization.
+    getCameraSnapshotBlobUrl: async (id) => {
+      const token = getToken();
+      const res = await fetch(`/api/access/devices/${id}/camera-snapshot`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) {
+        let message = `Erro ${res.status}`;
+        try {
+          message = (await res.json()).error || message;
+        } catch {
+          // resposta sem corpo JSON — mantém a mensagem genérica
+        }
+        throw new Error(message);
+      }
+      const blob = await res.blob();
+      return URL.createObjectURL(blob);
+    },
 
     users: {
       list: (deviceId) => request(`/api/access/devices/${deviceId}/users`),

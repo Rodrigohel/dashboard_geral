@@ -195,6 +195,16 @@ if (!accessDeviceColumns.includes('last_error')) {
 if (!accessDeviceColumns.includes('remote_id')) {
   db.exec("ALTER TABLE access_devices ADD COLUMN remote_id TEXT NOT NULL DEFAULT ''");
 }
+// Câmera IP separada (não faz parte do porteiro/portão) apontada pro local,
+// pra ver ao vivo se abriu/tá abrindo/parado — opcional, sem relação com o
+// modelo do equipamento em si. Só suportado Hikvision (ISAPI) por enquanto.
+if (!accessDeviceColumns.includes('camera_host')) {
+  db.exec("ALTER TABLE access_devices ADD COLUMN camera_host TEXT NOT NULL DEFAULT ''");
+  db.exec("ALTER TABLE access_devices ADD COLUMN camera_port INTEGER NOT NULL DEFAULT 80");
+  db.exec("ALTER TABLE access_devices ADD COLUMN camera_channel INTEGER NOT NULL DEFAULT 1");
+  db.exec("ALTER TABLE access_devices ADD COLUMN camera_username TEXT NOT NULL DEFAULT ''");
+  db.exec("ALTER TABLE access_devices ADD COLUMN camera_password_enc TEXT NOT NULL DEFAULT ''");
+}
 
 const gatewayColumns = db.prepare('PRAGMA table_info(module_gateways)').all().map((c) => c.name);
 if (!gatewayColumns.includes('public_url')) {
