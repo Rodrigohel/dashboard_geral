@@ -297,35 +297,6 @@ accessDevicesRouter.get('/:id/camera-snapshot', requireDeviceAccess, requireDevi
   }
 });
 
-// Stream MJPEG contínuo (EXPERIMENTAL — ver aviso em cameraClient.js), pra
-// quem quiser algo mais fluido que a foto se atualizando sozinha. O
-// frontend tenta esta rota primeiro e cai pro /camera-snapshot sozinho se
-// esta câmera não suportar (não trava a tela esperando algo que não vem).
-accessDevicesRouter.get('/:id/camera-stream', requireDeviceAccess, requireDeviceOpenAccess, async (req, res) => {
-  const device = getDeviceOr404(req, res);
-  if (!device) return;
-  if (!device.camera_host) return res.status(404).json({ error: 'Este equipamento não tem câmera configurada.' });
-  try {
-    const { body, contentType } = await cameraClient.openMjpegStream(
-      { host: device.camera_host, port: device.camera_port, channel: device.camera_channel, username: device.camera_username },
-      decryptSecret(device.camera_password_enc)
-    );
-    res.set('Content-Type', contentType);
-    res.set('Cache-Control', 'no-store');
-    const reader = body.getReader();
-    req.on('close', () => reader.cancel().catch(() => {}));
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      res.write(value);
-    }
-    res.end();
-  } catch (err) {
-    if (res.headersSent) return res.end();
-    res.status(502).json({ error: err.message });
-  }
-});
-
 // Busca um usuário (por nome) em todos os equipamentos que o usuário logado
 // enxerga de uma vez, em vez de abrir porteiro por porteiro — cada
 // equipamento é consultado em paralelo e o que der erro (offline,
