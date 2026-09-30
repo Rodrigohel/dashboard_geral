@@ -5,6 +5,7 @@ import { encryptSecret, decryptSecret } from '../services/cryptoService.js';
 import { requireOwner, requireDeviceAccess, requireDeviceOpenAccess } from '../middleware/auth.js';
 import * as deviceApi from '../services/accessControlClient.js';
 import * as segplaceClient from '../services/segplaceClient.js';
+import * as cameraClient from '../services/cameraClient.js';
 import { getAnomalyParams } from '../services/anomalySettingsService.js';
 
 export const accessDevicesRouter = Router();
@@ -21,6 +22,11 @@ function serializeDevice(row) {
     useHttps: Boolean(row.use_https),
     deviceUsername: row.device_username,
     remoteId: row.remote_id || null,
+    hasCamera: Boolean(row.camera_host),
+    cameraHost: row.camera_host || '',
+    cameraPort: row.camera_port || 80,
+    cameraChannel: row.camera_channel || 1,
+    cameraUsername: row.camera_username || '',
     notes: row.notes,
     createdAt: row.created_at,
     lastStatus: row.last_status,
@@ -120,7 +126,23 @@ accessDevicesRouter.get('/', (req, res) => {
 });
 
 accessDevicesRouter.post('/', requireOwner, (req, res) => {
-  let { name, location, model, host, port, useHttps, deviceUsername, devicePassword, remoteId, notes } = req.body || {};
+  let {
+    name,
+    location,
+    model,
+    host,
+    port,
+    useHttps,
+    deviceUsername,
+    devicePassword,
+    remoteId,
+    notes,
+    cameraHost,
+    cameraPort,
+    cameraChannel,
+    cameraUsername,
+    cameraPassword,
+  } = req.body || {};
 
   // Segplace não tem host/porta configurável (é sempre a nuvem deles) — em
   // vez disso identifica o portão pelo "remoteId" escolhido via
@@ -139,8 +161,9 @@ accessDevicesRouter.post('/', requireOwner, (req, res) => {
   const info = db
     .prepare(
       `INSERT INTO access_devices
-        (name, location, model, host, port, use_https, device_username, device_password_enc, remote_id, notes)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        (name, location, model, host, port, use_https, device_username, device_password_enc, remote_id, notes,
+         camera_host, camera_port, camera_channel, camera_username, camera_password_enc)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .run(
       name,
@@ -152,7 +175,12 @@ accessDevicesRouter.post('/', requireOwner, (req, res) => {
       deviceUsername,
       encryptSecret(devicePassword),
       remoteId || '',
-      notes || ''
+      notes || '',
+      cameraHost || '',
+      Number(cameraPort) || 80,
+      Number(cameraChannel) || 1,
+      cameraUsername || '',
+      cameraPassword ? encryptSecret(cameraPassword) : ''
     );
   res.status(201).json(serializeDevice(db.prepare('SELECT * FROM access_devices WHERE id = ?').get(info.lastInsertRowid)));
 });
@@ -160,7 +188,23 @@ accessDevicesRouter.post('/', requireOwner, (req, res) => {
 accessDevicesRouter.put('/:id', requireOwner, (req, res) => {
   const device = getDeviceOr404(req, res);
   if (!device) return;
-  let { name, location, model, host, port, useHttps, deviceUsername, devicePassword, remoteId, notes } = req.body || {};
+  let {
+    name,
+    location,
+    model,
+    host,
+    port,
+    useHttps,
+    deviceUsername,
+    devicePassword,
+    remoteId,
+    notes,
+    cameraHost,
+    cameraPort,
+    cameraChannel,
+    cameraUsername,
+    cameraPassword,
+  } = req.body || {};
 
   if ((model ?? device.model) === 'segplace') {
     host = 'segplace.seekat.com.br';
@@ -170,7 +214,8 @@ accessDevicesRouter.put('/:id', requireOwner, (req, res) => {
 
   db.prepare(
     `UPDATE access_devices SET
-      name = ?, location = ?, model = ?, host = ?, port = ?, use_https = ?, device_username = ?, remote_id = ?, notes = ?
+      name = ?, location = ?, model = ?, host = ?, port = ?, use_https = ?, device_username = ?, remote_id = ?, notes = ?,
+      camera_host = ?, camera_port = ?, camera_channel = ?, camera_username = ?
      WHERE id = ?`
   ).run(
     name ?? device.name,
@@ -182,10 +227,17 @@ accessDevicesRouter.put('/:id', requireOwner, (req, res) => {
     deviceUsername ?? device.device_username,
     remoteId ?? device.remote_id,
     notes ?? device.notes,
+    cameraHost ?? device.camera_host,
+    Number(cameraPort ?? device.camera_port),
+    Number(cameraChannel ?? device.camera_channel),
+    cameraUsername ?? device.camera_username,
     device.id
   );
   if (devicePassword) {
     db.prepare('UPDATE access_devices SET device_password_enc = ? WHERE id = ?').run(encryptSecret(devicePassword), device.id);
+  }
+  if (cameraPassword) {
+    db.prepare('UPDATE access_devices SET camera_password_enc = ? WHERE id = ?').run(encryptSecret(cameraPassword), device.id);
   }
   res.json(serializeDevice(db.prepare('SELECT * FROM access_devices WHERE id = ?').get(device.id)));
 });
@@ -221,6 +273,27 @@ accessDevicesRouter.post('/:id/open', requireDeviceAccess, requireDeviceOpenAcce
   } catch (err) {
     logDoorOpen({ device, req, success: false, errorMessage: err.message });
     res.status(502).json({ ok: false, error: err.message });
+  }
+});
+
+// Foto (não vídeo — navegador não toca RTSP nativo) de uma câmera IP
+// avulsa apontada pro portão/porteiro, sem relação com a API do próprio
+// equipamento de acesso (ver cameraClient.js). Mesma permissão de quem
+// pode abrir a porta: é pensado pra ficar ao lado do botão "Abrir".
+accessDevicesRouter.get('/:id/camera-snapshot', requireDeviceAccess, requireDeviceOpenAccess, async (req, res) => {
+  const device = getDeviceOr404(req, res);
+  if (!device) return;
+  if (!device.camera_host) return res.status(404).json({ error: 'Este equipamento não tem câmera configurada.' });
+  try {
+    const { buffer, contentType } = await cameraClient.fetchSnapshot(
+      { host: device.camera_host, port: device.camera_port, channel: device.camera_channel, username: device.camera_username },
+      decryptSecret(device.camera_password_enc)
+    );
+    res.set('Content-Type', contentType);
+    res.set('Cache-Control', 'no-store');
+    res.send(buffer);
+  } catch (err) {
+    res.status(502).json({ error: err.message });
   }
 });
 

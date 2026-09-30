@@ -21,6 +21,11 @@ export default function DeviceFormModal({ device, onClose, onSave }) {
     devicePassword: '',
     remoteId: device?.remoteId || '',
     notes: device?.notes || '',
+    cameraHost: device?.cameraHost || '',
+    cameraPort: device?.cameraPort || 80,
+    cameraChannel: device?.cameraChannel || 1,
+    cameraUsername: device?.cameraUsername || '',
+    cameraPassword: '',
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -208,6 +213,43 @@ export default function DeviceFormModal({ device, onClose, onSave }) {
         <div className="field">
           <label className="field-label">Notas</label>
           <input className="input" value={form.notes} onChange={(e) => set('notes', e.target.value)} placeholder="Opcional" />
+        </div>
+
+        <div className="field" style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: 16, marginTop: 4 }}>
+          <label className="field-label">Câmera apontada pro portão (opcional)</label>
+          <span className="field-hint">
+            Câmera IP avulsa (Hikvision), separada deste equipamento — só pra ver ao vivo se abriu, ao lado do botão "Abrir".
+          </span>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 90px 90px', gap: 12 }}>
+          <div className="field">
+            <label className="field-label">IP da câmera</label>
+            <input className="input" value={form.cameraHost} onChange={(e) => set('cameraHost', e.target.value)} placeholder="192.168.1.62" />
+          </div>
+          <div className="field">
+            <label className="field-label">Porta</label>
+            <input className="input" type="number" value={form.cameraPort} onChange={(e) => set('cameraPort', Number(e.target.value))} />
+          </div>
+          <div className="field">
+            <label className="field-label">Canal</label>
+            <input className="input" type="number" min="1" value={form.cameraChannel} onChange={(e) => set('cameraChannel', Number(e.target.value))} />
+          </div>
+        </div>
+        <div className="grid-2">
+          <div className="field">
+            <label className="field-label">Usuário da câmera</label>
+            <input className="input" value={form.cameraUsername} onChange={(e) => set('cameraUsername', e.target.value)} placeholder="admin" />
+          </div>
+          <div className="field">
+            <label className="field-label">Senha da câmera</label>
+            <input
+              className="input"
+              type="password"
+              value={form.cameraPassword}
+              onChange={(e) => set('cameraPassword', e.target.value)}
+              placeholder={device?.cameraHost ? 'deixe em branco para manter' : ''}
+            />
+          </div>
         </div>
       </form>
     </Modal>
