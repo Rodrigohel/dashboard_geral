@@ -8,6 +8,7 @@ import UserSearch from './UserSearch.jsx';
 import { api } from '../../api/client.js';
 import { useToast } from '../../hooks/useToast.jsx';
 import { timeAgo } from '../../utils/relativeTime.js';
+import { subscribeCameraSnapshot } from '../../utils/cameraPoller.js';
 
 const MODEL_LABELS = { xpe3200: 'XPE 3200 IP Face', ss3532mf: 'SS 3532 MF' };
 const STATUS_META = {
@@ -16,45 +17,23 @@ const STATUS_META = {
   unknown: { label: 'verificando...', badge: 'badge-neutral', accent: 'var(--border-strong)' },
 };
 
-// Câmera IP avulsa apontada pro portão (não é vídeo de verdade — navegador
-// não toca RTSP nativo — é uma foto que se atualiza sozinha a cada 0.5s,
-// suficiente pra ver parado/abrindo/aberto). Chegou a existir uma tentativa
-// de stream MJPEG contínuo de verdade aqui, mas caía e reconectava direto
-// contra a câmera real — voltou pro modo foto, mais simples e estável.
-// Busca autenticada + blob URL, igual a foto de rosto do morador (ver
-// api/client.js) — <img src> puro não manda o header de autenticação.
-// Falha (ex.: senha da câmera errada/esquecida) não quebra o card inteiro,
-// só mostra um aviso no lugar da foto.
-function CameraThumbnail({ deviceId }) {
-  const [src, setSrc] = useState(null);
-  const [error, setError] = useState('');
+// Câmera IP avulsa apontada pro portão/porteiro (não é vídeo de verdade —
+// navegador não toca RTSP nativo — é uma foto que se atualiza sozinha a
+// cada 0.5s, suficiente pra ver parado/abrindo/aberto). A MESMA câmera
+// física pode estar cadastrada em mais de um equipamento (ex.: enquanto só
+// existe uma câmera cobrindo porteiro e portão) — o polling é compartilhado
+// entre esses cards (ver cameraPoller.js), senão cada card pedia foto
+// sozinho e a soma dos pedidos derrubava a câmera (ficava saindo do ar e
+// voltando). Falha (ex.: senha errada, canal errado) não quebra o card
+// inteiro, e o erro de verdade aparece na tela (não só num title de
+// tooltip, que não dá pra ver no celular).
+function CameraThumbnail({ device }) {
+  const [state, setState] = useState({ src: null, error: '' });
 
   useEffect(() => {
-    let cancelled = false;
-    let currentUrl = null;
-    async function tick() {
-      try {
-        const url = await api.accessDevices.getCameraSnapshotBlobUrl(deviceId);
-        if (cancelled) {
-          URL.revokeObjectURL(url);
-          return;
-        }
-        setError('');
-        setSrc(url);
-        if (currentUrl) URL.revokeObjectURL(currentUrl);
-        currentUrl = url;
-      } catch (err) {
-        if (!cancelled) setError(err.message);
-      }
-    }
-    tick();
-    const interval = setInterval(tick, 500);
-    return () => {
-      cancelled = true;
-      clearInterval(interval);
-      if (currentUrl) URL.revokeObjectURL(currentUrl);
-    };
-  }, [deviceId]);
+    return subscribeCameraSnapshot(device, setState);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [device.id, device.cameraHost, device.cameraPort, device.cameraChannel]);
 
   return (
     <div
@@ -62,12 +41,12 @@ function CameraThumbnail({ deviceId }) {
       style={{ borderRadius: 12, overflow: 'hidden', background: 'var(--surface-2, rgba(0,0,0,0.15))', aspectRatio: '16/9', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
       onClick={(e) => e.stopPropagation()}
     >
-      {error ? (
-        <span className="field-hint" style={{ padding: 8, textAlign: 'center' }} title={error}>
-          Câmera indisponível
+      {state.error ? (
+        <span className="field-hint" style={{ padding: 8, textAlign: 'center' }}>
+          Câmera indisponível: {state.error}
         </span>
-      ) : src ? (
-        <img src={src} alt="Câmera ao vivo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+      ) : state.src ? (
+        <img src={state.src} alt="Câmera ao vivo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
       ) : (
         <span className="spinner spinner-dark" />
       )}
@@ -254,7 +233,7 @@ export default function DevicesList({ isOwner, onOpenDevice }) {
                   )}
                 </div>
               )}
-              {d.hasCamera && d.canOpen && <CameraThumbnail deviceId={d.id} />}
+              {d.hasCamera && d.canOpen && <CameraThumbnail device={d} />}
               {d.canOpen && (
                 <div className="module-card-footer">
                   <button
