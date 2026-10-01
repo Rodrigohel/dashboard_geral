@@ -110,7 +110,6 @@ export default function App() {
       <Sidebar branding={branding} view={view} onNavigate={navigate} can={can} isOwner={isOwner} open={menuOpen} onClose={() => setMenuOpen(false)} />
       <div className="shell-main">
         <TopBar
-          view={view}
           user={user}
           onLogout={logout}
           theme={theme}
