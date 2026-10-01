@@ -6,6 +6,7 @@ import { applyAccentColor } from './theme/applyAccent.js';
 import LoadingScreen from './components/LoadingScreen.jsx';
 import Sidebar from './components/Sidebar.jsx';
 import TopBar from './components/TopBar.jsx';
+import BottomNav from './components/BottomNav.jsx';
 import CommandPalette from './components/CommandPalette.jsx';
 import InstallAppBanner from './components/InstallAppBanner.jsx';
 import Login from './pages/Login.jsx';
@@ -122,6 +123,7 @@ export default function App() {
           {renderView()}
         </main>
       </div>
+      <BottomNav view={view} onNavigate={navigate} can={can} onMoreClick={() => setMenuOpen(true)} />
       <CommandPalette
         open={paletteOpen}
         onClose={() => setPaletteOpen(false)}

@@ -2,11 +2,10 @@
   min-height: 100vh;
 }
 
-/* Sidebar fica recolhida num trilho só de ícones (76px) e expande sobre o
-   conteúdo (não empurra o layout) ao passar o mouse ou receber foco — o
-   conteúdo sempre reserva só os 76px do estado recolhido. */
+/* Sidebar sempre expandida no desktop (igual o mockup aprovado) — nada de
+   trilho de ícone recolhido/hover pra abrir, era um padrão antigo daqui. */
 .sidebar {
-  padding: var(--space-4) var(--space-2);
+  padding: var(--space-5) var(--space-3);
   display: flex;
   flex-direction: column;
   gap: var(--space-5);
@@ -15,15 +14,14 @@
   top: 0;
   left: 0;
   height: 100vh;
-  width: 76px;
-  overflow: hidden;
+  width: 264px;
+  overflow-y: auto;
   background: var(--bg-page);
   z-index: 40;
-  transition: width 0.2s var(--ease), box-shadow 0.2s var(--ease);
 }
 
 .shell-main {
-  margin-left: 76px;
+  margin-left: 264px;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
@@ -31,19 +29,15 @@
 
 .brand {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 2px;
+  gap: var(--space-3);
   padding: 0 var(--space-2);
   flex-shrink: 0;
 }
-.brand-text {
-  text-align: center;
-}
 .brand-mark {
-  width: 38px;
-  height: 38px;
-  border-radius: 11px;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
   background: linear-gradient(135deg, var(--accent-400), var(--accent-600));
   display: flex;
   align-items: center;
@@ -53,29 +47,28 @@
   font-weight: 800;
   font-size: 16px;
   box-shadow: 0 8px 20px -6px var(--accent-glow);
+  flex-shrink: 0;
 }
-/* Logo enviada pelo cliente: sem fundo/moldura — só a imagem, centralizada,
-   sem "quadrado" em volta (a logo já tem seu próprio visual). Maior que o
-   ícone de iniciais porque, sem um fundo colorido pra dar presença, uma
-   logo real fica minúscula na mesma caixa de 38px. */
+/* Logo enviada pelo cliente: sem fundo/moldura — só a imagem (a logo já tem
+   seu próprio visual), um pouco maior que o ícone de iniciais porque sem um
+   fundo colorido pra dar presença ela fica pequena demais do lado do nome. */
 .brand-mark.brand-logo-img {
-  width: 58px;
-  height: 58px;
+  width: 44px;
+  height: 44px;
   background: none;
   box-shadow: none;
-  transition: width 0.15s var(--ease), height 0.15s var(--ease);
 }
 .brand-logo-img {
   object-fit: contain;
-}
-.nav-label {
-  white-space: nowrap;
 }
 .brand-text {
   font-family: var(--font-display);
   font-weight: 800;
   font-size: 17px;
   letter-spacing: -0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .nav {
@@ -109,7 +102,7 @@
   text-align: left;
   width: 100%;
   white-space: nowrap;
-  transition: background-color 0.15s var(--ease), color 0.15s var(--ease), justify-content 0.12s var(--ease), gap 0.12s var(--ease);
+  transition: background-color 0.15s var(--ease), color 0.15s var(--ease);
 }
 .nav-item svg {
   flex-shrink: 0;
@@ -125,65 +118,6 @@
 }
 .nav-item.active svg {
   opacity: 1;
-}
-
-/* Este bloco precisa vir DEPOIS das regras base de .nav-item/.nav-label
-   acima (mesma especificidade — em caso de empate, quem vem por último no
-   arquivo vence). Antes ficava declarado mais cedo no arquivo e a regra
-   base de .nav-item (justify-content: flex-start) sempre vencia por
-   último, então os ícones nunca centralizavam de fato no trilho recolhido. */
-@media (min-width: 861px) {
-  .sidebar:hover,
-  .sidebar:focus-within {
-    width: 252px;
-    box-shadow: var(--shadow-lg);
-  }
-  /* Trilho recolhido (só ícone, sem rótulo visível): centraliza o ícone e
-     zera o gap — sem isso, o gap do rótulo (usado quando o menu expande)
-     empurrava o ícone pra fora do centro do trilho de 76px. */
-  .nav-item {
-    justify-content: center;
-    gap: 0;
-  }
-  /* Recolhida, o texto some de vez (em vez de cortar no meio da palavra) —
-     só reaparece com o sidebar expandido. Além de opacity, zera a
-     largura/altura pra não sobrar espaço vazio e desalinhar o ícone do
-     centro do trilho recolhido. */
-  .nav-label {
-    opacity: 0;
-    max-width: 0;
-    max-height: 0;
-    overflow: hidden;
-    transition: opacity 0.12s var(--ease), max-width 0.12s var(--ease), max-height 0.12s var(--ease);
-  }
-  .sidebar:hover .nav-label,
-  .sidebar:focus-within .nav-label {
-    opacity: 1;
-    max-width: 160px;
-    max-height: 24px;
-    transition-delay: 0.05s;
-  }
-  /* Ícone do menu centralizado no trilho recolhido; volta a alinhar à
-     esquerda (com o texto do lado) quando o sidebar expande. */
-  .sidebar:hover .nav-item,
-  .sidebar:focus-within .nav-item {
-    justify-content: flex-start;
-    gap: var(--space-4);
-  }
-  /* "Administração" tem padding vertical maior que os outros labels (é um
-     título de seção) — os 24px genéricos do .nav-label cortavam a palavra
-     e ela grudava no item de baixo. Precisa vir depois da regra genérica
-     acima pra sobrescrever (mesma especificidade, ordem decide). */
-  .sidebar:hover .nav-section-label,
-  .sidebar:focus-within .nav-section-label {
-    max-height: 48px;
-  }
-  /* Logo da marca cresce junto quando o sidebar expande. */
-  .sidebar:hover .brand-mark.brand-logo-img,
-  .sidebar:focus-within .brand-mark.brand-logo-img {
-    width: 112px;
-    height: 112px;
-  }
 }
 
 .sidebar-footer {
@@ -230,6 +164,40 @@
   gap: var(--space-3);
   flex-shrink: 0;
 }
+
+/* Barra de busca do topo (igual o mockup aprovado) — visual de campo de
+   texto, mas é um atalho pra mesma busca rápida (Ctrl/Cmd+K) de sempre, não
+   um campo de digitação de verdade: evita duplicar a lógica de busca só
+   pra bater com o desenho. */
+.topbar-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--bg-surface-hover);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  padding: 9px 14px;
+  width: 320px;
+  max-width: 100%;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  font-size: 14px;
+  transition: border-color 0.15s var(--ease);
+}
+.topbar-search:hover {
+  border-color: var(--border-strong);
+}
+.topbar-search kbd {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-tertiary);
+}
+
 .user-menu {
   display: flex;
   align-items: center;
@@ -287,6 +255,9 @@
 .sidebar-backdrop {
   display: none;
 }
+.bottom-nav {
+  display: none;
+}
 
 @media (max-width: 860px) {
   .shell-main {
@@ -322,11 +293,66 @@
   .menu-btn {
     display: inline-flex;
   }
+  /* No celular a busca vira só o ícone de novo — o campo de 320px não cabe
+     do lado do botão de menu e do avatar na mesma barra. */
+  .topbar-search {
+    width: auto;
+    padding: 9px;
+    border: none;
+    background: none;
+  }
+  .topbar-search span,
+  .topbar-search kbd {
+    display: none;
+  }
   .content {
     padding: var(--space-4);
+    /* Sobra de espaço embaixo pra não ficar escondido atrás da barra de
+       navegação fixa (.bottom-nav) — altura dela + respiro. */
+    padding-bottom: calc(var(--space-4) + 76px);
   }
   .topbar {
     padding: 0 var(--space-4);
+  }
+
+  /* Barra de navegação fixa embaixo (igual o mockup aprovado) — atalho pros
+     módulos que o usuário tem acesso; "Mais" abre o menu lateral de sempre
+     (usuários/auditoria/configurações continuam só lá, não cabem aqui). */
+  .bottom-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 50;
+    padding: 8px 4px calc(8px + env(safe-area-inset-bottom));
+    background: var(--bg-surface);
+    border-top: 1px solid var(--border-subtle);
+  }
+  .bottom-nav-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    background: none;
+    border: none;
+    color: var(--text-tertiary);
+    font-size: 10.5px;
+    font-weight: 700;
+    padding: 4px 8px;
+    flex: 1;
+    min-width: 0;
+  }
+  .bottom-nav-item span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 100%;
+  }
+  .bottom-nav-item.active {
+    color: var(--accent-500);
   }
 }
 

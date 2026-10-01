@@ -45,13 +45,10 @@ export default function TopBar({ view, user, onLogout, theme, setTheme, onMenuCl
         </div>
 
         <div className="topbar-actions">
-          <button
-            className="btn btn-ghost btn-icon"
-            onClick={onSearchClick}
-            aria-label="Busca rápida"
-            title="Busca rápida (Ctrl+K)"
-          >
-            <Icon name="search" size={17} />
+          <button className="topbar-search" onClick={onSearchClick} aria-label="Busca rápida (Ctrl+K)" title="Busca rápida (Ctrl+K)">
+            <Icon name="search" size={15} />
+            <span>Buscar equipamento, usuário...</span>
+            <kbd>Ctrl K</kbd>
           </button>
 
           <div className="theme-toggle">
