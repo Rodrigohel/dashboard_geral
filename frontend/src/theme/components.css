@@ -181,8 +181,8 @@
   color: var(--text-secondary);
 }
 .badge-accent {
-  background: var(--accent-glow);
-  color: var(--accent-400);
+  background: var(--accent-soft);
+  color: var(--accent-500);
 }
 
 /* ---------- Tabela ---------- */
@@ -449,7 +449,7 @@ table.data-table {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-  border-top: 3px solid var(--card-accent, var(--border-subtle));
+  border-left: 3px solid var(--card-accent, var(--border-subtle));
 }
 .metric-card-head {
   display: flex;
@@ -467,7 +467,7 @@ table.data-table {
 .metric-card-title .icon-badge {
   width: 26px;
   height: 26px;
-  border-radius: 8px;
+  border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;

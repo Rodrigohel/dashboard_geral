@@ -130,7 +130,7 @@ function BrandingCard() {
   const [name, setName] = useState('');
   const [logoFile, setLogoFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
-  const [accentColor, setAccentColor] = useState('#14b8a6');
+  const [accentColor, setAccentColor] = useState('#8b5cf6');
   const [shortName, setShortName] = useState('');
   const [pwaIconFile, setPwaIconFile] = useState(null);
   const [pwaIconPreviewUrl, setPwaIconPreviewUrl] = useState(null);
@@ -138,7 +138,7 @@ function BrandingCard() {
   const toast = useToast();
 
   useEffect(() => setName(current.name), [current.name]);
-  useEffect(() => setAccentColor(current.accentColor || '#14b8a6'), [current.accentColor]);
+  useEffect(() => setAccentColor(current.accentColor || '#8b5cf6'), [current.accentColor]);
   useEffect(() => setShortName(current.shortName || ''), [current.shortName]);
 
   function handleFile(e) {
@@ -224,7 +224,7 @@ function BrandingCard() {
             style={{ width: 44, height: 36, padding: 2, borderRadius: 8, border: '1px solid var(--border-subtle)', background: 'none' }}
           />
           <input className="input" style={{ maxWidth: 140 }} value={accentColor} onChange={(e) => setAccentColor(e.target.value)} />
-          <button type="button" className="btn btn-ghost btn-sm" onClick={() => setAccentColor('#14b8a6')}>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => setAccentColor('#8b5cf6')}>
             Padrão
           </button>
         </div>

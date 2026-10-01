@@ -1,6 +1,6 @@
 :root {
-  --font-sans: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  --font-display: 'Space Grotesk', var(--font-sans);
+  --font-sans: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-display: 'Plus Jakarta Sans', var(--font-sans);
   --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
 
   --radius-sm: 8px;
@@ -19,11 +19,17 @@
 
   --ease: cubic-bezier(0.16, 1, 0.3, 1);
 
-  /* Marca: âmbar, sempre a mesma nos dois temas */
-  --accent-500: #f5a623;
-  --accent-400: #ffbe4d;
-  --accent-600: #c9821b;
-  --accent-glow: rgba(245, 166, 35, 0.35);
+  /* Marca: roxo vívido, sempre a mesma nos dois temas — instalação sem cor
+     de marca própria configurada (ver Configurações → Marca) usa isso.
+     Instalações com cor própria sobrescrevem via applyAccent.js. */
+  --accent-500: #8b5cf6;
+  --accent-400: #a78bfa;
+  --accent-600: #6d28d9;
+  --accent-glow: rgba(139, 92, 246, 0.35);
+  /* Fundo suave (chip/pill), igual --success-soft/--warning-soft/--danger-soft
+     já faziam pros status — faltava o equivalente pra cor de marca. Instalação
+     com cor própria recalcula isso também (ver applyAccent.js). */
+  --accent-soft: rgba(139, 92, 246, 0.14);
   --violet-500: #8b5cf6;
 
   /* Uma cor de destaque por módulo — ajuda a reconhecer visualmente qual é
@@ -32,15 +38,15 @@
   --module-rede-glow: rgba(76, 141, 255, 0.35);
   --module-interfone: #2dd4bf;
   --module-interfone-glow: rgba(45, 212, 191, 0.32);
-  --module-acesso: #b39ddb;
-  --module-acesso-glow: rgba(179, 157, 219, 0.35);
+  --module-acesso: #ec4899;
+  --module-acesso-glow: rgba(236, 72, 153, 0.32);
 
   /* Segunda parada de cor pra gradiente dos gráficos de cada módulo — só
      decorativo (sparkline, linha de tendência), nunca usado sozinho pra
      identidade/status. Combina com a cor principal do módulo acima. */
   --module-rede-end: #8b5cf6;
   --module-interfone-end: #4c8dff;
-  --module-acesso-end: #f472b6;
+  --module-acesso-end: #f59e0b;
 
   /* Gradientes só dos gráficos de análise (Rede/Interfone) — decorativo,
      pedido explicitamente pelo cliente pra ficar mais vivo que uma cor só.
