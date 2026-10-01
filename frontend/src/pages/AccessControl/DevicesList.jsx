@@ -5,13 +5,19 @@ import ConfirmDialog from '../../components/ConfirmDialog.jsx';
 import DeviceFormModal from './DeviceFormModal.jsx';
 import MultiDeviceUserFormModal from './MultiDeviceUserFormModal.jsx';
 import UserSearch from './UserSearch.jsx';
-import Ring from '../../components/Ring.jsx';
+import Ring, { healthPercent } from '../../components/Ring.jsx';
 import { api } from '../../api/client.js';
 import { useToast } from '../../hooks/useToast.jsx';
 import { timeAgo } from '../../utils/relativeTime.js';
 import { subscribeCameraSnapshot } from '../../utils/cameraPoller.js';
 
-const MODEL_LABELS = { xpe3200: 'XPE 3200 IP Face', ss3532mf: 'SS 3532 MF' };
+const MODEL_LABELS = { xpe3200: 'XPE 3200 IP Face', ss3532mf: 'SS 3532 MF', segplace: 'Portão Wi-Fi (Segplace)' };
+// Só os modelos Intelbras (xpe3200/ss3532mf) são porteiros com reconhecimento
+// facial de verdade — o Segplace é um relé de portão/garagem, sem câmera de
+// rosto nenhuma. Chamar os dois de "porteiro" na tela estava errado.
+function isFacialDevice(model) {
+  return model === 'xpe3200' || model === 'ss3532mf';
+}
 const STATUS_META = {
   online: { label: 'online', badge: 'badge-success', accent: 'var(--success-500)' },
   offline: { label: 'offline', badge: 'badge-danger', accent: 'var(--danger-500)' },
@@ -122,12 +128,12 @@ export default function DevicesList({ isOwner, onOpenDevice }) {
         <div className="kpi-strip">
           <div className="kpi-card surface">
             <Ring
-              percent={Math.round((devices.filter((d) => d.lastStatus === 'online').length / devices.length) * 100)}
+              percent={healthPercent(devices.filter((d) => d.lastStatus === 'online').length, devices.length)}
               color="var(--module-acesso)"
-              value={`${Math.round((devices.filter((d) => d.lastStatus === 'online').length / devices.length) * 100)}%`}
+              value={`${healthPercent(devices.filter((d) => d.lastStatus === 'online').length, devices.length)}%`}
             />
             <div className="kpi-card-body">
-              <div className="kpi-card-label">Porteiros online</div>
+              <div className="kpi-card-label">Equipamentos online</div>
               <div className="kpi-card-value">
                 {devices.filter((d) => d.lastStatus === 'online').length}{' '}
                 <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-tertiary)' }}>de {devices.length}</span>
@@ -146,11 +152,11 @@ export default function DevicesList({ isOwner, onOpenDevice }) {
 
       <div className="toolbar">
         <p style={{ color: 'var(--text-secondary)', fontSize: 14 }}>
-          Porteiros com reconhecimento facial cadastrados. Clique em um para gerenciar os usuários liberados.
+          Porteiros e portões cadastrados. Clique em um para gerenciar os usuários liberados.
         </p>
         {isOwner && devices?.length > 0 && (
           <button className="btn btn-secondary" onClick={() => setShowMultiUserForm(true)}>
-            <Icon name="users" size={16} /> Novo usuário em vários porteiros
+            <Icon name="users" size={16} /> Novo usuário em vários equipamentos
           </button>
         )}
         {isOwner && (
@@ -170,7 +176,7 @@ export default function DevicesList({ isOwner, onOpenDevice }) {
         <EmptyState
           icon="shieldFace"
           title="Nenhum equipamento cadastrado"
-          description={isOwner ? 'Cadastre o primeiro porteiro para começar a gerenciar acessos remotamente.' : 'Peça ao administrador para liberar um equipamento para você.'}
+          description={isOwner ? 'Cadastre o primeiro porteiro ou portão para começar a gerenciar acessos remotamente.' : 'Peça ao administrador para liberar um equipamento para você.'}
           action={
             isOwner && (
               <button className="btn btn-primary" onClick={() => setShowForm(true)}>
@@ -188,7 +194,7 @@ export default function DevicesList({ isOwner, onOpenDevice }) {
               <div className="device-card-top">
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <div className="module-card-icon" style={{ background: 'var(--accent-glow)', width: 40, height: 40 }}>
-                    <Icon name="shieldFace" size={18} />
+                    <Icon name={isFacialDevice(d.model) ? 'shieldFace' : 'doorOpen'} size={18} />
                   </div>
                   <span className={`badge ${statusMeta.badge}`} title={d.lastError || undefined}>
                     <span className="badge-dot" /> {statusMeta.label}
@@ -222,7 +228,7 @@ export default function DevicesList({ isOwner, onOpenDevice }) {
                     {d.lastOpen.success ? 'Aberto' : 'Falha ao abrir'} por <strong>{d.lastOpen.username}</strong>, {timeAgo(d.lastOpen.createdAt)}
                   </span>
                   {d.lastOpen.anomaly && (
-                    <span className="badge badge-warning" title="Esse porteiro nunca tinha sido aberto nesse horário antes.">
+                    <span className="badge badge-warning" title="Esse equipamento nunca tinha sido aberto nesse horário antes.">
                       <span className="badge-dot" /> horário incomum
                     </span>
                   )}

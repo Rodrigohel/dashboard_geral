@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import Icon from '../components/Icon.jsx';
 import Modal from '../components/Modal.jsx';
-import Ring from '../components/Ring.jsx';
+import Ring, { healthPercent } from '../components/Ring.jsx';
 import { api } from '../api/client.js';
 import { useToast } from '../hooks/useToast.jsx';
 import { downloadCsv } from '../utils/csv.js';
@@ -953,9 +953,9 @@ export default function RedeDashboard({ can }) {
           <div className="kpi-strip">
             <div className="kpi-card surface" onClick={() => scrollToSection('equipamentos-section')}>
               <Ring
-                percent={Math.round(((summary.online || 0) / summary.total) * 100)}
+                percent={healthPercent(summary.online || 0, summary.total)}
                 color="var(--module-rede)"
-                value={`${Math.round(((summary.online || 0) / summary.total) * 100)}%`}
+                value={`${healthPercent(summary.online || 0, summary.total)}%`}
               />
               <div className="kpi-card-body">
                 <div className="kpi-card-label">Equipamentos online</div>

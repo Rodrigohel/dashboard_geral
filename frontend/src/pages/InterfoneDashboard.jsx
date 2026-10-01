@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Icon from '../components/Icon.jsx';
 import Modal from '../components/Modal.jsx';
-import Ring from '../components/Ring.jsx';
+import Ring, { healthPercent } from '../components/Ring.jsx';
 import { api } from '../api/client.js';
 import { downloadCsv } from '../utils/csv.js';
 import { useToast } from '../hooks/useToast.jsx';
@@ -752,9 +752,9 @@ export default function InterfoneDashboard() {
             <div className="kpi-strip">
               <div className="kpi-card surface" onClick={() => scrollToSection('extensions-section')}>
                 <Ring
-                  percent={Math.round((summary.online / (summary.online + summary.offline)) * 100)}
+                  percent={healthPercent(summary.online, summary.online + summary.offline)}
                   color="var(--module-interfone)"
-                  value={`${Math.round((summary.online / (summary.online + summary.offline)) * 100)}%`}
+                  value={`${healthPercent(summary.online, summary.online + summary.offline)}%`}
                 />
                 <div className="kpi-card-body">
                   <div className="kpi-card-label">Ramais online</div>
