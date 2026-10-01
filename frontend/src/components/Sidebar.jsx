@@ -7,12 +7,25 @@ const NAV_ITEMS = [
   { key: 'acesso', label: 'Controle de acesso', icon: 'shieldFace', module: 'acesso' },
 ];
 
+// Mesma ordem e agrupamento do mockup aprovado: "Administração" leva só
+// Usuários/Auditoria/Saúde do servidor; Configurações fica sozinha embaixo,
+// numa seção "Outros" separada.
 const ADMIN_ITEMS = [
   { key: 'usuarios', label: 'Usuários', icon: 'users' },
-  { key: 'servidor', label: 'Saúde do servidor', icon: 'server' },
   { key: 'auditoria', label: 'Auditoria', icon: 'key' },
-  { key: 'configuracoes', label: 'Configurações', icon: 'settings' },
+  { key: 'servidor', label: 'Saúde do servidor', icon: 'server' },
 ];
+
+const OTHER_ITEMS = [{ key: 'configuracoes', label: 'Configurações', icon: 'settings' }];
+
+function NavButton({ item, active, onNavigate }) {
+  return (
+    <button className={`nav-item ${active ? 'active' : ''}`} onClick={() => onNavigate(item.key)}>
+      <Icon name={item.icon} size={18} />
+      <span>{item.label}</span>
+    </button>
+  );
+}
 
 export default function Sidebar({ branding, view, onNavigate, can, isOwner, open, onClose }) {
   return (
@@ -30,28 +43,19 @@ export default function Sidebar({ branding, view, onNavigate, can, isOwner, open
 
         <nav className="nav">
           {NAV_ITEMS.filter((item) => !item.module || can(item.module)).map((item) => (
-            <button
-              key={item.key}
-              className={`nav-item ${view === item.key ? 'active' : ''}`}
-              onClick={() => onNavigate(item.key)}
-            >
-              <Icon name={item.icon} size={18} />
-              <span>{item.label}</span>
-            </button>
+            <NavButton key={item.key} item={item} active={view === item.key} onNavigate={onNavigate} />
           ))}
 
           {isOwner && (
             <>
               <div className="nav-section-label">Administração</div>
               {ADMIN_ITEMS.map((item) => (
-                <button
-                  key={item.key}
-                  className={`nav-item ${view === item.key ? 'active' : ''}`}
-                  onClick={() => onNavigate(item.key)}
-                >
-                  <Icon name={item.icon} size={18} />
-                  <span>{item.label}</span>
-                </button>
+                <NavButton key={item.key} item={item} active={view === item.key} onNavigate={onNavigate} />
+              ))}
+
+              <div className="nav-section-label">Outros</div>
+              {OTHER_ITEMS.map((item) => (
+                <NavButton key={item.key} item={item} active={view === item.key} onNavigate={onNavigate} />
               ))}
             </>
           )}

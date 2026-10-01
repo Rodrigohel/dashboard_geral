@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import Icon from '../components/Icon.jsx';
-import Ring, { healthPercent } from '../components/Ring.jsx';
 import { api } from '../api/client.js';
 import { timeAgo } from '../utils/relativeTime.js';
 
@@ -200,48 +199,6 @@ function buildSparkline(points) {
   return { line, area, lastX: last[0].toFixed(1), lastY: last[1].toFixed(1) };
 }
 
-// Faixa de indicadores rápidos acima dos cards de módulo — mesmo dado já
-// calculado pra cada card (cardDataFor), só num resumo mais compacto e
-// visual (anel de progresso), igual o mockup aprovado. Só entra se existir
-// pelo menos um status real pra mostrar (nunca inventa número).
-function KpiStrip({ linkModules, cardDataFor, modules, onNavigate }) {
-  const cards = linkModules
-    .map((key) => {
-      const meta = MODULE_META[key];
-      const data = cardDataFor(key, modules?.[key]);
-      if (!data.stat1) return null;
-      const online = data.stat1.value;
-      const offline = data.stat2?.value || 0;
-      const total = online + offline;
-      const percent = total > 0 ? healthPercent(online, total) : null;
-      return { key, meta, online, offline, percent };
-    })
-    .filter(Boolean);
-
-  if (cards.length === 0) return null;
-
-  return (
-    <div className="kpi-strip">
-      {cards.map(({ key, meta, online, offline, percent }) => (
-        <div key={key} className="kpi-card surface" onClick={() => onNavigate(key)}>
-          <Ring percent={percent ?? 0} color={meta.color} value={percent !== null ? `${percent}%` : '—'} />
-          <div className="kpi-card-body">
-            <div className="kpi-card-label">{meta.title}</div>
-            <div className="kpi-card-value">
-              {online} <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-tertiary)' }}>online</span>
-            </div>
-            {offline > 0 && (
-              <div className="kpi-card-sub" style={{ color: 'var(--danger-500)' }}>
-                {offline} offline
-              </div>
-            )}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 const RAIL_AVATAR_GRADIENTS = [
   'linear-gradient(135deg, var(--module-acesso), var(--accent-500))',
   'linear-gradient(135deg, var(--module-rede), var(--module-rede-end))',
@@ -252,54 +209,38 @@ const RAIL_AVATAR_GRADIENTS = [
 // Painel lateral da Início — porteiros/portões cadastrados (mesma lista que
 // Controle de acesso já mostra) e atalho pros módulos liberados pro
 // usuário. Só aparece quando há algo de verdade pra listar.
-function HomeRail({ devices, linkModules, onNavigate, onOpenDevice }) {
-  if (devices.length === 0 && linkModules.length === 0) return null;
+// Só porteiros/portões aqui — "Módulos" (Rede/Interfone/Acesso) saiu: era
+// só um atalho de navegação repetindo os mesmos três módulos que os cards
+// grandes à esquerda já mostram (e pros quais já dá pra clicar).
+function HomeRail({ devices, onOpenDevice }) {
+  if (devices.length === 0) return null;
   return (
     <aside className="home-rail">
-      {devices.length > 0 && (
-        <div className="rail-card surface">
-          <div className="rail-card-title">Porteiros</div>
-          <div className="rail-items">
-            {devices.slice(0, 6).map((d, i) => (
-              <button
-                key={d.id}
-                className="rail-module-row"
-                onClick={() => onOpenDevice(d)}
-                title={`Abrir ${d.name} no Controle de acesso`}
-              >
-                <div className="rail-avatar" style={{ background: RAIL_AVATAR_GRADIENTS[i % RAIL_AVATAR_GRADIENTS.length] }}>
-                  {d.name.slice(0, 2).toUpperCase()}
-                  <span
-                    className="rail-avatar-dot"
-                    style={{ background: d.lastStatus === 'online' ? 'var(--success-500)' : d.lastStatus === 'offline' ? 'var(--danger-500)' : 'var(--text-tertiary)' }}
-                  />
-                </div>
-                <div style={{ minWidth: 0 }}>
-                  <div className="rail-item-name">{d.name}</div>
-                  <div className="rail-item-sub">{d.lastStatus === 'online' ? 'online' : d.lastStatus === 'offline' ? 'offline' : 'verificando...'}</div>
-                </div>
-              </button>
-            ))}
-          </div>
+      <div className="rail-card surface">
+        <div className="rail-card-title">Porteiros</div>
+        <div className="rail-items">
+          {devices.slice(0, 6).map((d, i) => (
+            <button
+              key={d.id}
+              className="rail-module-row"
+              onClick={() => onOpenDevice(d)}
+              title={`Abrir ${d.name} no Controle de acesso`}
+            >
+              <div className="rail-avatar" style={{ background: RAIL_AVATAR_GRADIENTS[i % RAIL_AVATAR_GRADIENTS.length] }}>
+                {d.name.slice(0, 2).toUpperCase()}
+                <span
+                  className="rail-avatar-dot"
+                  style={{ background: d.lastStatus === 'online' ? 'var(--success-500)' : d.lastStatus === 'offline' ? 'var(--danger-500)' : 'var(--text-tertiary)' }}
+                />
+              </div>
+              <div style={{ minWidth: 0 }}>
+                <div className="rail-item-name">{d.name}</div>
+                <div className="rail-item-sub">{d.lastStatus === 'online' ? 'online' : d.lastStatus === 'offline' ? 'offline' : 'verificando...'}</div>
+              </div>
+            </button>
+          ))}
         </div>
-      )}
-
-      {linkModules.length > 0 && (
-        <div className="rail-card surface">
-          <div className="rail-card-title">Módulos</div>
-          <div className="rail-items">
-            {linkModules.map((key) => {
-              const meta = MODULE_META[key];
-              return (
-                <button key={key} className="rail-module-row" onClick={() => onNavigate(key)}>
-                  <div className="rail-module-swatch" style={{ background: meta.color }} />
-                  <div className="rail-item-name">{meta.title}</div>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
+      </div>
     </aside>
   );
 }
@@ -517,8 +458,6 @@ export default function Home({ user, onNavigate, onOpenDevice, can }) {
         <div className="home-main">
           {isOwner && <ServerHealthWidget onNavigate={onNavigate} />}
 
-          <KpiStrip linkModules={linkModules} cardDataFor={cardDataFor} modules={modules} onNavigate={onNavigate} />
-
           {linkModules.length > 0 && (
         <div className="module-grid">
           {linkModules.map((key) => {
@@ -638,7 +577,7 @@ export default function Home({ user, onNavigate, onOpenDevice, can }) {
           {(hasRede || hasInterfone || hasAcesso) && <ActivityFeed events={activityFeed} />}
         </div>
 
-        <HomeRail devices={acessoDevices} linkModules={linkModules} onNavigate={onNavigate} onOpenDevice={onOpenDevice} />
+        <HomeRail devices={acessoDevices} onOpenDevice={onOpenDevice} />
       </div>
     </>
   );

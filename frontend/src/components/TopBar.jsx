@@ -2,21 +2,10 @@ import { useState, useRef, useEffect } from 'react';
 import Icon from './Icon.jsx';
 import ChangePasswordModal from './ChangePasswordModal.jsx';
 
-const TITLES = {
-  home: ['Início', 'Visão geral de tudo o que você administra'],
-  rede: ['Rede', 'Monitoramento de câmeras, NVRs e equipamentos de rede'],
-  interfone: ['Interfone', 'Ramais, chamadas e saúde do PBX'],
-  acesso: ['Controle de acesso', 'Porteiros e reconhecimento facial'],
-  usuarios: ['Usuários', 'Contas do Portal e permissões'],
-  servidor: ['Saúde do servidor', 'CPU, memória, disco e temperatura desta máquina'],
-  configuracoes: ['Configurações', 'Integrações e preferências gerais'],
-};
-
-export default function TopBar({ view, user, onLogout, theme, setTheme, onMenuClick, onSearchClick }) {
+export default function TopBar({ user, onLogout, theme, setTheme, onMenuClick, onSearchClick }) {
   const [open, setOpen] = useState(false);
   const [showAccountModal, setShowAccountModal] = useState(false);
   const ref = useRef(null);
-  const [title, subtitle] = TITLES[view] || ['Portal', ''];
 
   useEffect(() => {
     const onClick = (e) => ref.current && !ref.current.contains(e.target) && setOpen(false);
@@ -38,19 +27,14 @@ export default function TopBar({ view, user, onLogout, theme, setTheme, onMenuCl
           <button className="btn btn-ghost btn-icon menu-btn" onClick={onMenuClick} aria-label="Abrir menu" style={{ flexShrink: 0 }}>
             <Icon name="menu" size={20} />
           </button>
-          <div style={{ minWidth: 0 }}>
-            <div className="topbar-title">{title}</div>
-            <div className="topbar-subtitle">{subtitle}</div>
-          </div>
-        </div>
-
-        <div className="topbar-actions">
           <button className="topbar-search" onClick={onSearchClick} aria-label="Busca rápida (Ctrl+K)" title="Busca rápida (Ctrl+K)">
             <Icon name="search" size={15} />
             <span>Buscar equipamento, usuário...</span>
             <kbd>Ctrl K</kbd>
           </button>
+        </div>
 
+        <div className="topbar-actions">
           <div className="theme-toggle">
             <button className={theme === 'dark' ? 'active' : ''} onClick={() => setTheme('dark')} aria-label="Tema escuro">
               <Icon name="moon" size={15} />
