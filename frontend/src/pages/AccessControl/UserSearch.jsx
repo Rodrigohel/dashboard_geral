@@ -64,48 +64,44 @@ export default function UserSearch({ devices, onOpenDevice }) {
   }
 
   const groups = data ? groupByName(data.results) : [];
+  const showPanel = query.trim().length > 0;
 
   return (
-    <div className="surface" style={{ padding: 24 }}>
-      <div style={{ fontWeight: 700, marginBottom: 4 }}>Buscar pessoa em todos os equipamentos</div>
-      <p className="field-hint" style={{ marginBottom: 12 }}>
-        Digite um nome pra ver em quais equipamentos essa pessoa está cadastrada — sem precisar abrir equipamento por equipamento.
-      </p>
-
-      <div className="toolbar-search input-with-icon" style={{ maxWidth: 360 }}>
+    <div className="access-user-search" style={{ position: 'relative' }}>
+      <div className="toolbar-search input-with-icon">
         <Icon name="search" size={16} />
-        <input className="input" placeholder="Nome da pessoa..." value={query} onChange={(e) => setQuery(e.target.value)} />
+        <input
+          className="input"
+          placeholder="Buscar pessoa em todos os equipamentos..."
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
       </div>
 
-      {query.trim().length > 0 && query.trim().length < 2 && (
-        <p className="field-hint" style={{ marginTop: 12 }}>
-          Digite pelo menos 2 letras.
-        </p>
-      )}
+      {showPanel && (
+        <div
+          className="surface"
+          style={{ position: 'absolute', top: 'calc(100% + 8px)', left: 0, right: 0, zIndex: 20, padding: 16, maxHeight: 360, overflowY: 'auto' }}
+        >
+          {query.trim().length < 2 && <p className="field-hint">Digite pelo menos 2 letras.</p>}
 
-      {loading && <div className="skeleton" style={{ height: 80, borderRadius: 12, marginTop: 16 }} />}
+          {loading && <div className="skeleton" style={{ height: 60, borderRadius: 12 }} />}
 
-      {error && (
-        <div className="login-error" style={{ marginTop: 16 }}>
-          {error}
-        </div>
-      )}
+          {error && <div className="login-error">{error}</div>}
 
-      {!loading && data && data.errors.length > 0 && (
-        <p className="field-hint" style={{ marginTop: 16, color: 'var(--warning-500)' }}>
-          {data.errors.length} equipamento(s) não responderam à busca: {data.errors.map((e) => e.device.name).join(', ')}.
-        </p>
-      )}
+          {!loading && data && data.errors.length > 0 && (
+            <p className="field-hint" style={{ color: 'var(--warning-500)', marginBottom: groups.length > 0 ? 12 : 0 }}>
+              {data.errors.length} equipamento(s) não responderam à busca: {data.errors.map((e) => e.device.name).join(', ')}.
+            </p>
+          )}
 
-      {!loading && data && query.trim().length >= 2 && groups.length === 0 && (
-        <p className="field-hint" style={{ marginTop: 16 }}>
-          Nenhuma pessoa encontrada com esse nome.
-        </p>
-      )}
+          {!loading && data && query.trim().length >= 2 && groups.length === 0 && (
+            <p className="field-hint">Nenhuma pessoa encontrada com esse nome.</p>
+          )}
 
-      {!loading && groups.length > 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 16 }}>
-          {groups.map((group) => {
+          {!loading && groups.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {groups.map((group) => {
             const registeredIds = new Set(group.entries.map((e) => e.device.id));
             const remainingDevices = devices.filter((d) => !registeredIds.has(d.id));
             return (
@@ -153,7 +149,9 @@ export default function UserSearch({ devices, onOpenDevice }) {
                 </div>
               </div>
             );
-          })}
+              })}
+            </div>
+          )}
         </div>
       )}
 
