@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import Icon from '../components/Icon.jsx';
 import Modal from '../components/Modal.jsx';
+import Ring from '../components/Ring.jsx';
 import { api } from '../api/client.js';
 import { useToast } from '../hooks/useToast.jsx';
 import { downloadCsv } from '../utils/csv.js';
@@ -970,14 +971,40 @@ export default function RedeDashboard({ can }) {
       {!summary ? (
         <div className="skeleton" style={{ height: 130, borderRadius: 20 }} />
       ) : (
-        // 4 colunas lado a lado no PC; no celular, Equipamentos numa linha e
-        // os outros três em 3 colunas embaixo (ver .rede-summary-grid).
-        <div className="rede-summary-grid">
-          <SummaryCard icon="network" title="Equipamentos monitorados" value={summary.total} onClick={() => scrollToSection('equipamentos-section')} />
-          <SummaryCard icon="wifi" title="Online" value={summary.online || 0} tone="success" onClick={() => scrollToSection('equipamentos-section')} />
-          <SummaryCard icon="wifi" title="Degradado" value={summary.degraded || 0} tone="warning" onClick={() => scrollToSection('equipamentos-section')} />
-          <SummaryCard icon="wifi" title="Offline" value={summary.offline || 0} tone="danger" onClick={() => scrollToSection('equipamentos-section')} />
-        </div>
+        <>
+          {summary.total > 0 && (
+            <div className="kpi-strip">
+              <div className="kpi-card surface" onClick={() => scrollToSection('equipamentos-section')}>
+                <Ring
+                  percent={Math.round(((summary.online || 0) / summary.total) * 100)}
+                  color="var(--module-rede)"
+                  value={`${Math.round(((summary.online || 0) / summary.total) * 100)}%`}
+                />
+                <div className="kpi-card-body">
+                  <div className="kpi-card-label">Equipamentos online</div>
+                  <div className="kpi-card-value">
+                    {summary.online || 0} <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-tertiary)' }}>de {summary.total}</span>
+                  </div>
+                  {(summary.offline > 0 || summary.degraded > 0) && (
+                    <div className="kpi-card-sub" style={{ color: 'var(--danger-500)' }}>
+                      {[summary.offline > 0 && `${summary.offline} offline`, summary.degraded > 0 && `${summary.degraded} degradado`]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+          {/* 4 colunas lado a lado no PC; no celular, Equipamentos numa linha e
+              os outros três em 3 colunas embaixo (ver .rede-summary-grid). */}
+          <div className="rede-summary-grid">
+            <SummaryCard icon="network" title="Equipamentos monitorados" value={summary.total} onClick={() => scrollToSection('equipamentos-section')} />
+            <SummaryCard icon="wifi" title="Online" value={summary.online || 0} tone="success" onClick={() => scrollToSection('equipamentos-section')} />
+            <SummaryCard icon="wifi" title="Degradado" value={summary.degraded || 0} tone="warning" onClick={() => scrollToSection('equipamentos-section')} />
+            <SummaryCard icon="wifi" title="Offline" value={summary.offline || 0} tone="danger" onClick={() => scrollToSection('equipamentos-section')} />
+          </div>
+        </>
       )}
 
       <div className="surface" style={{ padding: 24 }}>
