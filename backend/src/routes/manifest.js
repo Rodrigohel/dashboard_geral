@@ -32,6 +32,14 @@ manifestRouter.get('/', (req, res) => {
   // declarado) e simplesmente nunca oferecer o banner de instalação — sem
   // erro nenhum visível. Sem um ícone quadrado dedicado cadastrado, é mais
   // seguro cair no ícone padrão do Portal do que arriscar isso.
+  //
+  // O padrão usado pra cair era só um SVG com sizes:"any" — tecnicamente
+  // válido, mas o checador de instalabilidade do Chrome no Android já foi
+  // visto recusando manifests só-com-SVG (sem nenhum PNG 192/512 "de
+  // verdade"), mesmo exibindo o ícone normalmente depois de instalado.
+  // PNGs gerados do mesmo desenho (frontend/public/icon-192.png e
+  // icon-512.png) eliminam essa categoria de problema pra qualquer tenant
+  // que ainda não subiu um ícone próprio.
   const icons = [];
   if (row?.pwa_icon_filename) {
     const ext = row.pwa_icon_filename.slice(row.pwa_icon_filename.lastIndexOf('.')).toLowerCase();
@@ -42,7 +50,8 @@ manifestRouter.get('/', (req, res) => {
     icons.push({ src: '/api/branding/pwa-icon', sizes: '192x192', type, purpose: 'any' });
     icons.push({ src: '/api/branding/pwa-icon', sizes: '512x512', type, purpose: 'any' });
   } else {
-    icons.push({ src: '/icon-mark.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' });
+    icons.push({ src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' });
+    icons.push({ src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' });
   }
 
   res.set('Content-Type', 'application/manifest+json');
