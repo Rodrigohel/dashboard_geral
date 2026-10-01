@@ -834,89 +834,91 @@ export default function InterfoneDashboard({ pendingSection, onSectionHandled })
         )}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 'var(--space-4)' }}>
-        {extensions.some((e) => e.state === 'offline') && (
-          <div className="surface" style={{ padding: 24 }} id="interfone-offline-section">
-            <div style={{ fontWeight: 700, marginBottom: 4 }}>Ramais offline</div>
-            <p className="field-hint" style={{ marginBottom: 12 }}>
-              {extensions.filter((e) => e.state === 'offline').length} ramal(is) fora do ar agora.
-            </p>
-            {extensions
-              .filter((e) => e.state === 'offline')
-              .map((e) => (
-                <div className="service-row" key={e.number} style={{ '--card-accent': 'var(--danger-500)' }}>
-                  <div>
-                    <div style={{ fontWeight: 600, fontSize: 14 }}>{e.number}</div>
-                    {e.name && <div className="field-hint">{e.name}</div>}
+      <div className="surface" style={{ padding: 24 }}>
+        <div className="status-cols-grid">
+          {extensions.some((e) => e.state === 'offline') && (
+            <div className="status-col" id="interfone-offline-section">
+              <div style={{ fontWeight: 700, marginBottom: 4 }}>Ramais offline</div>
+              <p className="field-hint" style={{ marginBottom: 12 }}>
+                {extensions.filter((e) => e.state === 'offline').length} ramal(is) fora do ar agora.
+              </p>
+              {extensions
+                .filter((e) => e.state === 'offline')
+                .map((e) => (
+                  <div className="service-row" key={e.number} style={{ '--card-accent': 'var(--danger-500)' }}>
+                    <div>
+                      <div style={{ fontWeight: 600, fontSize: 14 }}>{e.number}</div>
+                      {e.name && <div className="field-hint">{e.name}</div>}
+                    </div>
+                    <ExtensionStatusBadge state={e.state} />
                   </div>
-                  <ExtensionStatusBadge state={e.state} />
-                </div>
-              ))}
+                ))}
+            </div>
+          )}
+
+          <div className="status-col" id="active-calls-section">
+            <div style={{ fontWeight: 700, marginBottom: 4 }}>Chamadas ativas agora</div>
+            <p className="field-hint" style={{ marginBottom: 12 }}>
+              {activeCalls.length === 0 ? 'Nenhuma chamada em andamento.' : `${activeCalls.length} chamada(s) em andamento.`}
+            </p>
+            {activeCalls.length > 0 && (
+              <div className="table-wrap">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Ramal</th>
+                      <th>Destino</th>
+                      <th>Duração</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {activeCalls.map((c, i) => (
+                      <tr key={i}>
+                        <td style={{ fontWeight: 600 }}>{c.name || c.ext}</td>
+                        <td style={{ color: 'var(--text-secondary)' }}>{c.destination}</td>
+                        <td style={{ color: 'var(--text-secondary)' }}>{formatDuration(c.durationSeconds)}</td>
+                        <td>
+                          <ExtensionStatusBadge state={c.state} />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
-        )}
 
-        <div className="surface" style={{ padding: 24 }} id="active-calls-section">
-          <div style={{ fontWeight: 700, marginBottom: 4 }}>Chamadas ativas agora</div>
-          <p className="field-hint" style={{ marginBottom: 12 }}>
-            {activeCalls.length === 0 ? 'Nenhuma chamada em andamento.' : `${activeCalls.length} chamada(s) em andamento.`}
-          </p>
-          {activeCalls.length > 0 && (
-            <div className="table-wrap">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Ramal</th>
-                    <th>Destino</th>
-                    <th>Duração</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {activeCalls.map((c, i) => (
-                    <tr key={i}>
-                      <td style={{ fontWeight: 600 }}>{c.name || c.ext}</td>
-                      <td style={{ color: 'var(--text-secondary)' }}>{c.destination}</td>
-                      <td style={{ color: 'var(--text-secondary)' }}>{formatDuration(c.durationSeconds)}</td>
-                      <td>
-                        <ExtensionStatusBadge state={c.state} />
-                      </td>
+          <div className="status-col" id="missed-calls-section">
+            <div style={{ fontWeight: 700, marginBottom: 4 }}>Chamadas perdidas hoje</div>
+            <p className="field-hint" style={{ marginBottom: 12 }}>
+              {missed.length === 0 ? 'Nenhuma chamada perdida hoje.' : `${missed.length} número(s) com chamada perdida.`}
+            </p>
+            {missed.length > 0 && (
+              <div className="table-wrap">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Número</th>
+                      <th>Última</th>
+                      <th>Total</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-
-        <div className="surface" style={{ padding: 24 }} id="missed-calls-section">
-          <div style={{ fontWeight: 700, marginBottom: 4 }}>Chamadas perdidas hoje</div>
-          <p className="field-hint" style={{ marginBottom: 12 }}>
-            {missed.length === 0 ? 'Nenhuma chamada perdida hoje.' : `${missed.length} número(s) com chamada perdida.`}
-          </p>
-          {missed.length > 0 && (
-            <div className="table-wrap">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Número</th>
-                    <th>Última</th>
-                    <th>Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {missed.map((m, i) => (
-                    <tr key={i} className={m.total >= 3 ? 'row-tone-warning' : ''}>
-                      <td style={{ fontWeight: 600 }}>{m.number}</td>
-                      <td style={{ color: 'var(--text-secondary)' }}>{formatDateTime(m.lastAt)}</td>
-                      <td>
-                        <span className="badge badge-warning">{m.total}x</span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+                  </thead>
+                  <tbody>
+                    {missed.map((m, i) => (
+                      <tr key={i} className={m.total >= 3 ? 'row-tone-warning' : ''}>
+                        <td style={{ fontWeight: 600 }}>{m.number}</td>
+                        <td style={{ color: 'var(--text-secondary)' }}>{formatDateTime(m.lastAt)}</td>
+                        <td>
+                          <span className="badge badge-warning">{m.total}x</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
