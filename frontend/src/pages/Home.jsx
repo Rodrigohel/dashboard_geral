@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import Icon from '../components/Icon.jsx';
+import Ring, { healthPercent } from '../components/Ring.jsx';
 import { api } from '../api/client.js';
 import { timeAgo } from '../utils/relativeTime.js';
 
@@ -199,52 +200,6 @@ function buildSparkline(points) {
   return { line, area, lastX: last[0].toFixed(1), lastY: last[1].toFixed(1) };
 }
 
-const RAIL_AVATAR_GRADIENTS = [
-  'linear-gradient(135deg, var(--module-acesso), var(--accent-500))',
-  'linear-gradient(135deg, var(--module-rede), var(--module-rede-end))',
-  'linear-gradient(135deg, var(--module-interfone), var(--module-interfone-end))',
-  'linear-gradient(135deg, var(--accent-500), var(--module-acesso-end))',
-];
-
-// Painel lateral da Início — porteiros/portões cadastrados (mesma lista que
-// Controle de acesso já mostra) e atalho pros módulos liberados pro
-// usuário. Só aparece quando há algo de verdade pra listar.
-// Só porteiros/portões aqui — "Módulos" (Rede/Interfone/Acesso) saiu: era
-// só um atalho de navegação repetindo os mesmos três módulos que os cards
-// grandes à esquerda já mostram (e pros quais já dá pra clicar).
-function HomeRail({ devices, onOpenDevice }) {
-  if (devices.length === 0) return null;
-  return (
-    <aside className="home-rail">
-      <div className="rail-card surface">
-        <div className="rail-card-title">Porteiros</div>
-        <div className="rail-items">
-          {devices.slice(0, 6).map((d, i) => (
-            <button
-              key={d.id}
-              className="rail-module-row"
-              onClick={() => onOpenDevice(d)}
-              title={`Abrir ${d.name} no Controle de acesso`}
-            >
-              <div className="rail-avatar" style={{ background: RAIL_AVATAR_GRADIENTS[i % RAIL_AVATAR_GRADIENTS.length] }}>
-                {d.name.slice(0, 2).toUpperCase()}
-                <span
-                  className="rail-avatar-dot"
-                  style={{ background: d.lastStatus === 'online' ? 'var(--success-500)' : d.lastStatus === 'offline' ? 'var(--danger-500)' : 'var(--text-tertiary)' }}
-                />
-              </div>
-              <div style={{ minWidth: 0 }}>
-                <div className="rail-item-name">{d.name}</div>
-                <div className="rail-item-sub">{d.lastStatus === 'online' ? 'online' : d.lastStatus === 'offline' ? 'offline' : 'verificando...'}</div>
-              </div>
-            </button>
-          ))}
-        </div>
-      </div>
-    </aside>
-  );
-}
-
 function formatEyebrow(date) {
   const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
   const day = cap(date.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', ''));
@@ -253,7 +208,7 @@ function formatEyebrow(date) {
   return `${day} · ${dm} · ${time}`;
 }
 
-export default function Home({ user, onNavigate, onOpenDevice, can }) {
+export default function Home({ user, onNavigate, can }) {
   const [modules, setModules] = useState(null);
   const [redeSummary, setRedeSummary] = useState(null);
   const [redePoints, setRedePoints] = useState(null);
@@ -262,7 +217,6 @@ export default function Home({ user, onNavigate, onOpenDevice, can }) {
   const [redeActivity, setRedeActivity] = useState([]);
   const [interfoneActivity, setInterfoneActivity] = useState([]);
   const [acessoActivity, setAcessoActivity] = useState([]);
-  const [acessoDevices, setAcessoDevices] = useState([]);
   const isOwner = user.role === 'owner';
 
   const hasRede = Boolean(user.modules?.includes('rede'));
@@ -352,7 +306,6 @@ export default function Home({ user, onNavigate, onOpenDevice, can }) {
     api.accessDevices
       .list()
       .then((devices) => {
-        setAcessoDevices(devices || []);
         setAcessoActivity(
           (devices || [])
             .filter((d) => d.lastOpen)
@@ -405,6 +358,8 @@ export default function Home({ user, onNavigate, onOpenDevice, can }) {
           : null,
         trendLabel: 'latência média · 24h',
         points: redePoints,
+        online: s ? s.online ?? 0 : null,
+        total: s?.total ?? null,
         stat1: s ? { value: s.online ?? 0, label: 'online' } : null,
         stat2: s && offline > 0 ? { value: offline, label: 'offline', color: 'var(--danger-500)' } : null,
       };
@@ -420,6 +375,8 @@ export default function Home({ user, onNavigate, onOpenDevice, can }) {
           : null,
         trendLabel: 'chamadas recebidas · 7 dias',
         points: interfonePoints,
+        online: s ? s.online ?? 0 : null,
+        total: s ? (s.online ?? 0) + offline : null,
         stat1: s ? { value: s.online ?? 0, label: 'ramais online' } : null,
         stat2: s && offline > 0 ? { value: offline, label: 'ramais offline', color: 'var(--danger-500)' } : null,
       };
@@ -437,6 +394,8 @@ export default function Home({ user, onNavigate, onOpenDevice, can }) {
           : null,
       trendLabel: null,
       points: null,
+      online: info?.deviceCount !== undefined ? info.deviceCount - offline : null,
+      total: info?.deviceCount ?? null,
       stat1: info?.deviceCount !== undefined ? { value: info.deviceCount, label: info.deviceCount === 1 ? 'porteiro' : 'porteiros' } : null,
       stat2: info?.deviceCount > 0 && offline > 0 ? { value: offline, label: 'offline', color: 'var(--danger-500)' } : null,
     };
@@ -454,11 +413,10 @@ export default function Home({ user, onNavigate, onOpenDevice, can }) {
         </div>
       </div>
 
-      <div className="home-layout">
-        <div className="home-main">
-          {isOwner && <ServerHealthWidget onNavigate={onNavigate} />}
+      <div className="home-main">
+        {isOwner && <ServerHealthWidget onNavigate={onNavigate} />}
 
-          {linkModules.length > 0 && (
+        {linkModules.length > 0 && (
         <div className="module-grid">
           {linkModules.map((key) => {
             const meta = MODULE_META[key];
@@ -492,9 +450,13 @@ export default function Home({ user, onNavigate, onOpenDevice, can }) {
                 <span className="module-card-corner br" />
 
                 <div className="module-card-top">
-                  <div className="module-card-icon" style={{ background: meta.glow, color: meta.color }}>
-                    <Icon name={meta.icon} size={18} />
-                  </div>
+                  {data.total > 0 ? (
+                    <Ring percent={healthPercent(data.online, data.total)} color={meta.color} value={`${healthPercent(data.online, data.total)}%`} size={52} />
+                  ) : (
+                    <div className="module-card-icon" style={{ background: meta.glow, color: meta.color }}>
+                      <Icon name={meta.icon} size={18} />
+                    </div>
+                  )}
                   {data.status && (
                     <div className="module-card-status" style={{ color: data.status.color }}>
                       <span className="module-card-status-dot" style={{ background: data.status.color }} />
@@ -574,10 +536,7 @@ export default function Home({ user, onNavigate, onOpenDevice, can }) {
             </div>
           )}
 
-          {(hasRede || hasInterfone || hasAcesso) && <ActivityFeed events={activityFeed} />}
-        </div>
-
-        <HomeRail devices={acessoDevices} onOpenDevice={onOpenDevice} />
+        {(hasRede || hasInterfone || hasAcesso) && <ActivityFeed events={activityFeed} />}
       </div>
     </>
   );

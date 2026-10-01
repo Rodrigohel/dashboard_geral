@@ -101,7 +101,7 @@ export default function App() {
       case 'configuracoes':
         return isOwner ? <Settings /> : <NoAccess />;
       default:
-        return <Home user={user} onNavigate={navigate} onOpenDevice={openDeviceFromHome} can={can} />;
+        return <Home user={user} onNavigate={navigate} can={can} />;
     }
   }
 

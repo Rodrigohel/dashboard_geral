@@ -279,36 +279,13 @@
   margin-top: 2px;
 }
 
-/* ---------- Início: layout de duas colunas (conteúdo + painel lateral) ---------- */
-.home-layout {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-5);
-}
 .home-main {
-  flex: 1;
-  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: var(--space-5);
-}
-.home-rail {
-  width: 296px;
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-5);
-}
-@media (max-width: 980px) {
-  .home-layout {
-    flex-direction: column;
-  }
-  .home-rail {
-    width: 100%;
-  }
 }
 
-/* ---------- Início: faixa de indicadores em anel ---------- */
+/* ---------- Início: faixa de indicadores em anel (Rede/Interfone/Acesso) ---------- */
 .kpi-strip {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(230px, 100%), 1fr));
@@ -365,82 +342,6 @@
   font-size: 11.5px;
   font-weight: 700;
   margin-top: 1px;
-}
-
-/* ---------- Início: painel lateral (porteiros / módulos) ---------- */
-.rail-card {
-  padding: var(--space-5);
-  border-radius: var(--radius-lg);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-}
-.rail-card-title {
-  font-family: var(--font-display);
-  font-weight: 800;
-  font-size: 14.5px;
-}
-.rail-items {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-.rail-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-width: 0;
-}
-.rail-avatar {
-  position: relative;
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  font-weight: 700;
-  font-size: 12px;
-  flex-shrink: 0;
-}
-.rail-avatar-dot {
-  position: absolute;
-  bottom: -1px;
-  right: -1px;
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  border: 2px solid var(--bg-surface);
-}
-.rail-item-name {
-  font-size: 13px;
-  font-weight: 700;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.rail-item-sub {
-  font-size: 11.5px;
-  color: var(--text-tertiary);
-}
-.rail-module-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  cursor: pointer;
-  background: none;
-  border: none;
-  padding: 0;
-  text-align: left;
-  color: inherit;
-  font-family: inherit;
-}
-.rail-module-swatch {
-  width: 30px;
-  height: 30px;
-  border-radius: 9px;
-  flex-shrink: 0;
 }
 
 /* ---------- Grid de equipamentos (controle de acesso) ---------- */
