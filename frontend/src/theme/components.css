@@ -485,39 +485,17 @@ table.data-table {
   color: var(--text-tertiary);
 }
 
-/* Fileira de indicadores pequenos (ex.: resumo do Interfone) — pra números
-   que nunca passam de uma centena não precisa do .metric-card grande;
-   todos ficam do mesmo tamanho e centralizados, então nunca desalinham
-   entre si mesmo quando um tem sub-texto e outro não (nenhum tem, aqui). */
+/* Fileira de indicadores pequenos (resumo do Interfone: chamadas ativas,
+   recebidas/realizadas/perdidas hoje) — o que já aparece no anel (online/
+   offline) não entra aqui de novo, só o que agrega informação nova. */
 .mini-stat-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: var(--space-3);
 }
-@media (min-width: 900px) {
+@media (min-width: 640px) {
   .mini-stat-grid {
-    grid-template-columns: repeat(6, 1fr);
-  }
-}
-/* Resumo do Rede (Equipamentos/Online/Degradado/Offline) — 4 colunas lado a
-   lado só a partir de telas maiores; no celular volta pro esquema antigo
-   (Equipamentos numa linha só, os outros três em 3 colunas embaixo), que já
-   era o que funcionava bem ali — 4 cards espremidos numa tela estreita
-   ficava ilegível. */
-.rede-summary-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
-}
-.rede-summary-grid > :first-child {
-  grid-column: 1 / -1;
-}
-@media (min-width: 900px) {
-  .rede-summary-grid {
     grid-template-columns: repeat(4, 1fr);
-  }
-  .rede-summary-grid > :first-child {
-    grid-column: auto;
   }
 }
 .mini-stat-card {
@@ -544,11 +522,6 @@ table.data-table {
   color: var(--text-secondary);
   white-space: normal;
   line-height: 1.25;
-}
-@media (max-width: 420px) {
-  .mini-stat-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
 }
 .mini-stat-card-value {
   font-size: 22px;
