@@ -8,10 +8,10 @@
    embaixo) continua sendo o menu cheio de sempre, aberto/fechado pelo
    hambúrguer — esse recolhimento é só pra tela com mouse de verdade. */
 .sidebar {
-  padding: var(--space-5) var(--space-3);
+  padding: var(--space-3) var(--space-3);
   display: flex;
   flex-direction: column;
-  gap: var(--space-5);
+  gap: var(--space-3);
   border-right: 1px solid var(--border-subtle);
   position: fixed;
   top: 0;
