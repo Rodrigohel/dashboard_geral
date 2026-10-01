@@ -59,13 +59,13 @@ function RedeSubmenu({ onNavigate, canSeePlantaBaixa, offlineDevices }) {
         <>
           <div className="nav-subitem-label">Offline agora</div>
           {offlineDevices.slice(0, REDE_OFFLINE_LIMIT).map((d) => (
-            <button key={d.id} className="nav-subitem" onClick={() => onNavigate('rede', 'equipamentos-section')} title={d.name}>
+            <button key={d.id} className="nav-subitem" onClick={() => onNavigate('rede', 'rede-offline-section')} title={d.name}>
               <span className="nav-subitem-dot offline" />
               <span className="nav-subitem-name-text">{d.name}</span>
             </button>
           ))}
           {offlineDevices.length > REDE_OFFLINE_LIMIT && (
-            <button className="nav-subitem nav-subitem-more" onClick={() => onNavigate('rede', 'equipamentos-section')}>
+            <button className="nav-subitem nav-subitem-more" onClick={() => onNavigate('rede', 'rede-offline-section')}>
               <span>+{offlineDevices.length - REDE_OFFLINE_LIMIT} offline</span>
             </button>
           )}
@@ -94,7 +94,7 @@ function InterfoneSubmenu({ onNavigate, offlineExtensions }) {
             <button
               key={e.number}
               className="nav-subitem"
-              onClick={() => onNavigate('interfone', 'extensions-section')}
+              onClick={() => onNavigate('interfone', 'interfone-offline-section')}
               title={e.name || e.number}
             >
               <span className="nav-subitem-dot offline" />
@@ -105,7 +105,7 @@ function InterfoneSubmenu({ onNavigate, offlineExtensions }) {
             </button>
           ))}
           {offlineExtensions.length > INTERFONE_OFFLINE_LIMIT && (
-            <button className="nav-subitem nav-subitem-more" onClick={() => onNavigate('interfone', 'extensions-section')}>
+            <button className="nav-subitem nav-subitem-more" onClick={() => onNavigate('interfone', 'interfone-offline-section')}>
               <span>+{offlineExtensions.length - INTERFONE_OFFLINE_LIMIT} offline</span>
             </button>
           )}
