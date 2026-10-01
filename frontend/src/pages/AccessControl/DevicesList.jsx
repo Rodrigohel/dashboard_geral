@@ -122,49 +122,45 @@ export default function DevicesList({ isOwner, onOpenDevice }) {
     }
   }
 
+  const onlineCount = devices?.filter((d) => d.lastStatus === 'online').length ?? 0;
+  const offlineCount = devices?.filter((d) => d.lastStatus === 'offline').length ?? 0;
+
   return (
     <>
       {devices?.length > 0 && (
-        <div className="kpi-strip">
-          <div className="kpi-card surface">
-            <Ring
-              percent={healthPercent(devices.filter((d) => d.lastStatus === 'online').length, devices.length)}
-              color="var(--module-acesso)"
-              value={`${healthPercent(devices.filter((d) => d.lastStatus === 'online').length, devices.length)}%`}
-            />
-            <div className="kpi-card-body">
-              <div className="kpi-card-label">Equipamentos online</div>
-              <div className="kpi-card-value">
-                {devices.filter((d) => d.lastStatus === 'online').length}{' '}
-                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-tertiary)' }}>de {devices.length}</span>
-              </div>
-              {devices.some((d) => d.lastStatus === 'offline') && (
-                <div className="kpi-card-sub" style={{ color: 'var(--danger-500)' }}>
-                  {devices.filter((d) => d.lastStatus === 'offline').length} offline
+        <>
+          <p style={{ color: 'var(--text-secondary)', fontSize: 14, margin: 0 }}>
+            Porteiros e portões cadastrados. Clique em um para gerenciar os usuários liberados.
+          </p>
+
+          <div className="toolbar">
+            <div className="access-health-chip">
+              <Ring percent={healthPercent(onlineCount, devices.length)} color="var(--module-acesso)" size={36} />
+              <div>
+                <div className="access-health-value">
+                  {onlineCount} <span>de {devices.length} online</span>
                 </div>
+                {offlineCount > 0 && <div className="access-health-sub">{offlineCount} offline</div>}
+              </div>
+            </div>
+
+            {devices.length > 1 && <UserSearch devices={devices} onOpenDevice={onOpenDevice} />}
+
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginLeft: 'auto' }}>
+              {isOwner && (
+                <button className="btn btn-secondary" onClick={() => setShowMultiUserForm(true)}>
+                  <Icon name="users" size={16} /> Novo usuário em vários equipamentos
+                </button>
+              )}
+              {isOwner && (
+                <button className="btn btn-primary" onClick={() => setShowForm(true)}>
+                  <Icon name="plus" size={16} /> Novo equipamento
+                </button>
               )}
             </div>
           </div>
-        </div>
+        </>
       )}
-
-      {devices?.length > 1 && <UserSearch devices={devices} onOpenDevice={onOpenDevice} />}
-
-      <div className="toolbar">
-        <p style={{ color: 'var(--text-secondary)', fontSize: 14 }}>
-          Porteiros e portões cadastrados. Clique em um para gerenciar os usuários liberados.
-        </p>
-        {isOwner && devices?.length > 0 && (
-          <button className="btn btn-secondary" onClick={() => setShowMultiUserForm(true)}>
-            <Icon name="users" size={16} /> Novo usuário em vários equipamentos
-          </button>
-        )}
-        {isOwner && (
-          <button className="btn btn-primary" onClick={() => setShowForm(true)}>
-            <Icon name="plus" size={16} /> Novo equipamento
-          </button>
-        )}
-      </div>
 
       {devices === null ? (
         <div className="device-grid">
