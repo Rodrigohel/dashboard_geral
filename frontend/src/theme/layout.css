@@ -27,11 +27,16 @@
   flex-direction: column;
 }
 
+/* Nome embaixo da logo (não do lado) — pra nomes longos de cliente (ex.:
+   "Luxor - Portal Redes e Interfone") não ficarem truncados numa coluna de
+   264px; empilhado, o texto tem a largura inteira da sidebar pra quebrar. */
 .brand {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: var(--space-3);
-  padding: 0 var(--space-2);
+  text-align: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-2) var(--space-2);
   flex-shrink: 0;
 }
 .brand-mark {
@@ -64,11 +69,10 @@
 .brand-text {
   font-family: var(--font-display);
   font-weight: 800;
-  font-size: 17px;
-  letter-spacing: -0.02em;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  font-size: 15px;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+  overflow-wrap: break-word;
 }
 
 .nav {
@@ -118,6 +122,139 @@
 }
 .nav-item.active svg {
   opacity: 1;
+}
+
+/* ---------- Submenus (Rede/Interfone/Controle de acesso) ---------- */
+.nav-item-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.nav-expand-btn {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  color: var(--text-tertiary);
+  cursor: pointer;
+}
+.nav-expand-btn:hover {
+  background: var(--bg-surface-hover);
+  color: var(--text-primary);
+}
+.nav-submenu {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 2px 0 6px 30px;
+}
+.nav-subitem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border-radius: var(--radius-sm);
+  color: var(--text-tertiary);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  text-align: left;
+  width: 100%;
+}
+.nav-subitem:hover {
+  background: var(--bg-surface-hover);
+  color: var(--text-primary);
+}
+.nav-subitem svg {
+  flex-shrink: 0;
+  opacity: 0.8;
+}
+.nav-subitem-badge {
+  margin-left: auto;
+  font-size: 10.5px;
+  font-weight: 800;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--bg-surface-hover);
+  color: var(--text-tertiary);
+}
+.nav-subitem-badge.danger {
+  background: var(--danger-soft, rgba(239, 68, 68, 0.14));
+  color: var(--danger-500);
+}
+.nav-subitem-device {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+}
+.nav-subitem-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  padding: 7px 8px;
+  border-radius: var(--radius-sm);
+  color: var(--text-tertiary);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  text-align: left;
+}
+.nav-subitem-name:hover {
+  background: var(--bg-surface-hover);
+  color: var(--text-primary);
+}
+.nav-subitem-name-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.nav-subitem-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--text-tertiary);
+}
+.nav-subitem-dot.online {
+  background: var(--success-500);
+}
+.nav-subitem-dot.offline {
+  background: var(--danger-500);
+}
+.nav-subitem-open-btn {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--accent-500);
+  cursor: pointer;
+}
+.nav-subitem-open-btn:hover {
+  background: var(--accent-soft);
+}
+.nav-subitem-open-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.nav-subitem-more {
+  color: var(--accent-500);
 }
 
 .sidebar-footer {

@@ -107,7 +107,16 @@ export default function App() {
 
   return (
     <div className="shell">
-      <Sidebar branding={branding} view={view} onNavigate={navigate} can={can} isOwner={isOwner} open={menuOpen} onClose={() => setMenuOpen(false)} />
+      <Sidebar
+        branding={branding}
+        view={view}
+        onNavigate={navigate}
+        onOpenDevice={openDeviceFromHome}
+        can={can}
+        isOwner={isOwner}
+        open={menuOpen}
+        onClose={() => setMenuOpen(false)}
+      />
       <div className="shell-main">
         <TopBar
           user={user}
