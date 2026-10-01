@@ -40,9 +40,9 @@
   flex-shrink: 0;
 }
 .brand-mark {
-  width: 40px;
-  height: 40px;
-  border-radius: 12px;
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
   background: linear-gradient(135deg, var(--accent-400), var(--accent-600));
   display: flex;
   align-items: center;
@@ -50,16 +50,17 @@
   color: white;
   font-family: var(--font-display);
   font-weight: 800;
-  font-size: 16px;
+  font-size: 22px;
   box-shadow: 0 8px 20px -6px var(--accent-glow);
   flex-shrink: 0;
 }
 /* Logo enviada pelo cliente: sem fundo/moldura — só a imagem (a logo já tem
-   seu próprio visual), um pouco maior que o ícone de iniciais porque sem um
-   fundo colorido pra dar presença ela fica pequena demais do lado do nome. */
+   seu próprio visual). Maior agora que fica sozinha, centralizada, em cima
+   do nome (empilhado) — num layout lado a lado ela podia ser mais discreta,
+   mas sozinha nesse destaque precisa de mais presença. */
 .brand-mark.brand-logo-img {
-  width: 44px;
-  height: 44px;
+  width: 72px;
+  height: 72px;
   background: none;
   box-shadow: none;
 }
@@ -124,7 +125,15 @@
   opacity: 1;
 }
 
-/* ---------- Submenus (Rede/Interfone/Controle de acesso) ---------- */
+/* ---------- Submenus (Rede/Interfone/Controle de acesso) ----------
+   No touch (sem mouse de verdade), o submenu só abre clicando na seta —
+   por isso ela fica grande e sempre visível ali. Em telas com mouse fino
+   (a maioria dos desktops/notebooks), a seta nem aparece: passar o mouse
+   por cima do item já abre o submenu sozinho, e o clique no item continua
+   sendo só "navegar", exatamente como qualquer outro item do menu (sem
+   essa distinção, no touch, tocar perto da borda direita do item — onde
+   antes sempre dava pra navegar — podia cair na seta por engano e parecer
+   que o menu "parou de fechar sozinho"). */
 .nav-item-row {
   display: flex;
   align-items: center;
@@ -132,8 +141,8 @@
 }
 .nav-expand-btn {
   flex-shrink: 0;
-  width: 28px;
-  height: 28px;
+  width: 36px;
+  height: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -148,10 +157,41 @@
   color: var(--text-primary);
 }
 .nav-submenu {
-  display: flex;
+  display: none;
   flex-direction: column;
   gap: 1px;
   padding: 2px 0 6px 30px;
+}
+.nav-group.expanded .nav-submenu {
+  display: flex;
+}
+@media (hover: hover) and (pointer: fine) {
+  .nav-expand-btn {
+    display: none;
+  }
+  .nav-group:hover .nav-submenu {
+    display: flex;
+  }
+}
+.nav-subitem-label {
+  padding: 6px 8px 2px;
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-tertiary);
+}
+.nav-subitem-static {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  color: var(--text-tertiary);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.nav-subitem-static svg {
+  opacity: 0.8;
 }
 .nav-subitem {
   display: flex;
@@ -235,8 +275,8 @@
 }
 .nav-subitem-open-btn {
   flex-shrink: 0;
-  width: 26px;
-  height: 26px;
+  width: 36px;
+  height: 36px;
   display: flex;
   align-items: center;
   justify-content: center;

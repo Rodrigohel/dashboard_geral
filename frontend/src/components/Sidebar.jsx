@@ -36,10 +36,12 @@ function NavButton({ item, active, onNavigate }) {
   );
 }
 
-// Planta baixa (só quem tem a permissão) + quantos equipamentos estão
-// offline agora — mesmo dado que a própria tela de Rede mostra, só visível
-// sem precisar abrir a tela.
-function RedeSubmenu({ onNavigate, canSeePlantaBaixa, offline }) {
+const REDE_OFFLINE_LIMIT = 6;
+
+// Planta baixa (só quem tem a permissão) + quais equipamentos estão
+// offline agora, pelo nome — não só a contagem, senão precisa abrir a tela
+// de qualquer jeito pra saber qual equipamento é.
+function RedeSubmenu({ onNavigate, canSeePlantaBaixa, offlineDevices }) {
   return (
     <div className="nav-submenu">
       {canSeePlantaBaixa && (
@@ -48,23 +50,62 @@ function RedeSubmenu({ onNavigate, canSeePlantaBaixa, offline }) {
           <span>Planta baixa</span>
         </button>
       )}
-      <button className="nav-subitem" onClick={() => onNavigate('rede')}>
-        <Icon name="wifi" size={14} />
-        <span>Dispositivos offline</span>
-        {offline > 0 && <span className="nav-subitem-badge danger">{offline}</span>}
-      </button>
+      {offlineDevices.length === 0 ? (
+        <div className="nav-subitem nav-subitem-static">
+          <Icon name="wifi" size={14} />
+          <span>Tudo online</span>
+        </div>
+      ) : (
+        <>
+          <div className="nav-subitem-label">Offline agora</div>
+          {offlineDevices.slice(0, REDE_OFFLINE_LIMIT).map((d) => (
+            <button key={d.id} className="nav-subitem" onClick={() => onNavigate('rede')} title={d.name}>
+              <span className="nav-subitem-dot offline" />
+              <span className="nav-subitem-name-text">{d.name}</span>
+            </button>
+          ))}
+          {offlineDevices.length > REDE_OFFLINE_LIMIT && (
+            <button className="nav-subitem nav-subitem-more" onClick={() => onNavigate('rede')}>
+              <span>+{offlineDevices.length - REDE_OFFLINE_LIMIT} offline</span>
+            </button>
+          )}
+        </>
+      )}
     </div>
   );
 }
 
-function InterfoneSubmenu({ onNavigate, offline }) {
+const INTERFONE_OFFLINE_LIMIT = 6;
+
+// Mesma ideia da Rede: quais ramais estão offline, pelo número/nome — não
+// só quantos.
+function InterfoneSubmenu({ onNavigate, offlineExtensions }) {
   return (
     <div className="nav-submenu">
-      <button className="nav-subitem" onClick={() => onNavigate('interfone')}>
-        <Icon name="phone" size={14} />
-        <span>Ramais offline</span>
-        {offline > 0 && <span className="nav-subitem-badge danger">{offline}</span>}
-      </button>
+      {offlineExtensions.length === 0 ? (
+        <div className="nav-subitem nav-subitem-static">
+          <Icon name="phone" size={14} />
+          <span>Tudo online</span>
+        </div>
+      ) : (
+        <>
+          <div className="nav-subitem-label">Offline agora</div>
+          {offlineExtensions.slice(0, INTERFONE_OFFLINE_LIMIT).map((e) => (
+            <button key={e.number} className="nav-subitem" onClick={() => onNavigate('interfone')} title={e.name || e.number}>
+              <span className="nav-subitem-dot offline" />
+              <span className="nav-subitem-name-text">
+                {e.number}
+                {e.name ? ` — ${e.name}` : ''}
+              </span>
+            </button>
+          ))}
+          {offlineExtensions.length > INTERFONE_OFFLINE_LIMIT && (
+            <button className="nav-subitem nav-subitem-more" onClick={() => onNavigate('interfone')}>
+              <span>+{offlineExtensions.length - INTERFONE_OFFLINE_LIMIT} offline</span>
+            </button>
+          )}
+        </>
+      )}
     </div>
   );
 }
@@ -119,7 +160,7 @@ function AcessoSubmenu({ onNavigate, onOpenDevice, devices }) {
               title={`Abrir ${d.name}`}
               aria-label={`Abrir ${d.name}`}
             >
-              {openingId === d.id ? <span className="spinner spinner-dark" style={{ width: 13, height: 13 }} /> : <Icon name="key" size={13} />}
+              {openingId === d.id ? <span className="spinner spinner-dark" style={{ width: 15, height: 15 }} /> : <Icon name="key" size={16} />}
             </button>
           )}
         </div>
@@ -135,23 +176,23 @@ function AcessoSubmenu({ onNavigate, onOpenDevice, devices }) {
 
 export default function Sidebar({ branding, view, onNavigate, onOpenDevice, can, isOwner, open, onClose }) {
   const [expanded, setExpanded] = useState({});
-  const [redeOffline, setRedeOffline] = useState(0);
-  const [interfoneOffline, setInterfoneOffline] = useState(0);
+  const [redeDevices, setRedeDevices] = useState([]);
+  const [interfoneExtensions, setInterfoneExtensions] = useState([]);
   const [acessoDevices, setAcessoDevices] = useState([]);
 
   const hasRede = can('rede');
   const hasInterfone = can('interfone');
   const hasAcesso = can('acesso');
 
-  // Mesmo intervalo de polling já usado no resto do Portal — os números do
-  // submenu (offline, status de cada porteiro) ficam ao vivo mesmo com o
-  // menu fechado, prontos quando a pessoa expandir.
+  // Mesmo intervalo de polling já usado no resto do Portal — os dados do
+  // submenu (quem está offline, status de cada porteiro) ficam ao vivo
+  // mesmo com o menu fechado, prontos quando a pessoa passar o mouse/abrir.
   useEffect(() => {
     if (!hasRede) return;
     function load() {
       api.rede
-        .summary()
-        .then((s) => setRedeOffline(s?.offline ?? 0))
+        .devices()
+        .then((r) => setRedeDevices(r?.data || []))
         .catch(() => {});
     }
     load();
@@ -162,10 +203,7 @@ export default function Sidebar({ branding, view, onNavigate, onOpenDevice, can,
   useEffect(() => {
     if (!hasInterfone) return;
     function load() {
-      api.interfone
-        .extensionsSummary()
-        .then((s) => setInterfoneOffline(s?.offline ?? 0))
-        .catch(() => {});
+      api.interfone.extensions().then(setInterfoneExtensions).catch(() => {});
     }
     load();
     const id = setInterval(load, POLL_MS);
@@ -188,10 +226,16 @@ export default function Sidebar({ branding, view, onNavigate, onOpenDevice, can,
 
   function renderSubmenu(key) {
     if (key === 'rede') {
-      return <RedeSubmenu onNavigate={onNavigate} canSeePlantaBaixa={can('rede.plantaBaixa')} offline={redeOffline} />;
+      return (
+        <RedeSubmenu
+          onNavigate={onNavigate}
+          canSeePlantaBaixa={can('rede.plantaBaixa')}
+          offlineDevices={redeDevices.filter((d) => d.status === 'offline')}
+        />
+      );
     }
     if (key === 'interfone') {
-      return <InterfoneSubmenu onNavigate={onNavigate} offline={interfoneOffline} />;
+      return <InterfoneSubmenu onNavigate={onNavigate} offlineExtensions={interfoneExtensions.filter((e) => e.state === 'offline')} />;
     }
     if (key === 'acesso') {
       return <AcessoSubmenu onNavigate={onNavigate} onOpenDevice={onOpenDevice} devices={acessoDevices} />;
@@ -213,25 +257,30 @@ export default function Sidebar({ branding, view, onNavigate, onOpenDevice, can,
         </div>
 
         <nav className="nav">
-          {NAV_ITEMS.filter((item) => !item.module || can(item.module)).map((item) => (
-            <div key={item.key}>
-              <div className="nav-item-row">
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <NavButton item={item} active={view === item.key} onNavigate={onNavigate} />
-                </div>
-                {SUBMENU_KEYS.has(item.key) && (
+          {NAV_ITEMS.filter((item) => !item.module || can(item.module)).map((item) => {
+            if (!SUBMENU_KEYS.has(item.key)) {
+              return <NavButton key={item.key} item={item} active={view === item.key} onNavigate={onNavigate} />;
+            }
+            return (
+              <div key={item.key} className={`nav-group ${expanded[item.key] ? 'expanded' : ''}`}>
+                <div className="nav-item-row">
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <NavButton item={item} active={view === item.key} onNavigate={onNavigate} />
+                  </div>
+                  {/* Só aparece no touch (sem mouse) — no desktop o submenu já
+                      abre sozinho ao passar o mouse por cima do item. */}
                   <button
                     className="nav-expand-btn"
                     onClick={() => toggleExpanded(item.key)}
                     aria-label={expanded[item.key] ? `Recolher ${item.label}` : `Expandir ${item.label}`}
                   >
-                    <Icon name={expanded[item.key] ? 'chevronDown' : 'chevronRight'} size={14} />
+                    <Icon name={expanded[item.key] ? 'chevronDown' : 'chevronRight'} size={16} />
                   </button>
-                )}
+                </div>
+                {renderSubmenu(item.key)}
               </div>
-              {SUBMENU_KEYS.has(item.key) && expanded[item.key] && renderSubmenu(item.key)}
-            </div>
-          ))}
+            );
+          })}
 
           {isOwner && (
             <>
