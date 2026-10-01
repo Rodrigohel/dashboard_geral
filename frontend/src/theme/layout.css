@@ -76,13 +76,13 @@
   box-shadow: none;
 }
 .sidebar:hover .brand-mark {
-  width: 72px;
-  height: 72px;
-  font-size: 28px;
-}
-.sidebar:hover .brand-mark.brand-logo-img {
   width: 96px;
   height: 96px;
+  font-size: 38px;
+}
+.sidebar:hover .brand-mark.brand-logo-img {
+  width: 150px;
+  height: 150px;
 }
 .brand-logo-img {
   object-fit: contain;

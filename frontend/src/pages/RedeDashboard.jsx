@@ -983,6 +983,26 @@ export default function RedeDashboard({ can, pendingSection, onSectionHandled })
         )
       )}
 
+      {devices.some((d) => d.status === 'offline') && (
+        <div className="surface" style={{ padding: 24 }} id="rede-offline-section">
+          <div style={{ fontWeight: 700, marginBottom: 4 }}>Equipamentos offline</div>
+          <p className="field-hint" style={{ marginBottom: 12 }}>
+            {devices.filter((d) => d.status === 'offline').length} equipamento(s) fora do ar agora.
+          </p>
+          {devices
+            .filter((d) => d.status === 'offline')
+            .map((d) => (
+              <div className="service-row" key={d.id} style={{ '--card-accent': 'var(--danger-500)', cursor: 'pointer' }} onClick={() => setViewingDevice(d.id)}>
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: 14 }}>{d.name}</div>
+                  <div className="field-hint">{d.location || d.ip}</div>
+                </div>
+                <StatusBadge status={d.status} />
+              </div>
+            ))}
+        </div>
+      )}
+
       <div className="surface" style={{ padding: 24 }}>
         <div style={{ fontWeight: 700, marginBottom: 4 }}>Alertas ativos</div>
         <p className="field-hint" style={{ marginBottom: 12 }}>
