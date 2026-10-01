@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import Icon from '../components/Icon.jsx';
+import InstallAppBanner from '../components/InstallAppBanner.jsx';
 
 export default function Login({ branding, onLogin }) {
   const [username, setUsername] = useState('');
@@ -23,7 +24,9 @@ export default function Login({ branding, onLogin }) {
 
   return (
     <div className="login-screen">
-      <div className="login-card surface glass">
+      <div style={{ width: '100%', maxWidth: 400, position: 'relative' }}>
+        <InstallAppBanner />
+        <div className="login-card surface glass">
         {branding.logoUrl ? (
           <img src={branding.logoUrl} alt={branding.name} className="brand-mark brand-logo-img" />
         ) : (
@@ -99,6 +102,7 @@ export default function Login({ branding, onLogin }) {
         </form>
 
         <div className="login-footnote">Acesso restrito — fale com o administrador para receber um login.</div>
+        </div>
       </div>
     </div>
   );
