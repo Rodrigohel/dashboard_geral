@@ -793,26 +793,6 @@ export default function InterfoneDashboard({ pendingSection, onSectionHandled })
         </>
       )}
 
-      {extensions.some((e) => e.state === 'offline') && (
-        <div className="surface" style={{ padding: 24 }} id="interfone-offline-section">
-          <div style={{ fontWeight: 700, marginBottom: 4 }}>Ramais offline</div>
-          <p className="field-hint" style={{ marginBottom: 12 }}>
-            {extensions.filter((e) => e.state === 'offline').length} ramal(is) fora do ar agora.
-          </p>
-          {extensions
-            .filter((e) => e.state === 'offline')
-            .map((e) => (
-              <div className="service-row" key={e.number} style={{ '--card-accent': 'var(--danger-500)' }}>
-                <div>
-                  <div style={{ fontWeight: 600, fontSize: 14 }}>{e.number}</div>
-                  {e.name && <div className="field-hint">{e.name}</div>}
-                </div>
-                <ExtensionStatusBadge state={e.state} />
-              </div>
-            ))}
-        </div>
-      )}
-
       <div className="surface" style={{ padding: 24 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: 4 }}>
           <div style={{ fontWeight: 700 }}>Chamadas nos últimos {trendRange === '30d' ? '30 dias' : '7 dias'}</div>
@@ -855,6 +835,26 @@ export default function InterfoneDashboard({ pendingSection, onSectionHandled })
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 'var(--space-4)' }}>
+        {extensions.some((e) => e.state === 'offline') && (
+          <div className="surface" style={{ padding: 24 }} id="interfone-offline-section">
+            <div style={{ fontWeight: 700, marginBottom: 4 }}>Ramais offline</div>
+            <p className="field-hint" style={{ marginBottom: 12 }}>
+              {extensions.filter((e) => e.state === 'offline').length} ramal(is) fora do ar agora.
+            </p>
+            {extensions
+              .filter((e) => e.state === 'offline')
+              .map((e) => (
+                <div className="service-row" key={e.number} style={{ '--card-accent': 'var(--danger-500)' }}>
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: 14 }}>{e.number}</div>
+                    {e.name && <div className="field-hint">{e.name}</div>}
+                  </div>
+                  <ExtensionStatusBadge state={e.state} />
+                </div>
+              ))}
+          </div>
+        )}
+
         <div className="surface" style={{ padding: 24 }} id="active-calls-section">
           <div style={{ fontWeight: 700, marginBottom: 4 }}>Chamadas ativas agora</div>
           <p className="field-hint" style={{ marginBottom: 12 }}>
