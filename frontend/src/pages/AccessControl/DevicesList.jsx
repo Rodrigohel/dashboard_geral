@@ -5,6 +5,7 @@ import ConfirmDialog from '../../components/ConfirmDialog.jsx';
 import DeviceFormModal from './DeviceFormModal.jsx';
 import MultiDeviceUserFormModal from './MultiDeviceUserFormModal.jsx';
 import UserSearch from './UserSearch.jsx';
+import Ring from '../../components/Ring.jsx';
 import { api } from '../../api/client.js';
 import { useToast } from '../../hooks/useToast.jsx';
 import { timeAgo } from '../../utils/relativeTime.js';
@@ -135,6 +136,28 @@ export default function DevicesList({ isOwner, onOpenDevice }) {
   return (
     <>
       {devices?.length > 0 && (
+        <>
+        <div className="kpi-strip">
+          <div className="kpi-card surface">
+            <Ring
+              percent={Math.round((devices.filter((d) => d.lastStatus === 'online').length / devices.length) * 100)}
+              color="var(--module-acesso)"
+              value={`${Math.round((devices.filter((d) => d.lastStatus === 'online').length / devices.length) * 100)}%`}
+            />
+            <div className="kpi-card-body">
+              <div className="kpi-card-label">Porteiros online</div>
+              <div className="kpi-card-value">
+                {devices.filter((d) => d.lastStatus === 'online').length}{' '}
+                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-tertiary)' }}>de {devices.length}</span>
+              </div>
+              {devices.some((d) => d.lastStatus === 'offline') && (
+                <div className="kpi-card-sub" style={{ color: 'var(--danger-500)' }}>
+                  {devices.filter((d) => d.lastStatus === 'offline').length} offline
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
         <div className="mini-stat-grid">
           <MiniStat icon="shieldFace" title="Porteiros" value={devices.length} />
           <MiniStat icon="wifi" title="Online" value={devices.filter((d) => d.lastStatus === 'online').length} tone="success" />
@@ -145,6 +168,7 @@ export default function DevicesList({ isOwner, onOpenDevice }) {
             tone={devices.some((d) => d.lastStatus === 'offline') ? 'danger' : undefined}
           />
         </div>
+        </>
       )}
 
       {devices?.length > 1 && <UserSearch devices={devices} onOpenDevice={onOpenDevice} />}

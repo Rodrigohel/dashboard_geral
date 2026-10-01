@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Icon from '../components/Icon.jsx';
 import Modal from '../components/Modal.jsx';
+import Ring from '../components/Ring.jsx';
 import { api } from '../api/client.js';
 import { downloadCsv } from '../utils/csv.js';
 import { useToast } from '../hooks/useToast.jsx';
@@ -746,6 +747,29 @@ export default function InterfoneDashboard() {
       {!summary || !today ? (
         <div className="skeleton" style={{ height: 100, borderRadius: 20 }} />
       ) : (
+        <>
+          {summary.online + summary.offline > 0 && (
+            <div className="kpi-strip">
+              <div className="kpi-card surface" onClick={() => scrollToSection('extensions-section')}>
+                <Ring
+                  percent={Math.round((summary.online / (summary.online + summary.offline)) * 100)}
+                  color="var(--module-interfone)"
+                  value={`${Math.round((summary.online / (summary.online + summary.offline)) * 100)}%`}
+                />
+                <div className="kpi-card-body">
+                  <div className="kpi-card-label">Ramais online</div>
+                  <div className="kpi-card-value">
+                    {summary.online || 0} <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-tertiary)' }}>de {summary.online + summary.offline}</span>
+                  </div>
+                  {summary.offline > 0 && (
+                    <div className="kpi-card-sub" style={{ color: 'var(--danger-500)' }}>
+                      {summary.offline} offline
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
         <div className="mini-stat-grid">
           <MiniStat icon="phone" title="Ramais online" value={summary.online || 0} tone="success" onClick={() => scrollToSection('extensions-section')} />
           <MiniStat
@@ -766,6 +790,7 @@ export default function InterfoneDashboard() {
             onClick={() => scrollToSection('missed-calls-section')}
           />
         </div>
+        </>
       )}
 
       <div className="surface" style={{ padding: 24 }}>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import Icon from '../components/Icon.jsx';
+import Ring from '../components/Ring.jsx';
 import { api } from '../api/client.js';
 import { timeAgo } from '../utils/relativeTime.js';
 
@@ -197,20 +198,6 @@ function buildSparkline(points) {
   const area = `${line} L${w},${h} L0,${h} Z`;
   const last = coords[coords.length - 1];
   return { line, area, lastX: last[0].toFixed(1), lastY: last[1].toFixed(1) };
-}
-
-// Anel de progresso simples (conic-gradient) — mesmo visual do mockup
-// aprovado, alimentado com percentuais reais (online/total de cada módulo).
-function Ring({ percent, color, value, sub }) {
-  const safePercent = Number.isFinite(percent) ? Math.min(100, Math.max(0, percent)) : 0;
-  return (
-    <div className="kpi-ring" style={{ background: `conic-gradient(${color} 0% ${safePercent}%, var(--border-subtle) ${safePercent}% 100%)` }}>
-      <div className="kpi-ring-inner">
-        {value}
-        {sub && <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--text-tertiary)' }}>{sub}</span>}
-      </div>
-    </div>
-  );
 }
 
 // Faixa de indicadores rápidos acima dos cards de módulo — mesmo dado já
