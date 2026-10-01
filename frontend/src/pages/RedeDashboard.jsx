@@ -77,31 +77,9 @@ function SeverityBadge({ severity }) {
   );
 }
 
-// Mesmo cartãozinho usado no resumo do Interfone (.mini-stat-card) — antes
-// esse resumo usava .metric-card (o card grande de detalhe), o que deixava
-// esses 4 cards visivelmente maiores que o resto do app sem motivo (só
-// mostram um número).
-// Clicável de propósito (rola até a lista de equipamentos logo abaixo) —
-// os 4 cards levam pro mesmo lugar porque hoje só existe essa lista única
-// (com status de cada equipamento nela), diferente do Interfone que tem
-// uma seção própria por card.
+// Clicável de propósito (rola até a lista de equipamentos logo abaixo).
 function scrollToSection(id) {
   document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-}
-
-function SummaryCard({ icon, title, value, tone, onClick }) {
-  const style = tone ? { '--card-accent': `var(--${tone}-500)` } : undefined;
-  return (
-    <div className="mini-stat-card surface" style={{ ...style, cursor: onClick ? 'pointer' : undefined }} onClick={onClick}>
-      <div className="mini-stat-card-title">
-        <Icon name={icon} size={13} />
-        {title}
-      </div>
-      <div className="mini-stat-card-value" style={tone ? { color: `var(--${tone}-500)` } : undefined}>
-        {value}
-      </div>
-    </div>
-  );
 }
 
 function DetailRow({ label, value }) {
@@ -971,40 +949,30 @@ export default function RedeDashboard({ can }) {
       {!summary ? (
         <div className="skeleton" style={{ height: 130, borderRadius: 20 }} />
       ) : (
-        <>
-          {summary.total > 0 && (
-            <div className="kpi-strip">
-              <div className="kpi-card surface" onClick={() => scrollToSection('equipamentos-section')}>
-                <Ring
-                  percent={Math.round(((summary.online || 0) / summary.total) * 100)}
-                  color="var(--module-rede)"
-                  value={`${Math.round(((summary.online || 0) / summary.total) * 100)}%`}
-                />
-                <div className="kpi-card-body">
-                  <div className="kpi-card-label">Equipamentos online</div>
-                  <div className="kpi-card-value">
-                    {summary.online || 0} <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-tertiary)' }}>de {summary.total}</span>
-                  </div>
-                  {(summary.offline > 0 || summary.degraded > 0) && (
-                    <div className="kpi-card-sub" style={{ color: 'var(--danger-500)' }}>
-                      {[summary.offline > 0 && `${summary.offline} offline`, summary.degraded > 0 && `${summary.degraded} degradado`]
-                        .filter(Boolean)
-                        .join(' · ')}
-                    </div>
-                  )}
+        summary.total > 0 && (
+          <div className="kpi-strip">
+            <div className="kpi-card surface" onClick={() => scrollToSection('equipamentos-section')}>
+              <Ring
+                percent={Math.round(((summary.online || 0) / summary.total) * 100)}
+                color="var(--module-rede)"
+                value={`${Math.round(((summary.online || 0) / summary.total) * 100)}%`}
+              />
+              <div className="kpi-card-body">
+                <div className="kpi-card-label">Equipamentos online</div>
+                <div className="kpi-card-value">
+                  {summary.online || 0} <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-tertiary)' }}>de {summary.total}</span>
                 </div>
+                {(summary.offline > 0 || summary.degraded > 0) && (
+                  <div className="kpi-card-sub" style={{ color: 'var(--danger-500)' }}>
+                    {[summary.offline > 0 && `${summary.offline} offline`, summary.degraded > 0 && `${summary.degraded} degradado`]
+                      .filter(Boolean)
+                      .join(' · ')}
+                  </div>
+                )}
               </div>
             </div>
-          )}
-          {/* 4 colunas lado a lado no PC; no celular, Equipamentos numa linha e
-              os outros três em 3 colunas embaixo (ver .rede-summary-grid). */}
-          <div className="rede-summary-grid">
-            <SummaryCard icon="network" title="Equipamentos monitorados" value={summary.total} onClick={() => scrollToSection('equipamentos-section')} />
-            <SummaryCard icon="wifi" title="Online" value={summary.online || 0} tone="success" onClick={() => scrollToSection('equipamentos-section')} />
-            <SummaryCard icon="wifi" title="Degradado" value={summary.degraded || 0} tone="warning" onClick={() => scrollToSection('equipamentos-section')} />
-            <SummaryCard icon="wifi" title="Offline" value={summary.offline || 0} tone="danger" onClick={() => scrollToSection('equipamentos-section')} />
           </div>
-        </>
+        )
       )}
 
       <div className="surface" style={{ padding: 24 }}>

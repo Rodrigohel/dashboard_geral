@@ -771,14 +771,6 @@ export default function InterfoneDashboard() {
             </div>
           )}
         <div className="mini-stat-grid">
-          <MiniStat icon="phone" title="Ramais online" value={summary.online || 0} tone="success" onClick={() => scrollToSection('extensions-section')} />
-          <MiniStat
-            icon="phone"
-            title="Ramais offline"
-            value={summary.offline || 0}
-            tone={summary.offline > 0 ? 'danger' : undefined}
-            onClick={() => scrollToSection('extensions-section')}
-          />
           <MiniStat icon="phone" title="Chamadas ativas" value={activeCalls.length} onClick={() => scrollToSection('active-calls-section')} />
           <MiniStat icon="phone" title="Recebidas hoje" value={today.received || 0} onClick={() => scrollToSection('call-history-section')} />
           <MiniStat icon="phone" title="Realizadas hoje" value={today.made || 0} onClick={() => scrollToSection('call-history-section')} />
