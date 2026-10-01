@@ -18,6 +18,11 @@ const MODEL_LABELS = { xpe3200: 'XPE 3200 IP Face', ss3532mf: 'SS 3532 MF', segp
 function isFacialDevice(model) {
   return model === 'xpe3200' || model === 'ss3532mf';
 }
+// Mesmo intervalo já usado em Rede/Interfone — sem isso, o status
+// online/offline de cada equipamento só atualizava recarregando a página
+// inteira manualmente.
+const POLL_MS = 10000;
+
 const STATUS_META = {
   online: { label: 'online', badge: 'badge-success', accent: 'var(--success-500)' },
   offline: { label: 'offline', badge: 'badge-danger', accent: 'var(--danger-500)' },
@@ -74,7 +79,11 @@ export default function DevicesList({ isOwner, onOpenDevice }) {
   function reload() {
     api.accessDevices.list().then(setDevices);
   }
-  useEffect(reload, []);
+  useEffect(() => {
+    reload();
+    const id = setInterval(reload, POLL_MS);
+    return () => clearInterval(id);
+  }, []);
 
   async function handleSave(form) {
     if (editing) {

@@ -30,7 +30,12 @@ function ServerHealthWidget({ onNavigate }) {
   const [error, setError] = useState(false);
 
   useEffect(() => {
-    api.system.health().then(setHealth).catch(() => setError(true));
+    function load() {
+      api.system.health().then(setHealth).catch(() => setError(true));
+    }
+    load();
+    const id = setInterval(load, POLL_MS);
+    return () => clearInterval(id);
   }, []);
 
   if (error) return null;
@@ -208,6 +213,11 @@ function formatEyebrow(date) {
   return `${day} · ${dm} · ${time}`;
 }
 
+// Mesmo intervalo já usado em Rede/Interfone — mantém os números do Início
+// (online/offline, atividade recente) batendo com o resto do Portal sem
+// precisar recarregar a página manualmente.
+const POLL_MS = 10000;
+
 export default function Home({ user, onNavigate, can }) {
   const [modules, setModules] = useState(null);
   const [redeSummary, setRedeSummary] = useState(null);
@@ -225,12 +235,22 @@ export default function Home({ user, onNavigate, can }) {
   const canSeeRedeAnalise = Boolean(can?.('rede.analise'));
 
   useEffect(() => {
-    api.modules().then(setModules).catch(() => setModules({}));
+    function load() {
+      api.modules().then(setModules).catch(() => setModules({}));
+    }
+    load();
+    const id = setInterval(load, POLL_MS);
+    return () => clearInterval(id);
   }, []);
 
   useEffect(() => {
     if (!hasRede) return;
-    api.rede.summary().then(setRedeSummary).catch(() => {});
+    function load() {
+      api.rede.summary().then(setRedeSummary).catch(() => {});
+    }
+    load();
+    const id = setInterval(load, POLL_MS);
+    return () => clearInterval(id);
   }, [hasRede]);
 
   useEffect(() => {
@@ -248,7 +268,16 @@ export default function Home({ user, onNavigate, can }) {
 
   useEffect(() => {
     if (!hasInterfone) return;
-    api.interfone.extensionsSummary().then(setInterfoneSummary).catch(() => {});
+    function load() {
+      api.interfone.extensionsSummary().then(setInterfoneSummary).catch(() => {});
+    }
+    load();
+    const id = setInterval(load, POLL_MS);
+    return () => clearInterval(id);
+  }, [hasInterfone]);
+
+  useEffect(() => {
+    if (!hasInterfone) return;
     api.interfone
       .callsSummary('7d')
       .then((trend) => {
@@ -263,64 +292,79 @@ export default function Home({ user, onNavigate, can }) {
   // abertura de cada porteiro), só reorganizada numa linha do tempo só.
   useEffect(() => {
     if (!hasRede || !canSeeRedeAnalise) return;
-    api.rede
-      .history(20)
-      .then((hi) => {
-        setRedeActivity(
-          (hi.data || []).map((e) => ({
-            id: `rede-${e.id}`,
-            icon: 'network',
-            color: 'var(--module-rede)',
-            glow: 'var(--module-rede-glow)',
-            title: e.device?.name || 'Equipamento',
-            subtitle: e.eventLabel,
-            at: e.at,
-          }))
-        );
-      })
-      .catch(() => {});
+    function load() {
+      api.rede
+        .history(20)
+        .then((hi) => {
+          setRedeActivity(
+            (hi.data || []).map((e) => ({
+              id: `rede-${e.id}`,
+              icon: 'network',
+              color: 'var(--module-rede)',
+              glow: 'var(--module-rede-glow)',
+              title: e.device?.name || 'Equipamento',
+              subtitle: e.eventLabel,
+              at: e.at,
+            }))
+          );
+        })
+        .catch(() => {});
+    }
+    load();
+    const id = setInterval(load, POLL_MS);
+    return () => clearInterval(id);
   }, [hasRede, canSeeRedeAnalise]);
 
   useEffect(() => {
     if (!hasInterfone) return;
-    api.interfone
-      .missedToday()
-      .then((miss) => {
-        setInterfoneActivity(
-          (miss || []).map((m, i) => ({
-            id: `interfone-${m.number}-${i}`,
-            icon: 'phone',
-            color: 'var(--module-interfone)',
-            glow: 'var(--module-interfone-glow)',
-            title: 'Chamada perdida',
-            subtitle: m.total > 1 ? `${m.number} · ${m.total}x hoje` : m.number,
-            at: m.lastAt,
-          }))
-        );
-      })
-      .catch(() => {});
+    function load() {
+      api.interfone
+        .missedToday()
+        .then((miss) => {
+          setInterfoneActivity(
+            (miss || []).map((m, i) => ({
+              id: `interfone-${m.number}-${i}`,
+              icon: 'phone',
+              color: 'var(--module-interfone)',
+              glow: 'var(--module-interfone-glow)',
+              title: 'Chamada perdida',
+              subtitle: m.total > 1 ? `${m.number} · ${m.total}x hoje` : m.number,
+              at: m.lastAt,
+            }))
+          );
+        })
+        .catch(() => {});
+    }
+    load();
+    const id = setInterval(load, POLL_MS);
+    return () => clearInterval(id);
   }, [hasInterfone]);
 
   useEffect(() => {
     if (!hasAcesso) return;
-    api.accessDevices
-      .list()
-      .then((devices) => {
-        setAcessoActivity(
-          (devices || [])
-            .filter((d) => d.lastOpen)
-            .map((d) => ({
-              id: `acesso-${d.id}`,
-              icon: 'key',
-              color: d.lastOpen.success ? 'var(--module-acesso)' : 'var(--danger-500)',
-              glow: d.lastOpen.success ? 'var(--module-acesso-glow)' : 'var(--danger-soft)',
-              title: d.lastOpen.success ? `${d.name} aberto` : `Falha ao abrir ${d.name}`,
-              subtitle: `por ${d.lastOpen.username}`,
-              at: d.lastOpen.createdAt,
-            }))
-        );
-      })
-      .catch(() => {});
+    function load() {
+      api.accessDevices
+        .list()
+        .then((devices) => {
+          setAcessoActivity(
+            (devices || [])
+              .filter((d) => d.lastOpen)
+              .map((d) => ({
+                id: `acesso-${d.id}`,
+                icon: 'key',
+                color: d.lastOpen.success ? 'var(--module-acesso)' : 'var(--danger-500)',
+                glow: d.lastOpen.success ? 'var(--module-acesso-glow)' : 'var(--danger-soft)',
+                title: d.lastOpen.success ? `${d.name} aberto` : `Falha ao abrir ${d.name}`,
+                subtitle: `por ${d.lastOpen.username}`,
+                at: d.lastOpen.createdAt,
+              }))
+          );
+        })
+        .catch(() => {});
+    }
+    load();
+    const id = setInterval(load, POLL_MS);
+    return () => clearInterval(id);
   }, [hasAcesso]);
 
   // Os "at" de cada fonte vêm em formatos diferentes (ISO com 'Z' da Rede/
