@@ -2,6 +2,9 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App.jsx';
 import { ToastProvider } from './hooks/useToast.jsx';
+// Só o import já liga o listener de 'beforeinstallprompt' (ver o arquivo) —
+// precisa rodar antes de tudo, inclusive da tela de Login.
+import './utils/installPrompt.js';
 import './theme/tokens.css';
 import './theme/base.css';
 import './theme/components.css';
