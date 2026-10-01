@@ -27,6 +27,7 @@ export default function App() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [acessoDevice, setAcessoDevice] = useState(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [pendingSection, setPendingSection] = useState(null);
 
   useEffect(() => {
     document.title = branding.name;
@@ -67,9 +68,13 @@ export default function App() {
 
   const isOwner = user.role === 'owner';
 
-  function navigate(next) {
+  // `section` é opcional — vem dos atalhos do submenu lateral (ex.: "Planta
+  // baixa"), pra rolar direto até aquele card da página em vez de só cair
+  // no topo.
+  function navigate(next, section) {
     setView(next);
     setMenuOpen(false);
+    setPendingSection(section || null);
   }
 
   // Clicou num equipamento direto na tela Início — abre ele já na tela de
@@ -83,9 +88,17 @@ export default function App() {
   function renderView() {
     switch (view) {
       case 'rede':
-        return can('rede') ? <RedeDashboard can={can} /> : <NoAccess />;
+        return can('rede') ? (
+          <RedeDashboard can={can} pendingSection={pendingSection} onSectionHandled={() => setPendingSection(null)} />
+        ) : (
+          <NoAccess />
+        );
       case 'interfone':
-        return can('interfone') ? <InterfoneDashboard /> : <NoAccess />;
+        return can('interfone') ? (
+          <InterfoneDashboard pendingSection={pendingSection} onSectionHandled={() => setPendingSection(null)} />
+        ) : (
+          <NoAccess />
+        );
       case 'acesso':
         return can('acesso') ? (
           <AccessControl isOwner={isOwner} initialDevice={acessoDevice} onInitialDeviceHandled={() => setAcessoDevice(null)} />

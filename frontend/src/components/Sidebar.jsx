@@ -45,7 +45,7 @@ function RedeSubmenu({ onNavigate, canSeePlantaBaixa, offlineDevices }) {
   return (
     <div className="nav-submenu">
       {canSeePlantaBaixa && (
-        <button className="nav-subitem" onClick={() => onNavigate('rede')}>
+        <button className="nav-subitem" onClick={() => onNavigate('rede', 'floor-plan-section')}>
           <Icon name="building" size={14} />
           <span>Planta baixa</span>
         </button>
@@ -59,13 +59,13 @@ function RedeSubmenu({ onNavigate, canSeePlantaBaixa, offlineDevices }) {
         <>
           <div className="nav-subitem-label">Offline agora</div>
           {offlineDevices.slice(0, REDE_OFFLINE_LIMIT).map((d) => (
-            <button key={d.id} className="nav-subitem" onClick={() => onNavigate('rede')} title={d.name}>
+            <button key={d.id} className="nav-subitem" onClick={() => onNavigate('rede', 'equipamentos-section')} title={d.name}>
               <span className="nav-subitem-dot offline" />
               <span className="nav-subitem-name-text">{d.name}</span>
             </button>
           ))}
           {offlineDevices.length > REDE_OFFLINE_LIMIT && (
-            <button className="nav-subitem nav-subitem-more" onClick={() => onNavigate('rede')}>
+            <button className="nav-subitem nav-subitem-more" onClick={() => onNavigate('rede', 'equipamentos-section')}>
               <span>+{offlineDevices.length - REDE_OFFLINE_LIMIT} offline</span>
             </button>
           )}
@@ -91,7 +91,12 @@ function InterfoneSubmenu({ onNavigate, offlineExtensions }) {
         <>
           <div className="nav-subitem-label">Offline agora</div>
           {offlineExtensions.slice(0, INTERFONE_OFFLINE_LIMIT).map((e) => (
-            <button key={e.number} className="nav-subitem" onClick={() => onNavigate('interfone')} title={e.name || e.number}>
+            <button
+              key={e.number}
+              className="nav-subitem"
+              onClick={() => onNavigate('interfone', 'extensions-section')}
+              title={e.name || e.number}
+            >
               <span className="nav-subitem-dot offline" />
               <span className="nav-subitem-name-text">
                 {e.number}
@@ -100,7 +105,7 @@ function InterfoneSubmenu({ onNavigate, offlineExtensions }) {
             </button>
           ))}
           {offlineExtensions.length > INTERFONE_OFFLINE_LIMIT && (
-            <button className="nav-subitem nav-subitem-more" onClick={() => onNavigate('interfone')}>
+            <button className="nav-subitem nav-subitem-more" onClick={() => onNavigate('interfone', 'extensions-section')}>
               <span>+{offlineExtensions.length - INTERFONE_OFFLINE_LIMIT} offline</span>
             </button>
           )}
@@ -160,7 +165,7 @@ function AcessoSubmenu({ onNavigate, onOpenDevice, devices }) {
               title={`Abrir ${d.name}`}
               aria-label={`Abrir ${d.name}`}
             >
-              {openingId === d.id ? <span className="spinner spinner-dark" style={{ width: 15, height: 15 }} /> : <Icon name="key" size={16} />}
+              {openingId === d.id ? <span className="spinner spinner-dark" style={{ width: 18, height: 18 }} /> : <Icon name="key" size={19} />}
             </button>
           )}
         </div>
