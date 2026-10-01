@@ -444,7 +444,7 @@ function FloorPlanSection({ onViewDevice }) {
   const openFloor_ = floors?.find((f) => f.id === openFloorId);
 
   return (
-    <div className="surface" style={{ padding: 24 }}>
+    <div className="surface" style={{ padding: 24 }} id="floor-plan-section">
       <div style={{ fontWeight: 700, marginBottom: 4 }}>Planta baixa</div>
       <p className="field-hint" style={{ marginBottom: 16 }}>
         Posição dos equipamentos por pavimento — consulta. Pavimentos e posições são gerenciados no painel de Rede original.
@@ -871,7 +871,7 @@ function HistoricoSection() {
   );
 }
 
-export default function RedeDashboard({ can }) {
+export default function RedeDashboard({ can, pendingSection, onSectionHandled }) {
   const [summary, setSummary] = useState(null);
   const [devices, setDevices] = useState([]);
   const [alerts, setAlerts] = useState([]);
@@ -884,6 +884,14 @@ export default function RedeDashboard({ can }) {
 
   const canSeeFloorPlan = can('rede.plantaBaixa');
   const canSeeAnalise = can('rede.analise');
+
+  // Veio de um atalho do submenu lateral (ex.: "Planta baixa") — rola até o
+  // card certo da tela em vez de só cair no topo da página.
+  useEffect(() => {
+    if (!pendingSection) return;
+    document.getElementById(pendingSection)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    onSectionHandled?.();
+  }, [pendingSection, onSectionHandled]);
 
   useEffect(() => {
     let cancelled = false;

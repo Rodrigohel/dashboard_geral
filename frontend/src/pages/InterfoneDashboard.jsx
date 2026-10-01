@@ -656,7 +656,7 @@ function countByHour(items, getDate) {
   return counts;
 }
 
-export default function InterfoneDashboard() {
+export default function InterfoneDashboard({ pendingSection, onSectionHandled }) {
   const [summary, setSummary] = useState(null);
   const [today, setToday] = useState(null);
   const [extensions, setExtensions] = useState([]);
@@ -668,6 +668,14 @@ export default function InterfoneDashboard() {
   const [callHourCounts, setCallHourCounts] = useState(null);
   const [anomalyParams, setAnomalyParams] = useState(null);
   const [error, setError] = useState('');
+
+  // Veio de um atalho do submenu lateral (ex.: "Ramais offline") — rola até
+  // o card certo da tela em vez de só cair no topo da página.
+  useEffect(() => {
+    if (!pendingSection) return;
+    document.getElementById(pendingSection)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    onSectionHandled?.();
+  }, [pendingSection, onSectionHandled]);
 
   useEffect(() => {
     api.settings.getAnomaly().then(setAnomalyParams).catch(() => {});
