@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import Icon from '../components/Icon.jsx';
-import Ring from '../components/Ring.jsx';
+import Ring, { healthPercent } from '../components/Ring.jsx';
 import { api } from '../api/client.js';
 import { timeAgo } from '../utils/relativeTime.js';
 
@@ -213,7 +213,7 @@ function KpiStrip({ linkModules, cardDataFor, modules, onNavigate }) {
       const online = data.stat1.value;
       const offline = data.stat2?.value || 0;
       const total = online + offline;
-      const percent = total > 0 ? Math.round((online / total) * 100) : null;
+      const percent = total > 0 ? healthPercent(online, total) : null;
       return { key, meta, online, offline, percent };
     })
     .filter(Boolean);

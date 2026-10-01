@@ -69,7 +69,7 @@ export default function UserSearch({ devices, onOpenDevice }) {
     <div className="surface" style={{ padding: 24 }}>
       <div style={{ fontWeight: 700, marginBottom: 4 }}>Buscar pessoa em todos os equipamentos</div>
       <p className="field-hint" style={{ marginBottom: 12 }}>
-        Digite um nome pra ver em quais porteiros essa pessoa está cadastrada — sem precisar abrir equipamento por equipamento.
+        Digite um nome pra ver em quais equipamentos essa pessoa está cadastrada — sem precisar abrir equipamento por equipamento.
       </p>
 
       <div className="toolbar-search input-with-icon" style={{ maxWidth: 360 }}>

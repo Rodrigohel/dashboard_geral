@@ -1,3 +1,16 @@
+// Nunca mostra 100% a menos que esteja tudo online de verdade, nem 0% a
+// menos que esteja tudo offline — arredondamento comum faria, por exemplo,
+// 199 de 200 online (99.5%) virar "100%" mesmo com 1 equipamento offline
+// (foi exatamente isso que aconteceu na Rede: 100% com 1 offline, enquanto
+// o Interfone, com menos ramais, arredondava "por sorte" pra 99%).
+export function healthPercent(online, total) {
+  if (!total) return 0;
+  if (online >= total) return 100;
+  if (online <= 0) return 0;
+  const pct = Math.round((online / total) * 100);
+  return Math.min(99, Math.max(1, pct));
+}
+
 // Anel de progresso simples (conic-gradient) — mesmo visual do mockup
 // aprovado, alimentado com percentuais reais (online/total de cada módulo).
 // Compartilhado entre Início, Rede, Interfone e Controle de acesso.

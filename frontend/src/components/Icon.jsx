@@ -39,6 +39,10 @@ const paths = {
   star: 'M12 2 15.1 8.3 22 9.3 17 14.1 18.2 21 12 17.8 5.8 21 7 14.1 2 9.3 8.9 8.3Z',
   activity: 'M3 12h4l2-8 6 16 2-8h4',
   download: 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3',
+  // Portão/relé genérico (ex.: Segplace) — bem diferente do shieldFace
+  // (reconhecimento facial), pra não chamar todo equipamento de "porteiro".
+  doorOpen:
+    'M13 4h3a2 2 0 0 1 2 2v14M2 20h3M13 20h9M10 12v.01M13 4.562v16.157a1 1 0 0 1-1.242.97L5 20V5.562a2 2 0 0 1 1.515-1.94l4-1A2 2 0 0 1 13 4.561Z',
 };
 
 export default function Icon({ name, size = 18, strokeWidth = 1.8, className, style }) {

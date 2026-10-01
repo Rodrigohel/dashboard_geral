@@ -124,7 +124,7 @@ export default function MultiDeviceUserFormModal({ devices, initialName = '', on
 
   return (
     <Modal
-      title="Novo usuário em vários porteiros"
+      title="Novo usuário em vários equipamentos"
       onClose={onClose}
       footer={
         <>
