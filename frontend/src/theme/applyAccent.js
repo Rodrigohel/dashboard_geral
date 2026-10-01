@@ -32,7 +32,7 @@ function hslToHex(h, s, l) {
 export function applyAccentColor(hex) {
   const root = document.documentElement.style;
   if (!hex || !/^#[0-9a-fA-F]{6}$/.test(hex)) {
-    ['--accent-500', '--accent-400', '--accent-600', '--accent-glow'].forEach((v) => root.removeProperty(v));
+    ['--accent-500', '--accent-400', '--accent-600', '--accent-glow', '--accent-soft'].forEach((v) => root.removeProperty(v));
     return;
   }
   const [h, s, lRaw] = hexToHsl(hex);
@@ -49,4 +49,5 @@ export function applyAccentColor(hex) {
   root.setProperty('--accent-600', hslToHex(h, s, Math.max(0.08, l - 0.14)));
   const [r, g, b] = [1, 3, 5].map((i) => parseInt(base500.slice(i, i + 2), 16));
   root.setProperty('--accent-glow', `rgba(${r}, ${g}, ${b}, 0.35)`);
+  root.setProperty('--accent-soft', `rgba(${r}, ${g}, ${b}, 0.14)`);
 }
