@@ -141,3 +141,13 @@ cloudflared tunnel info portal        # detalhes do túnel "portal"
 - **`cloudflared` não inicia**: rode `journalctl -u cloudflared -n 50` para
   ver o erro exato e confira se o `config.yml` está com o ID do túnel e o
   caminho do arquivo de credenciais corretos.
+- **O Portal abre normalmente mas o botão "Instalar" nunca aparece**
+  (Android/Chrome): confira, no painel da Cloudflare, em **Speed > Optimization**
+  (zona do domínio), se **Rocket Loader** e **Auto Minify (JS)** estão
+  **desligados** pro seu domínio. Essas otimizações reescrevem o
+  Javascript da página em trânsito e são uma causa conhecida de o registro
+  do service worker (exigido pra instalar o app) nunca completar, mesmo com
+  tudo certo no código. Também vale conferir em **Caching > Configuration**
+  se não existe nenhuma regra de cache guardando uma cópia antiga de
+  `/manifest.webmanifest` ou `/sw.js` — use "Development Mode" ou um
+  "Cache Rule" de bypass pra esses dois caminhos se precisar.
