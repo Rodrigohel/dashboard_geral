@@ -474,6 +474,32 @@
   .sidebar.open {
     transform: translateX(0);
   }
+  /* No celular não existe "passar o mouse" — o menu aberto (.open) PRECISA
+     mostrar tudo igual ao hover do desktop (nome dos itens, logo grande,
+     rótulos de seção), senão sobra só ícone sem nome e fora de proporção,
+     porque as regras de recolhido (pensadas pro trilho do desktop) são a
+     aparência padrão em qualquer largura de tela por padrão. */
+  .sidebar.open .brand-mark {
+    width: 96px;
+    height: 96px;
+    font-size: 38px;
+  }
+  .sidebar.open .brand-mark.brand-logo-img {
+    width: 150px;
+    height: 150px;
+  }
+  .sidebar.open .brand-text {
+    display: block;
+  }
+  .sidebar.open .nav-item {
+    justify-content: flex-start;
+  }
+  .sidebar.open .nav-item span {
+    display: inline;
+  }
+  .sidebar.open .nav-section-label {
+    display: block;
+  }
   .sidebar-backdrop {
     display: block;
     position: fixed;

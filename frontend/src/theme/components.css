@@ -498,6 +498,41 @@ table.data-table {
     grid-template-columns: repeat(4, 1fr);
   }
 }
+
+/* Colunas dentro de UM card só (ex.: Ramais offline / Chamadas ativas /
+   Chamadas perdidas do Interfone) — no celular empilha tudo dentro do
+   mesmo card, separado por uma linha; no desktop vira colunas lado a
+   lado, separadas por uma linha vertical em vez de voltarem a ser cards
+   soltos. */
+.status-cols-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+.status-col {
+  min-width: 0;
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--border-subtle);
+}
+.status-col:first-child {
+  padding-top: 0;
+  border-top: none;
+}
+@media (min-width: 861px) {
+  .status-cols-grid {
+    grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+    gap: var(--space-6);
+  }
+  .status-col {
+    padding-top: 0;
+    border-top: none;
+    padding-left: var(--space-6);
+    border-left: 1px solid var(--border-subtle);
+  }
+  .status-col:first-child {
+    padding-left: 0;
+    border-left: none;
+  }
+}
 .mini-stat-card {
   padding: var(--space-4) var(--space-2);
   border-radius: var(--radius-lg);
