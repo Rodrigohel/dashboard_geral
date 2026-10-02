@@ -9,7 +9,16 @@ import { api } from '../../api/client.js';
 // um cadastro independente por trás (a API não tem conceito de "usuário
 // compartilhado" entre porteiros), então mandamos uma criação por
 // equipamento escolhido e mostramos o resultado de cada um.
+// Portões Segplace/Axiom Wifi não têm cadastro de usuário na API deles (só
+// abrir remotamente e ver status) — oferecer esse cadastro pra eles aqui
+// garantiria erro na hora, então nem aparecem na lista de escolha.
+function supportsUserManagement(device) {
+  return device.model !== 'segplace';
+}
+
 export default function MultiDeviceUserFormModal({ devices, initialName = '', onClose, onDone }) {
+  const manageableDevices = devices.filter(supportsUserManagement);
+  const hiddenCount = devices.length - manageableDevices.length;
   const [form, setForm] = useState({
     name: initialName,
     registration: '',
@@ -33,7 +42,7 @@ export default function MultiDeviceUserFormModal({ devices, initialName = '', on
   }
 
   async function createOnDevice(deviceId, payload) {
-    const device = devices.find((d) => d.id === deviceId);
+    const device = manageableDevices.find((d) => d.id === deviceId);
     let created;
     try {
       created = await api.accessDevices.users.create(deviceId, payload);
@@ -191,13 +200,19 @@ export default function MultiDeviceUserFormModal({ devices, initialName = '', on
         <div className="field">
           <label className="field-label">Cadastrar nestes equipamentos</label>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
-            {devices.map((d) => (
+            {manageableDevices.map((d) => (
               <label className="checkbox-row" key={d.id}>
                 <input type="checkbox" checked={selected.includes(d.id)} onChange={() => toggleDevice(d.id)} />
                 {d.name} <span className="field-hint">({d.location || d.host})</span>
               </label>
             ))}
           </div>
+          {hiddenCount > 0 && (
+            <span className="field-hint">
+              {hiddenCount} portão{hiddenCount === 1 ? '' : 'ões'} Wi-Fi (Segplace/Axiom) não aparece{hiddenCount === 1 ? '' : 'm'}
+              aqui — eles não têm cadastro de usuário pela API, só abertura remota.
+            </span>
+          )}
         </div>
       </form>
     </Modal>
