@@ -50,6 +50,9 @@ export default function MultiDeviceUserFormModal({ devices, initialName = '', on
       return { device, ok: false, message: `Não foi possível criar o usuário: ${err.message}` };
     }
     if (!photoFile) return { device, ok: true, message: 'Usuário criado.' };
+    if (!device.isFacial) {
+      return { device, ok: true, message: 'Usuário criado. Este equipamento não é facial — foto não enviada.' };
+    }
     try {
       await api.accessDevices.users.setPhoto(deviceId, created.id, photoFile);
       return { device, ok: true, message: 'Usuário criado e foto enviada.' };
@@ -192,8 +195,9 @@ export default function MultiDeviceUserFormModal({ devices, initialName = '', on
             onChange={(e) => setPhotoFile(e.target.files?.[0] || null)}
           />
           <span className="field-hint">
-            Enviada logo depois de criar o usuário em cada equipamento escolhido. Se algum equipamento recusar (ex.:
-            tamanho/formato), o resto continua normalmente — o resultado mostra equipamento por equipamento.
+            Enviada logo depois de criar o usuário em cada equipamento marcado como facial (veja "sem foto" na lista
+            abaixo). Se algum equipamento recusar (ex.: tamanho/formato), o resto continua normalmente — o resultado
+            mostra equipamento por equipamento.
           </span>
         </div>
 
@@ -203,7 +207,7 @@ export default function MultiDeviceUserFormModal({ devices, initialName = '', on
             {manageableDevices.map((d) => (
               <label className="checkbox-row" key={d.id}>
                 <input type="checkbox" checked={selected.includes(d.id)} onChange={() => toggleDevice(d.id)} />
-                {d.name} <span className="field-hint">({d.location || d.host})</span>
+                {d.name} <span className="field-hint">({d.location || d.host}{d.isFacial ? '' : ' · sem foto'})</span>
               </label>
             ))}
           </div>

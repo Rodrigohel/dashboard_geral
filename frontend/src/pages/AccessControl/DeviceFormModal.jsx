@@ -14,6 +14,7 @@ export default function DeviceFormModal({ device, onClose, onSave }) {
     name: device?.name || '',
     location: device?.location || '',
     model: device?.model || 'xpe3200',
+    isFacial: device ? Boolean(device.isFacial) : true,
     host: device?.host || '',
     port: device?.port || 80,
     useHttps: device?.useHttps || false,
@@ -39,6 +40,13 @@ export default function DeviceFormModal({ device, onClose, onSave }) {
 
   function set(field, value) {
     setForm((f) => ({ ...f, [field]: value }));
+  }
+
+  // Trocar pra Segplace esconde o botão (portão nunca é facial) — trocar de
+  // volta pra um modelo Intelbras não mexe no que a pessoa já tinha
+  // escolhido antes.
+  function setModel(value) {
+    setForm((f) => ({ ...f, model: value, isFacial: value === 'segplace' ? false : f.isFacial }));
   }
 
   const isSegplace = form.model === 'segplace';
@@ -111,7 +119,7 @@ export default function DeviceFormModal({ device, onClose, onSave }) {
 
         <div className="field">
           <label className="field-label">Modelo</label>
-          <select className="select" value={form.model} onChange={(e) => set('model', e.target.value)} autoFocus>
+          <select className="select" value={form.model} onChange={(e) => setModel(e.target.value)} autoFocus>
             {MODELS.map((m) => (
               <option key={m.value} value={m.value}>
                 {m.label}
@@ -135,6 +143,32 @@ export default function DeviceFormModal({ device, onClose, onSave }) {
             </span>
           )}
         </div>
+
+        {!isSegplace && (
+          <div className="field">
+            <label className="field-label">Este equipamento é facial (tem câmera de reconhecimento)?</label>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                type="button"
+                className={`btn btn-sm ${form.isFacial ? 'btn-primary' : 'btn-secondary'}`}
+                onClick={() => set('isFacial', true)}
+              >
+                Sim
+              </button>
+              <button
+                type="button"
+                className={`btn btn-sm ${!form.isFacial ? 'btn-primary' : 'btn-secondary'}`}
+                onClick={() => set('isFacial', false)}
+              >
+                Não
+              </button>
+            </div>
+            <span className="field-hint">
+              Controla se a tela de "Novo usuário" oferece o campo de foto pra este equipamento — marque "Não" se esta
+              unidade estiver instalada sem a câmera.
+            </span>
+          </div>
+        )}
 
         <div className="field">
           <label className="field-label">Nome</label>
