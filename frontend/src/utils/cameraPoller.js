@@ -13,6 +13,13 @@ function keyFor(device) {
 }
 
 function startPolling(entry) {
+  // setInterval dispararia a cada 500ms mesmo que o pedido anterior ainda
+  // não tivesse voltado — numa conexão mais lenta (ex.: acessando de fora
+  // pelo Cloudflare Tunnel, em vez de na rede local), os pedidos iam se
+  // empilhando um em cima do outro e a câmera parecia "pausar"/travar.
+  // Agendar o próximo só depois do atual terminar (sucesso ou erro) faz o
+  // intervalo real se adaptar sozinho à velocidade da conexão, sem nunca
+  // ter dois pedidos em voo ao mesmo tempo.
   async function tick() {
     try {
       const url = await api.accessDevices.getCameraSnapshotBlobUrl(entry.deviceId);
@@ -24,10 +31,11 @@ function startPolling(entry) {
     } catch (err) {
       entry.lastError = err.message;
       entry.subscribers.forEach((fn) => fn({ src: entry.currentUrl, error: err.message }));
+    } finally {
+      if (!entry.stopped) entry.timer = setTimeout(tick, 500);
     }
   }
   tick();
-  entry.timer = setInterval(tick, 500);
 }
 
 // onUpdate(state) é chamado sempre que um frame novo (ou erro) chega.
@@ -46,7 +54,8 @@ export function subscribeCameraSnapshot(device, onUpdate) {
   return () => {
     entry.subscribers.delete(onUpdate);
     if (entry.subscribers.size === 0) {
-      clearInterval(entry.timer);
+      entry.stopped = true;
+      clearTimeout(entry.timer);
       if (entry.currentUrl) URL.revokeObjectURL(entry.currentUrl);
       pollers.delete(key);
     }
