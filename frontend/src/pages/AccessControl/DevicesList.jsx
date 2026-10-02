@@ -12,12 +12,6 @@ import { timeAgo } from '../../utils/relativeTime.js';
 import { subscribeCameraSnapshot } from '../../utils/cameraPoller.js';
 
 const MODEL_LABELS = { xpe3200: 'XPE 3200 IP Face', ss3532mf: 'SS 3532 MF', segplace: 'Portão Wi-Fi (Segplace)' };
-// Só os modelos Intelbras (xpe3200/ss3532mf) são porteiros com reconhecimento
-// facial de verdade — o Segplace é um relé de portão/garagem, sem câmera de
-// rosto nenhuma. Chamar os dois de "porteiro" na tela estava errado.
-function isFacialDevice(model) {
-  return model === 'xpe3200' || model === 'ss3532mf';
-}
 // Mesmo intervalo já usado em Rede/Interfone — sem isso, o status
 // online/offline de cada equipamento só atualizava recarregando a página
 // inteira manualmente.
@@ -199,7 +193,7 @@ export default function DevicesList({ isOwner, onOpenDevice }) {
               <div className="device-card-top">
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <div className="module-card-icon" style={{ background: 'var(--accent-glow)', width: 40, height: 40 }}>
-                    <Icon name={isFacialDevice(d.model) ? 'shieldFace' : 'doorOpen'} size={18} />
+                    <Icon name={d.isFacial ? 'shieldFace' : 'doorOpen'} size={18} />
                   </div>
                   <span className={`badge ${statusMeta.badge}`} title={d.lastError || undefined}>
                     <span className="badge-dot" /> {statusMeta.label}

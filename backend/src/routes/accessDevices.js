@@ -17,6 +17,7 @@ function serializeDevice(row) {
     name: row.name,
     location: row.location,
     model: row.model,
+    isFacial: Boolean(row.is_facial),
     host: row.host,
     port: row.port,
     useHttps: Boolean(row.use_https),
@@ -130,6 +131,7 @@ accessDevicesRouter.post('/', requireOwner, (req, res) => {
     name,
     location,
     model,
+    isFacial,
     host,
     port,
     useHttps,
@@ -161,14 +163,17 @@ accessDevicesRouter.post('/', requireOwner, (req, res) => {
   const info = db
     .prepare(
       `INSERT INTO access_devices
-        (name, location, model, host, port, use_https, device_username, device_password_enc, remote_id, notes,
+        (name, location, model, is_facial, host, port, use_https, device_username, device_password_enc, remote_id, notes,
          camera_host, camera_port, camera_channel, camera_username, camera_password_enc)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .run(
       name,
       location || '',
       model || 'xpe3200',
+      // Portão Segplace nunca é facial, com ou sem o que a pessoa marcar —
+      // a API dele não tem conceito nenhum de usuário/foto.
+      model === 'segplace' ? 0 : isFacial === false ? 0 : 1,
       host,
       Number(port) || 80,
       useHttps ? 1 : 0,
@@ -192,6 +197,7 @@ accessDevicesRouter.put('/:id', requireOwner, (req, res) => {
     name,
     location,
     model,
+    isFacial,
     host,
     port,
     useHttps,
@@ -214,13 +220,16 @@ accessDevicesRouter.put('/:id', requireOwner, (req, res) => {
 
   db.prepare(
     `UPDATE access_devices SET
-      name = ?, location = ?, model = ?, host = ?, port = ?, use_https = ?, device_username = ?, remote_id = ?, notes = ?,
+      name = ?, location = ?, model = ?, is_facial = ?, host = ?, port = ?, use_https = ?, device_username = ?, remote_id = ?, notes = ?,
       camera_host = ?, camera_port = ?, camera_channel = ?, camera_username = ?
      WHERE id = ?`
   ).run(
     name ?? device.name,
     location ?? device.location,
     model ?? device.model,
+    // Mesma regra da criação: Segplace nunca é facial, independente do que
+    // vier marcado.
+    (model ?? device.model) === 'segplace' ? 0 : isFacial === undefined ? device.is_facial : isFacial ? 1 : 0,
     host ?? device.host,
     Number(port ?? device.port),
     useHttps === undefined ? device.use_https : useHttps ? 1 : 0,

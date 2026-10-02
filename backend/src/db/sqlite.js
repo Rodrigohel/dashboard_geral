@@ -205,6 +205,16 @@ if (!accessDeviceColumns.includes('camera_host')) {
   db.exec("ALTER TABLE access_devices ADD COLUMN camera_username TEXT NOT NULL DEFAULT ''");
   db.exec("ALTER TABLE access_devices ADD COLUMN camera_password_enc TEXT NOT NULL DEFAULT ''");
 }
+// Escolha explícita do dono, por equipamento, se ele tem câmera de
+// reconhecimento facial de verdade — independe do modelo (uma unidade XPE
+// pode estar instalada sem a câmera). Controla só se a tela de "Novo
+// usuário" oferece o campo de foto pra esse equipamento; portões Segplace
+// (sem API de usuário nenhuma) continuam de fora da lista de qualquer jeito,
+// com ou sem essa marcação.
+if (!accessDeviceColumns.includes('is_facial')) {
+  db.exec('ALTER TABLE access_devices ADD COLUMN is_facial INTEGER NOT NULL DEFAULT 1');
+  db.exec("UPDATE access_devices SET is_facial = 0 WHERE model = 'segplace'");
+}
 
 const gatewayColumns = db.prepare('PRAGMA table_info(module_gateways)').all().map((c) => c.name);
 if (!gatewayColumns.includes('public_url')) {
