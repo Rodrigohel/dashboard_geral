@@ -23,7 +23,15 @@ async function request(path, { method = 'GET', body, isForm = false } = {}) {
   if (res.status === 204) return null;
 
   const text = await res.text();
-  const data = text ? JSON.parse(text) : null;
+  let data;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    // Resposta não-JSON (ex.: página de erro de um proxy/timeout no meio do
+    // caminho) — melhor avisar que a conexão falhou do que estourar o erro
+    // críptico do JSON.parse direto pra tela.
+    throw new Error(`O servidor não respondeu corretamente (HTTP ${res.status}). Tente novamente.`);
+  }
 
   if (!res.ok) {
     const message = data?.error || `Erro ${res.status}`;

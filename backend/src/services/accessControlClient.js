@@ -763,7 +763,8 @@ export const listUsers = (device, password) => clientFor(device).listUsers(devic
 export const createUser = (device, password, input) => clientFor(device).createUser(device, password, input);
 export const updateUser = (device, password, userId, input) => clientFor(device).updateUser(device, password, userId, input);
 export const deleteUser = (device, password, userId) => clientFor(device).deleteUser(device, password, userId);
-export const setUserPhoto = (device, password, userId, fileBuffer) => clientFor(device).setUserPhoto(device, password, userId, fileBuffer);
+export const setUserPhoto = (device, password, userId, fileBuffer, mimetype) =>
+  clientFor(device).setUserPhoto(device, password, userId, fileBuffer, mimetype);
 export const getUserPhoto = (device, password, userId) => clientFor(device).getUserPhoto(device, password, userId);
 export const testConnection = (device, password) => clientFor(device).testConnection(device, password);
 export const openDoor = (device, password) => clientFor(device).openDoor(device, password);
