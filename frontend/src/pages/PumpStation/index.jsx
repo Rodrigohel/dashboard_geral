@@ -3,7 +3,7 @@ import Icon from '../../components/Icon.jsx';
 import { api } from '../../api/client.js';
 import { useToast } from '../../hooks/useToast.jsx';
 
-const POLL_MS = 10000;
+const DEFAULT_POLL_MS = 10000;
 
 const REG_TYPES = [
   { value: 'coil', label: 'Bobina / saída digital (FC1 — Coil)' },
@@ -63,6 +63,10 @@ function StatusCard({ isOwner, onGoToConfig }) {
   const [status, setStatus] = useState(null);
   const [error, setError] = useState('');
   const [loaded, setLoaded] = useState(false);
+  // Intervalo vem do próprio /status (config salva em "Bombas →
+  // Configuração") — começa no padrão e se ajusta sozinho assim que a
+  // primeira resposta chegar dizendo o valor real.
+  const [pollMs, setPollMs] = useState(DEFAULT_POLL_MS);
 
   useEffect(() => {
     function load() {
@@ -71,14 +75,15 @@ function StatusCard({ isOwner, onGoToConfig }) {
         .then((s) => {
           setStatus(s);
           setError('');
+          if (s.pollSeconds) setPollMs(Math.max(1, s.pollSeconds) * 1000);
         })
         .catch((err) => setError(err.message))
         .finally(() => setLoaded(true));
     }
     load();
-    const id = setInterval(load, POLL_MS);
+    const id = setInterval(load, pollMs);
     return () => clearInterval(id);
-  }, []);
+  }, [pollMs]);
 
   if (!loaded) return <div className="skeleton" style={{ height: 220, borderRadius: 20 }} />;
 
@@ -137,7 +142,26 @@ function StatusCard({ isOwner, onGoToConfig }) {
   );
 }
 
-function PointField({ label, point, onChange }) {
+// Na prática, quase toda instalação usa sempre o mesmo tipo (Coil — é o que
+// um "LB" da IHM vira no Modbus) — por isso o seletor de tipo fica escondido
+// por padrão (só endereço) e só aparece se a pessoa pedir "avançado" (ver
+// showAdvanced em ConfigCard). Sem isso, ninguém de fora de TI tinha ideia
+// do que "FC1/FC3/holding register" significava.
+function PointField({ label, point, showAdvanced, onChange }) {
+  if (!showAdvanced) {
+    return (
+      <div className="field">
+        <label className="field-label">{label} — endereço</label>
+        <input
+          className="input"
+          type="number"
+          value={point.addr ?? ''}
+          placeholder="ex.: 103"
+          onChange={(e) => onChange({ ...point, addr: e.target.value === '' ? null : Number(e.target.value) })}
+        />
+      </div>
+    );
+  }
   return (
     <div className="grid-2">
       <div className="field">
@@ -173,10 +197,12 @@ function ConfigCard({ configId }) {
   const [host, setHost] = useState('');
   const [port, setPort] = useState(502);
   const [unitId, setUnitId] = useState(1);
+  const [pollSeconds, setPollSeconds] = useState(10);
   const [points, setPoints] = useState({});
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const toast = useToast();
 
   function load() {
@@ -186,6 +212,7 @@ function ConfigCard({ configId }) {
       setHost(c.host);
       setPort(c.port);
       setUnitId(c.unitId);
+      setPollSeconds(c.pollSeconds);
       setPoints(c.points);
       setLoaded(true);
     });
@@ -197,7 +224,7 @@ function ConfigCard({ configId }) {
   }
 
   function buildPayload() {
-    return { enabled, name, host, port: Number(port), unitId: Number(unitId), points };
+    return { enabled, name, host, port: Number(port), unitId: Number(unitId), pollSeconds: Number(pollSeconds), points };
   }
 
   async function handleSave() {
@@ -277,6 +304,20 @@ function ConfigCard({ configId }) {
         </div>
       </div>
 
+      <div className="field">
+        <label className="field-label">Atualizar a cada (segundos)</label>
+        <input
+          className="input"
+          type="number"
+          min={1}
+          max={3600}
+          style={{ maxWidth: 140 }}
+          value={pollSeconds}
+          onChange={(e) => setPollSeconds(e.target.value)}
+        />
+        <span className="field-hint">Quanto menor, mais rápido a tela de status atualiza — mas mais pedidos pra IHM.</span>
+      </div>
+
       <div style={{ display: 'flex', gap: 8 }}>
         <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
           {saving ? <span className="spinner" /> : 'Salvar'}
@@ -289,15 +330,29 @@ function ConfigCard({ configId }) {
       <span className="field-hint">"Testar conexão" salva os campos preenchidos e tenta abrir a conexão Modbus de verdade.</span>
 
       <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: 16, marginTop: 4 }}>
-        <div style={{ fontWeight: 700, marginBottom: 4 }}>Endereços dos sinais</div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+          <div style={{ fontWeight: 700 }}>Endereços dos sinais</div>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => setShowAdvanced((v) => !v)}>
+            {showAdvanced ? 'Esconder tipo de registrador' : 'Mostrar tipo de registrador (avançado)'}
+          </button>
+        </div>
         <div className="field-hint" style={{ marginBottom: 12 }}>
           Deixe endereço em branco pra um sinal que ainda não quer monitorar — ele aparece como "não configurado" na
-          tela de status, sem dar erro.
+          tela de status, sem dar erro. Pra quase toda instalação, só o número do endereço já basta — o tipo de
+          registrador abaixo é sempre "Bobina/Coil" por padrão, só mude se souber que a sua IHM expõe diferente.
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           {ALL_POINT_KEYS.map((key) => {
             const meta = [...LEVEL_POINTS, ...PUMP_POINTS, ...ALARM_POINTS].find((p) => p.key === key);
-            return <PointField key={key} label={meta.label} point={points[key] || EMPTY_POINT} onChange={(v) => setPoint(key, v)} />;
+            return (
+              <PointField
+                key={key}
+                label={meta.label}
+                point={points[key] || EMPTY_POINT}
+                showAdvanced={showAdvanced}
+                onChange={(v) => setPoint(key, v)}
+              />
+            );
           })}
         </div>
       </div>
