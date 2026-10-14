@@ -205,7 +205,8 @@ db.exec(`
     termico2_addr INTEGER,
     termico2_type TEXT NOT NULL DEFAULT 'coil',
     modo_manual_addr INTEGER,
-    modo_manual_type TEXT NOT NULL DEFAULT 'coil'
+    modo_manual_type TEXT NOT NULL DEFAULT 'coil',
+    poll_seconds INTEGER NOT NULL DEFAULT 10
   );
   INSERT OR IGNORE INTO pump_station (id) VALUES (1);
 `);
@@ -272,4 +273,11 @@ if (!brandingColumns.includes('short_name')) {
 }
 if (!brandingColumns.includes('pwa_icon_filename')) {
   db.exec("ALTER TABLE branding ADD COLUMN pwa_icon_filename TEXT NOT NULL DEFAULT ''");
+}
+
+// Intervalo de atualização da tela "Bombas" — pedido explícito pra ser
+// configurável (não fixo em 10s), já que a IHM responde rápido.
+const pumpStationColumns = db.prepare('PRAGMA table_info(pump_station)').all().map((c) => c.name);
+if (!pumpStationColumns.includes('poll_seconds')) {
+  db.exec('ALTER TABLE pump_station ADD COLUMN poll_seconds INTEGER NOT NULL DEFAULT 10');
 }

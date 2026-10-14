@@ -35,6 +35,7 @@ function serializeConfig(row) {
     host: row.host,
     port: row.port,
     unitId: row.unit_id,
+    pollSeconds: row.poll_seconds,
     points,
   };
 }
@@ -57,9 +58,19 @@ pumpStationRouter.put('/config', requireOwner, (req, res) => {
   const port = Number(body.port ?? row.port) || 502;
   const unitId = Number(body.unitId ?? row.unit_id) || 1;
   const enabled = body.enabled === undefined ? Boolean(row.enabled) : Boolean(body.enabled);
+  // Mínimo de 1s pra não martelar a IHM — máximo de 1h só pra evitar digitar
+  // errado (ex.: "10000" achando que era milissegundo) e a tela nunca mais
+  // atualizar sozinha. Importante: `|| row.poll_seconds` sozinho trataria um
+  // "0" digitado de propósito como "não informado" e reverteria pro valor
+  // antigo sem avisar — por isso checa undefined/null/'' explicitamente
+  // antes de cair no clamp.
+  const pollSecondsInput = body.pollSeconds === undefined || body.pollSeconds === null || body.pollSeconds === ''
+    ? row.poll_seconds
+    : Number(body.pollSeconds);
+  const pollSeconds = Math.min(3600, Math.max(1, Number.isFinite(pollSecondsInput) ? pollSecondsInput : row.poll_seconds));
 
-  const assignments = ['name = ?', 'host = ?', 'port = ?', 'unit_id = ?', 'enabled = ?'];
-  const values = [name, host, port, unitId, enabled ? 1 : 0];
+  const assignments = ['name = ?', 'host = ?', 'port = ?', 'unit_id = ?', 'enabled = ?', 'poll_seconds = ?'];
+  const values = [name, host, port, unitId, enabled ? 1 : 0, pollSeconds];
 
   for (const [key, column] of POINTS) {
     const incoming = body.points?.[key];
@@ -95,7 +106,7 @@ pumpStationRouter.get('/status', async (req, res) => {
   }
   try {
     const points = await readPumpStationStatus(config);
-    res.json({ name: config.name, points });
+    res.json({ name: config.name, pollSeconds: config.pollSeconds, points });
   } catch (err) {
     res.status(502).json({ error: err.message });
   }
