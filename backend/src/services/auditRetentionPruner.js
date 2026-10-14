@@ -10,6 +10,7 @@ function pruneOnce() {
   const cutoff = `-${auditRetentionDays} days`;
   db.prepare(`DELETE FROM login_events WHERE created_at < datetime('now', ?)`).run(cutoff);
   db.prepare(`DELETE FROM door_open_events WHERE created_at < datetime('now', ?)`).run(cutoff);
+  db.prepare(`DELETE FROM pump_events WHERE created_at < datetime('now', ?)`).run(cutoff);
 }
 
 // Roda 1x por dia — apagar log de auditoria não é urgente, então não faz

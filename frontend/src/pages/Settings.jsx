@@ -508,8 +508,8 @@ function RetentionCard() {
       <div>
         <div style={{ fontWeight: 700 }}>Retenção do log de auditoria</div>
         <div className="field-hint">
-          Por quantos dias manter o histórico de logins e aberturas de porteiro (tela Auditoria) antes de apagar
-          sozinho. Use 0 para nunca apagar automaticamente.
+          Por quantos dias manter o histórico de logins, aberturas de porteiro (tela Auditoria) e ativações das
+          bombas (tela Bombas) antes de apagar sozinho. Use 0 para nunca apagar automaticamente.
         </div>
       </div>
 

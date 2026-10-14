@@ -204,6 +204,7 @@ export const api = {
     saveConfig: (payload) => request('/api/pumpstation/config', { method: 'PUT', body: payload }),
     testConnection: (payload) => request('/api/pumpstation/test-connection', { method: 'POST', body: payload }),
     status: () => request('/api/pumpstation/status'),
+    history: (days = 30) => request(`/api/pumpstation/history?days=${days}`),
   },
 
   settings: {

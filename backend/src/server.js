@@ -19,6 +19,7 @@ import { requireAuth, requireOwner, requireModule } from './middleware/auth.js';
 import { gatewayProxy } from './services/gatewayService.js';
 import { startDeviceHealthPoller } from './services/deviceHealthPoller.js';
 import { startAuditRetentionPruner } from './services/auditRetentionPruner.js';
+import { startPumpStationHistoryPoller } from './services/pumpStationHistoryPoller.js';
 import './db/sqlite.js';
 
 const app = express();
@@ -147,3 +148,4 @@ app.listen(config.port, '0.0.0.0', () => {
 
 startDeviceHealthPoller();
 startAuditRetentionPruner();
+startPumpStationHistoryPoller();

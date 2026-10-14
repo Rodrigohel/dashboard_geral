@@ -209,6 +209,19 @@ db.exec(`
     poll_seconds INTEGER NOT NULL DEFAULT 10
   );
   INSERT OR IGNORE INTO pump_station (id) VALUES (1);
+
+  -- Log de transições (borda, não amostra) de cada sinal da casa de bombas —
+  -- uma linha só quando o valor MUDA (ver pumpStationHistoryPoller.js), não
+  -- uma linha por rodada de leitura. Base pro histórico/gráfico de quantas
+  -- vezes cada bomba ligou, quanto tempo ficou ligada, e quais níveis
+  -- estavam ativos no momento.
+  CREATE TABLE IF NOT EXISTS pump_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    point_key TEXT NOT NULL,
+    state INTEGER NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_pump_events_created_at ON pump_events(created_at);
 `);
 
 // Última checagem periódica de saúde de cada porteiro (ver
