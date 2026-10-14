@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { db } from '../db/sqlite.js';
 import { requireOwner } from '../middleware/auth.js';
 import { readPumpStationStatus, testPumpStationConnection } from '../services/pumpStationClient.js';
+import { getPumpStationHistory } from '../services/pumpStationHistoryService.js';
 
 export const pumpStationRouter = Router();
 
@@ -110,4 +111,9 @@ pumpStationRouter.get('/status', async (req, res) => {
   } catch (err) {
     res.status(502).json({ error: err.message });
   }
+});
+
+pumpStationRouter.get('/history', (req, res) => {
+  const days = Math.min(365, Math.max(1, Number(req.query.days) || 30));
+  res.json(getPumpStationHistory({ days }));
 });
