@@ -14,6 +14,7 @@ import Home from './pages/Home.jsx';
 import RedeDashboard from './pages/RedeDashboard.jsx';
 import InterfoneDashboard from './pages/InterfoneDashboard.jsx';
 import AccessControl from './pages/AccessControl/index.jsx';
+import PumpStation from './pages/PumpStation/index.jsx';
 import UsersAdmin from './pages/UsersAdmin/index.jsx';
 import Settings from './pages/Settings.jsx';
 import ServerHealth from './pages/ServerHealth.jsx';
@@ -105,6 +106,8 @@ export default function App() {
         ) : (
           <NoAccess />
         );
+      case 'bombas':
+        return can('bombas') ? <PumpStation isOwner={isOwner} /> : <NoAccess />;
       case 'usuarios':
         return isOwner ? <UsersAdmin currentUserId={user.id} /> : <NoAccess />;
       case 'servidor':

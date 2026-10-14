@@ -32,6 +32,11 @@ modulesRouter.get('/', (req, res) => {
     result[key] = { publicUrl: gw.publicUrl, configured: gw.configured, embedded: hasEmbeddedFrontend(key) };
   }
 
+  if (allowedModules.includes('bombas')) {
+    const row = db.prepare('SELECT enabled, name FROM pump_station WHERE id = 1').get();
+    result.bombas = { enabled: Boolean(row.enabled), name: row.name };
+  }
+
   if (allowedModules.includes('acesso')) {
     const devices = isOwner
       ? db.prepare('SELECT last_status FROM access_devices').all()

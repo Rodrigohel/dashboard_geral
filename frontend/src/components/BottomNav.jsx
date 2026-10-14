@@ -9,6 +9,7 @@ const ITEMS = [
   { key: 'rede', label: 'Rede', icon: 'network', module: 'rede' },
   { key: 'interfone', label: 'Interfone', icon: 'phone', module: 'interfone' },
   { key: 'acesso', label: 'Acesso', icon: 'shieldFace', module: 'acesso' },
+  { key: 'bombas', label: 'Bombas', icon: 'droplet', module: 'bombas' },
 ];
 
 export default function BottomNav({ view, onNavigate, can, onMoreClick }) {

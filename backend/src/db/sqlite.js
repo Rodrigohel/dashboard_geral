@@ -174,6 +174,40 @@ db.exec(`
     auth TEXT NOT NULL,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
+
+  -- Casa de bombas (nível do subsolo + 2 bombas), lida via Modbus TCP direto
+  -- na IHM (Weintek) que já fala com o LOGO — não no LOGO em si. Uma linha
+  -- só (id fixo = 1), igual 'branding'/'push_settings'. Cada ponto tem
+  -- endereço + tipo de registrador em branco por padrão: ninguém sabe o
+  -- endereço certo até configurar na tela de "Bombas" (ver pumpStationClient.js),
+  -- então nunca inventamos um valor aqui.
+  CREATE TABLE IF NOT EXISTS pump_station (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    enabled INTEGER NOT NULL DEFAULT 0,
+    name TEXT NOT NULL DEFAULT 'Casa de bombas',
+    host TEXT NOT NULL DEFAULT '',
+    port INTEGER NOT NULL DEFAULT 502,
+    unit_id INTEGER NOT NULL DEFAULT 1,
+    nivel_minimo_addr INTEGER,
+    nivel_minimo_type TEXT NOT NULL DEFAULT 'coil',
+    nivel_medio_addr INTEGER,
+    nivel_medio_type TEXT NOT NULL DEFAULT 'coil',
+    nivel_maximo_addr INTEGER,
+    nivel_maximo_type TEXT NOT NULL DEFAULT 'coil',
+    nivel_seguranca_addr INTEGER,
+    nivel_seguranca_type TEXT NOT NULL DEFAULT 'coil',
+    bomba1_addr INTEGER,
+    bomba1_type TEXT NOT NULL DEFAULT 'coil',
+    bomba2_addr INTEGER,
+    bomba2_type TEXT NOT NULL DEFAULT 'coil',
+    termico1_addr INTEGER,
+    termico1_type TEXT NOT NULL DEFAULT 'coil',
+    termico2_addr INTEGER,
+    termico2_type TEXT NOT NULL DEFAULT 'coil',
+    modo_manual_addr INTEGER,
+    modo_manual_type TEXT NOT NULL DEFAULT 'coil'
+  );
+  INSERT OR IGNORE INTO pump_station (id) VALUES (1);
 `);
 
 // Última checagem periódica de saúde de cada porteiro (ver

@@ -6,6 +6,7 @@ const MODULES = [
   { key: 'rede', label: 'Rede' },
   { key: 'interfone', label: 'Interfone' },
   { key: 'acesso', label: 'Controle de acesso' },
+  { key: 'bombas', label: 'Bombas' },
 ];
 
 // Permissões mais finas dentro de "rede" — visível só quando o módulo
