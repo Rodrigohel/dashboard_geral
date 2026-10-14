@@ -10,6 +10,7 @@ const MODULE_LABELS = {
   rede: 'Rede',
   interfone: 'Interfone',
   acesso: 'Acesso',
+  bombas: 'Bombas',
   'rede.plantaBaixa': 'Rede: planta baixa',
   'rede.analise': 'Rede: análise',
 };
@@ -17,7 +18,7 @@ const MODULE_LABELS = {
 // lista explícita de badges, igual a um usuário comum totalmente liberado
 // — o dono nunca tem essas linhas na tabela `permissions` (ele passa direto
 // por role), então não dá pra ler isso de `u.modules`.
-const ALL_PERMISSIONS = ['rede', 'rede.plantaBaixa', 'rede.analise', 'interfone', 'acesso'];
+const ALL_PERMISSIONS = ['rede', 'rede.plantaBaixa', 'rede.analise', 'interfone', 'acesso', 'bombas'];
 
 export default function UsersAdmin({ currentUserId }) {
   const [users, setUsers] = useState(null);

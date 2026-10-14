@@ -199,6 +199,13 @@ export const api = {
     },
   },
 
+  pumpStation: {
+    getConfig: () => request('/api/pumpstation/config'),
+    saveConfig: (payload) => request('/api/pumpstation/config', { method: 'PUT', body: payload }),
+    testConnection: (payload) => request('/api/pumpstation/test-connection', { method: 'POST', body: payload }),
+    status: () => request('/api/pumpstation/status'),
+  },
+
   settings: {
     getGateways: () => request('/api/settings/gateways'),
     saveGateway: (moduleKey, payload) => request(`/api/settings/gateways/${moduleKey}`, { method: 'PUT', body: payload }),
