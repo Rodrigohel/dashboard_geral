@@ -28,6 +28,15 @@ quando se quer atacar algum destes.
   o nome inteiro) — em teoria "rodri" já deveria bater dentro de "rodrigo h". Não reproduzido
   ainda; primeiro passo da próxima vez é confirmar o termo exato digitado e o nome exato salvo
   no equipamento (podem não ser bem o que parecem — maiúsculo/acento/espaço a mais etc.).
+- **Busca de morador consulta equipamentos sem cadastro de pessoas** (ex.: portões
+  Segplace/Axiom Wifi — "Portão Rampa", "Portão Subsolo") e eles sempre aparecem como "não
+  respondeu à busca", quando na verdade nunca poderiam responder (a API deles não tem conceito
+  de usuário/morador, só abrir e ver status — ver `segplaceUnsupported()`). O Rodrigo sugeriu
+  um campo no cadastro do equipamento pra marcar "tem cadastro de pessoas, sim/não", mas isso
+  já dá pra saber sozinho pelo `model` (só `segplace` não suporta; `xpe3200`/`ss3532mf`
+  suportam) — não precisa de campo novo, só fazer `GET /search-users` pular os equipamentos
+  Segplace antes de consultar, em vez de tentar e cair em `errors`. Fix pequeno, não
+  implementado ainda (deixado pra próxima rodada de pendências a pedido do Rodrigo).
 
 ## ~~Notificações push (PWA)~~ — feito (parcial)
 Implementado: liga/desliga em Configurações (dono), cada administrador ativa depois no
