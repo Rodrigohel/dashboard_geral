@@ -46,7 +46,11 @@ export default function MultiDeviceUserFormModal({ devices, initialName = '', ex
     let cancelled = false;
     (async () => {
       for (const { device, user } of existingEntries) {
-        if (!device.isFacial) continue;
+        // `=== false` (não `!device.isFacial`) de propósito: se esse campo
+        // não vier preenchido por algum motivo, tenta buscar a foto mesmo
+        // assim em vez de desistir calado — o pior caso é um pedido a mais
+        // que falha e cai no catch abaixo, não ficar sem tentar nada.
+        if (device.isFacial === false) continue;
         try {
           const blob = await api.accessDevices.users.getPhotoBlob(device.id, user.id);
           if (!cancelled) {
