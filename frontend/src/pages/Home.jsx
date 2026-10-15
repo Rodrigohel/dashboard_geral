@@ -4,7 +4,7 @@ import Ring, { healthPercent } from '../components/Ring.jsx';
 import Modal from '../components/Modal.jsx';
 import { api } from '../api/client.js';
 import { timeAgo } from '../utils/relativeTime.js';
-import { LEVEL_STOPS, currentLevelStop, severityColorVar } from '../utils/pumpLevel.js';
+import { LEVEL_STOPS, currentLevelStop, severityColorVar, bombaDoDiaLabel } from '../utils/pumpLevel.js';
 
 // Mesma lista do util, só em ordem crescente (mínimo primeiro) — as barrinhas
 // do card ficam mais baixas->mais altas da esquerda pra direita.
@@ -686,6 +686,11 @@ export default function Home({ user, onNavigate, can }) {
                         );
                       })}
                     </div>
+                    {bombaDoDiaLabel(bombasStatus?.points || {}) && (
+                      <div className="module-card-trend-label" style={{ marginTop: 6 }}>
+                        bomba do dia · <strong style={{ color: 'var(--text-primary)' }}>{bombaDoDiaLabel(bombasStatus?.points || {})}</strong>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   spark && (

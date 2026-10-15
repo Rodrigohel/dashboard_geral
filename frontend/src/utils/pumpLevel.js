@@ -28,3 +28,15 @@ export function currentLevelStop(points) {
 export function severityColorVar(severity) {
   return `var(--level-${Math.min(4, Math.max(1, severity || 1))})`;
 }
+
+// Qual bomba é a líder do rodízio agora — um indicador só ("Bomba 1"),
+// não duas linhas sim/não separadas (bomba1DoDia/bomba2DoDia). Usado tanto
+// pela tela de Bombas quanto pelo card resumido da Início.
+export function bombaDoDiaLabel(points) {
+  const p1 = points?.bomba1DoDia === true;
+  const p2 = points?.bomba2DoDia === true;
+  if (p1 && !p2) return 'Bomba 1';
+  if (p2 && !p1) return 'Bomba 2';
+  if (p1 && p2) return 'Bomba 1 e 2';
+  return null;
+}
