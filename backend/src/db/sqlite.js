@@ -222,6 +222,16 @@ db.exec(`
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
   CREATE INDEX IF NOT EXISTS idx_pump_events_created_at ON pump_events(created_at);
+
+  -- Título/descrição customizados dos cards de módulo na tela Início —
+  -- título/descrição em branco = usa o padrão (ver MODULE_META no front).
+  -- Só dono edita (tela Início, botão de lápis no card); todo mundo lê, pra
+  -- o card mostrar o texto certo pra qualquer usuário.
+  CREATE TABLE IF NOT EXISTS module_card_overrides (
+    module_key TEXT PRIMARY KEY,
+    title TEXT NOT NULL DEFAULT '',
+    description TEXT NOT NULL DEFAULT ''
+  );
 `);
 
 // Última checagem periódica de saúde de cada porteiro (ver

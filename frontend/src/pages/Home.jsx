@@ -1,8 +1,15 @@
 import { useEffect, useState } from 'react';
 import Icon from '../components/Icon.jsx';
 import Ring, { healthPercent } from '../components/Ring.jsx';
+import Modal from '../components/Modal.jsx';
 import { api } from '../api/client.js';
 import { timeAgo } from '../utils/relativeTime.js';
+import { LEVEL_STOPS, currentLevelStop, severityColorVar } from '../utils/pumpLevel.js';
+
+// Mesma lista do util, só em ordem crescente (mínimo primeiro) — as barrinhas
+// do card ficam mais baixas->mais altas da esquerda pra direita.
+const LEVEL_STOPS_ASC = [...LEVEL_STOPS].reverse();
+import { useToast } from '../hooks/useToast.jsx';
 
 function levelFor(percent, { warn = 60, danger = 85 } = {}) {
   if (percent === null || percent === undefined) return 'ok';
@@ -158,6 +165,70 @@ function ActivityFeed({ events }) {
   );
 }
 
+// Editar título/descrição de um card da Início — só dono vê o botão de
+// lápis que abre isso. Em branco = volta a usar o texto padrão do módulo.
+function ModuleCardEditModal({ moduleKey, meta, current, onClose, onSaved }) {
+  const [title, setTitle] = useState(current?.title || '');
+  const [description, setDescription] = useState(current?.description || '');
+  const [saving, setSaving] = useState(false);
+  const toast = useToast();
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      await api.settings.saveModuleCard(moduleKey, { title, description });
+      toast('Card atualizado.');
+      onSaved();
+    } catch (err) {
+      toast(err.message, 'error');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleReset() {
+    setSaving(true);
+    try {
+      await api.settings.saveModuleCard(moduleKey, { title: '', description: '' });
+      toast('Card voltou ao padrão.');
+      onSaved();
+    } catch (err) {
+      toast(err.message, 'error');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal
+      title={`Editar card "${meta.title}"`}
+      onClose={onClose}
+      footer={
+        <>
+          <button className="btn btn-secondary" onClick={handleReset} disabled={saving}>
+            Voltar ao padrão
+          </button>
+          <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
+            {saving ? <span className="spinner" /> : 'Salvar'}
+          </button>
+        </>
+      }
+    >
+      <div className="modal-body">
+        <div className="field">
+          <label className="field-label">Título</label>
+          <input className="input" value={title} onChange={(e) => setTitle(e.target.value)} placeholder={meta.title} />
+        </div>
+        <div className="field">
+          <label className="field-label">Descrição</label>
+          <textarea className="input" rows={3} value={description} onChange={(e) => setDescription(e.target.value)} placeholder={meta.desc} />
+        </div>
+        <span className="field-hint">Deixe os dois em branco e salve pra voltar ao texto padrão. Vale pra todos os usuários que veem esse card.</span>
+      </div>
+    </Modal>
+  );
+}
+
 const MODULE_META = {
   rede: {
     title: 'Rede',
@@ -182,6 +253,14 @@ const MODULE_META = {
     color: 'var(--module-acesso)',
     colorEnd: 'var(--module-acesso-end)',
     glow: 'var(--module-acesso-glow)',
+  },
+  bombas: {
+    title: 'Bombas',
+    icon: 'droplet',
+    desc: 'Nível do poço e status das bombas de rebaixamento — lido direto da IHM, sem precisar abrir a tela.',
+    color: 'var(--module-bombas)',
+    colorEnd: 'var(--module-bombas-end)',
+    glow: 'var(--module-bombas-glow)',
   },
 };
 
@@ -227,11 +306,17 @@ export default function Home({ user, onNavigate, can }) {
   const [redeActivity, setRedeActivity] = useState([]);
   const [interfoneActivity, setInterfoneActivity] = useState([]);
   const [acessoActivity, setAcessoActivity] = useState([]);
+  const [bombasStatus, setBombasStatus] = useState(null);
+  const [bombasTodayCount, setBombasTodayCount] = useState(null);
+  const [cardOverrides, setCardOverrides] = useState({});
+  const [editingCard, setEditingCard] = useState(null);
   const isOwner = user.role === 'owner';
+  const toast = useToast();
 
   const hasRede = Boolean(user.modules?.includes('rede'));
   const hasInterfone = Boolean(user.modules?.includes('interfone'));
   const hasAcesso = Boolean(user.modules?.includes('acesso'));
+  const hasBombas = Boolean(user.modules?.includes('bombas'));
   const canSeeRedeAnalise = Boolean(can?.('rede.analise'));
 
   useEffect(() => {
@@ -367,6 +452,30 @@ export default function Home({ user, onNavigate, can }) {
     return () => clearInterval(id);
   }, [hasAcesso]);
 
+  useEffect(() => {
+    if (!hasBombas) return;
+    function load() {
+      api.pumpStation.status().then(setBombasStatus).catch(() => setBombasStatus(null));
+      api.pumpStation
+        .history(1)
+        .then((h) => setBombasTodayCount(h.activations.length))
+        .catch(() => setBombasTodayCount(null));
+    }
+    load();
+    const id = setInterval(load, POLL_MS);
+    return () => clearInterval(id);
+  }, [hasBombas]);
+
+  // Título/descrição customizados dos cards (botão de lápis, só dono edita)
+  // — carregado pra qualquer usuário, porque o card precisa mostrar o texto
+  // certo pra todo mundo, não só pra quem pode editar.
+  useEffect(() => {
+    api.settings
+      .getModuleCards()
+      .then(setCardOverrides)
+      .catch(() => {});
+  }, []);
+
   // Os "at" de cada fonte vêm em formatos diferentes (ISO com 'Z' da Rede/
   // Interfone, "YYYY-MM-DD HH:MM:SS" sem 'Z' do nosso próprio SQLite pro
   // Acesso) — sem normalizar isso aqui, o navegador interpretaria o do
@@ -425,6 +534,28 @@ export default function Home({ user, onNavigate, can }) {
         stat2: s && offline > 0 ? { value: offline, label: 'ramais offline', color: 'var(--danger-500)' } : null,
       };
     }
+    if (key === 'bombas') {
+      const s = bombasStatus;
+      const points = s?.points || {};
+      const alarm = points.termico1 === true || points.termico2 === true;
+      const stop = currentLevelStop(points);
+      const pumpsOn = ['bomba1', 'bomba2'].filter((k) => points[k] === true).length;
+      return {
+        status: !s
+          ? null
+          : alarm
+          ? { color: 'var(--danger-500)', label: 'alarme' }
+          : stop
+          ? { color: severityColorVar(stop.severity), label: `nível ${stop.label.toLowerCase()}` }
+          : { color: 'var(--text-tertiary)', label: 'abaixo do mínimo' },
+        trendLabel: null,
+        points: null,
+        online: null,
+        total: null,
+        stat1: s ? { value: `${pumpsOn}/2`, label: 'bombas ligadas' } : null,
+        stat2: bombasTodayCount !== null ? { value: `${bombasTodayCount}x`, label: 'ativações hoje' } : null,
+      };
+    }
     // acesso: sem histórico de aberturas guardado no backend, então não
     // fabricamos um gráfico — mas o status/contagem online-offline agora vêm
     // da checagem periódica de saúde (deviceHealthPoller), então é dado real.
@@ -475,6 +606,9 @@ export default function Home({ user, onNavigate, can }) {
             const configured = !needsGateway || Boolean(info?.configured);
             const data = cardDataFor(key, info);
             const spark = configured ? buildSparkline(data.points) : null;
+            const override = cardOverrides[key];
+            const cardTitle = override?.title || meta.title;
+            const cardDesc = override?.description || meta.desc;
 
             function handleClick() {
               // Sem gateway configurado ainda, manda o dono direto pra onde
@@ -510,36 +644,77 @@ export default function Home({ user, onNavigate, can }) {
                 </div>
 
                 <div>
-                  <div className="module-card-title">{meta.title}</div>
-                  <div className="module-card-desc">{meta.desc}</div>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+                    <div className="module-card-title">{cardTitle}</div>
+                    {isOwner && (
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-icon btn-sm"
+                        title="Editar textos deste card"
+                        aria-label="Editar textos deste card"
+                        style={{ flexShrink: 0, marginTop: -2 }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingCard(key);
+                        }}
+                      >
+                        <Icon name="edit" size={14} />
+                      </button>
+                    )}
+                  </div>
+                  <div className="module-card-desc">{cardDesc}</div>
                 </div>
 
-                {spark && (
+                {key === 'bombas' ? (
                   <div className="module-card-trend">
-                    <div className="module-card-trend-label">{data.trendLabel}</div>
-                    <svg viewBox="0 0 100 28" className="module-card-chart" preserveAspectRatio="none">
-                      <defs>
-                        <linearGradient id={`spark-line-${key}`} x1="0" y1="0" x2="1" y2="0">
-                          <stop offset="0%" style={{ stopColor: meta.color }} />
-                          <stop offset="100%" style={{ stopColor: meta.colorEnd }} />
-                        </linearGradient>
-                        <linearGradient id={`spark-area-${key}`} x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" style={{ stopColor: meta.colorEnd }} stopOpacity="0.35" />
-                          <stop offset="100%" style={{ stopColor: meta.colorEnd }} stopOpacity="0" />
-                        </linearGradient>
-                      </defs>
-                      <path d={spark.area} fill={`url(#spark-area-${key})`} stroke="none" />
-                      <path
-                        d={spark.line}
-                        fill="none"
-                        stroke={`url(#spark-line-${key})`}
-                        strokeWidth="2.25"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                      <circle cx={spark.lastX} cy={spark.lastY} r="2.8" style={{ fill: meta.colorEnd }} />
-                    </svg>
+                    <div className="module-card-trend-label">nível atual · 4 boias</div>
+                    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 28 }} aria-hidden="true">
+                      {LEVEL_STOPS_ASC.map((stop, i) => {
+                        const points = bombasStatus?.points || {};
+                        const active = points[stop.key] === true;
+                        return (
+                          <div
+                            key={stop.key}
+                            style={{
+                              width: 5,
+                              height: 10 + i * 6,
+                              borderRadius: '2px 2px 0 0',
+                              background: severityColorVar(stop.severity),
+                              opacity: active ? 1 : 0.3,
+                            }}
+                          />
+                        );
+                      })}
+                    </div>
                   </div>
+                ) : (
+                  spark && (
+                    <div className="module-card-trend">
+                      <div className="module-card-trend-label">{data.trendLabel}</div>
+                      <svg viewBox="0 0 100 28" className="module-card-chart" preserveAspectRatio="none">
+                        <defs>
+                          <linearGradient id={`spark-line-${key}`} x1="0" y1="0" x2="1" y2="0">
+                            <stop offset="0%" style={{ stopColor: meta.color }} />
+                            <stop offset="100%" style={{ stopColor: meta.colorEnd }} />
+                          </linearGradient>
+                          <linearGradient id={`spark-area-${key}`} x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" style={{ stopColor: meta.colorEnd }} stopOpacity="0.35" />
+                            <stop offset="100%" style={{ stopColor: meta.colorEnd }} stopOpacity="0" />
+                          </linearGradient>
+                        </defs>
+                        <path d={spark.area} fill={`url(#spark-area-${key})`} stroke="none" />
+                        <path
+                          d={spark.line}
+                          fill="none"
+                          stroke={`url(#spark-line-${key})`}
+                          strokeWidth="2.25"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                        <circle cx={spark.lastX} cy={spark.lastY} r="2.8" style={{ fill: meta.colorEnd }} />
+                      </svg>
+                    </div>
+                  )
                 )}
 
                 {(data.stat1 || data.stat2) && (
@@ -582,6 +757,19 @@ export default function Home({ user, onNavigate, can }) {
 
         {(hasRede || hasInterfone || hasAcesso) && <ActivityFeed events={activityFeed} />}
       </div>
+
+      {editingCard && (
+        <ModuleCardEditModal
+          moduleKey={editingCard}
+          meta={MODULE_META[editingCard]}
+          current={cardOverrides[editingCard]}
+          onClose={() => setEditingCard(null)}
+          onSaved={() => {
+            setEditingCard(null);
+            api.settings.getModuleCards().then(setCardOverrides).catch(() => {});
+          }}
+        />
+      )}
     </>
   );
 }

@@ -11,6 +11,7 @@ import { brandingRouter } from './routes/branding.js';
 import { manifestRouter } from './routes/manifest.js';
 import { settingsRouter } from './routes/settings.js';
 import { anomalySettingsRouter } from './routes/anomalySettings.js';
+import { moduleCardsRouter } from './routes/moduleCards.js';
 import { pushRouter } from './routes/push.js';
 import { modulesRouter } from './routes/modules.js';
 import { systemRouter } from './routes/system.js';
@@ -52,6 +53,7 @@ app.use('/api/pumpstation', requireAuth, requireModule('bombas'), pumpStationRou
 // casar, e aqui o GET precisa ficar aberto a qualquer usuário autenticado
 // (ver comentário em anomalySettings.js).
 app.use('/api/settings/anomaly', requireAuth, anomalySettingsRouter);
+app.use('/api/settings/module-cards', requireAuth, moduleCardsRouter);
 app.use('/api/settings', requireAuth, requireOwner, settingsRouter);
 app.use('/api/push', requireAuth, pushRouter);
 app.use('/api/system', requireAuth, requireOwner, systemRouter);

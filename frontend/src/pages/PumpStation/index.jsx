@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import Icon from '../../components/Icon.jsx';
 import { api } from '../../api/client.js';
 import { useToast } from '../../hooks/useToast.jsx';
+import { LEVEL_STOPS, fillPercentFor, currentLevelStop, severityColorVar } from '../../utils/pumpLevel.js';
 
 const DEFAULT_POLL_MS = 10000;
 
@@ -158,24 +159,12 @@ function StatusCard({ status, error, loaded, isOwner, onGoToConfig }) {
 // de degrau em degrau — mas continua sendo uma aproximação entre 4 pontos
 // conhecidos, não uma medição contínua de verdade (por isso a legenda com
 // as 4 marcas fica sempre visível, não escondida).
-const TANK_STOPS = [
-  { key: 'nivelSeguranca', percent: 92, label: 'Segurança' },
-  { key: 'nivelMaximo', percent: 72, label: 'Máximo' },
-  { key: 'nivelMedio', percent: 48, label: 'Médio' },
-  { key: 'nivelMinimo', percent: 24, label: 'Mínimo' },
-];
-
-function fillPercentFor(points) {
-  for (const stop of TANK_STOPS) {
-    if (points[stop.key] === true) return stop.percent;
-  }
-  return 6;
-}
-
 function TankVisualization({ status, error, loaded }) {
   if (!loaded || error) return null;
   const points = status?.points || {};
   const fillPercent = fillPercentFor(points);
+  const activeStop = currentLevelStop(points);
+  const waterColorVar = activeStop ? severityColorVar(activeStop.severity) : 'var(--text-tertiary)';
   const pump1On = points.bomba1 === true;
   const pump2On = points.bomba2 === true;
   const anyAlarm = points.termico1 === true || points.termico2 === true;
@@ -212,16 +201,16 @@ function TankVisualization({ status, error, loaded }) {
           </defs>
           <rect x={14} y={tankTop} width={92} height={tankHeight} rx={8} fill="none" stroke="var(--border-strong)" strokeWidth="2" />
           <g clipPath="url(#pump-tank-clip)">
-            <rect className="pump-tank-water" x={14} y={waterY} width={92} height={tankBottom - waterY} fill="var(--module-rede, #4c8dff)" opacity="0.55" />
-            <rect className="pump-tank-water pump-tank-wave" x={0} y={waterY - 3} width={200} height={8} fill="var(--module-rede, #4c8dff)" opacity="0.8" />
+            <rect className="pump-tank-water" x={14} y={waterY} width={92} height={tankBottom - waterY} fill={waterColorVar} opacity="0.55" />
+            <rect className="pump-tank-water pump-tank-wave" x={0} y={waterY - 3} width={200} height={8} fill={waterColorVar} opacity="0.8" />
           </g>
-          {TANK_STOPS.map((stop) => {
+          {LEVEL_STOPS.map((stop) => {
             const y = tankBottom - (stop.percent / 100) * tankHeight;
             const active = points[stop.key] === true;
             return (
               <g key={stop.key}>
                 <line x1={10} x2={110} y1={y} y2={y} stroke="var(--border-subtle)" strokeWidth="1" strokeDasharray="2,3" />
-                <circle cx={10} cy={y} r="3.5" fill={active ? 'var(--success-500)' : 'var(--text-tertiary)'} />
+                <circle cx={10} cy={y} r="3.5" fill={active ? severityColorVar(stop.severity) : 'var(--text-tertiary)'} />
                 <text x={114} y={y} dominantBaseline="middle" fontSize="10.5" style={{ fill: active ? 'var(--text-primary)' : 'var(--text-tertiary)', fontWeight: active ? 700 : 400 }}>
                   {stop.label}
                 </text>
