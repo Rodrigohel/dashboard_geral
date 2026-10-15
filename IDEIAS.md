@@ -125,23 +125,34 @@ começar a implementar. Pedido explícito: **desenhar uma prévia do card primei
 dinâmica já usada pro card de Bombas via Artifact, aprovada antes de implementar de verdade)
 antes de escrever qualquer código.
 
-## Alertas insistentes com prioridade, via Telegram
+## Alertas insistentes com prioridade, via Telegram (+ ligação telefônica)
 Sistema de notificação bem mais robusto que o push PWA que já existe (que hoje só avisa
 porteiro offline e força bruta, pros donos, sem repetição nem prioridade). O que o Rodrigo
-pediu, junto:
+pediu, junto (duas rodadas de pedidos, já mescladas aqui):
 - Mandar mensagem via **Telegram** (bot) quando um alarme dispara, não só push do navegador.
-- Poder marcar quais sinais/alarmes são **prioridade** (ex.: Bombas, Gerador, alguns itens de
-  Rede) vs. não-prioridade — provavelmente um checkbox por sinal em algum lugar da
-  configuração de cada módulo.
-- Pra alarmes de prioridade, **reenviar a mensagem de forma insistente** até alguém
-  resolver — com o **intervalo configurável** (a cada quanto tempo insiste).
+- Poder marcar **equipamentos/sinais como críticos** (ex.: Bombas, Gerador, alguns itens de
+  Rede) vs. não-críticos — provavelmente um checkbox por equipamento/sinal em algum lugar da
+  configuração de cada módulo (sinalização visual de "equipamento crítico" na tela também,
+  não só pra fins de alerta).
+- **Reenviar a mensagem de forma insistente** até alguém resolver, tanto pra itens críticos
+  quanto não-críticos — com **intervalo configurável a cada X tempo** (provavelmente um
+  intervalo diferente pra cada categoria, crítico insiste mais rápido).
 - Poder **responder a mensagem no Telegram** (ex.: "já verifiquei"/"estou verificando") e o
   Portal **parar de insistir** nesse alarme específico a partir daí.
+- **Além do Telegram, ligação telefônica de verdade** pros equipamentos que o Rodrigo
+  habilitar — via **Twilio ou alternativa mais barata** (ele quer só ligação de voz, não
+  SMS/WhatsApp — cotar o que sai mais em conta só pra isso). Se a pessoa **atender a
+  ligação, desliga automático** (atender já conta como reconhecimento/confirmação de que
+  viu o alerta, não precisa dizer nada nem apertar tecla).
 
-Isso implica: um bot do Telegram de verdade (token, chat ID dos destinatários), um endpoint
-recebendo os updates/respostas do bot (webhook ou polling), e algum registro de "alarmes
-ativos reconhecidos vs. não reconhecidos" no banco pra saber quando parar de insistir em cada
-um. Escopo bem maior que uma tela só — avaliar com calma antes de começar.
+Isso implica: um bot do Telegram de verdade (token, chat ID dos destinatários) com endpoint
+recebendo updates/respostas (webhook ou polling); uma conta Twilio (ou similar) configurada
+com número de origem, pra disparar chamadas de voz (TwiML simples, sem IVR — só toca e espera
+atender); e algum registro de "alarmes ativos reconhecidos vs. não reconhecidos" no banco pra
+saber quando parar de insistir (por Telegram) e quando considerar atendido (por telefone) em
+cada alarme. Escopo bem maior que uma tela só — avaliar com calma antes de começar, e cotar
+preço de Twilio vs. alternativas (ex.: outros provedores de voz/SMS) antes de decidir qual
+usar.
 
 ## Bombas: permitir adicionar pontos customizados (não só os fixos)
 Hoje a tela "Bombas → Configuração" só tem os 15 sinais fixos já mapeados (nivelMinimo ...
