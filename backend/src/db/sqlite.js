@@ -329,3 +329,19 @@ for (const point of ['emergencia', 'falta_fase', 'painel_desligado', 'falha_boia
     db.exec(`ALTER TABLE pump_station ADD COLUMN ${point}_type TEXT NOT NULL DEFAULT 'coil'`);
   }
 }
+// "Inverter" por ponto — confirmado em campo que pelo menos um sinal
+// (emergência) vem ao contrário do nome (bit em 1 com tudo normal, 0 só
+// quando aciona — comum em circuito de segurança com contato NF). Como o
+// sentido do contato (NA/NF) varia de instalação pra instalação, isso é
+// configurável por ponto, igual addr/type, em vez de inverter só esses
+// dois fixo no código.
+const pumpStationColumnsAfterPoints = db.prepare('PRAGMA table_info(pump_station)').all().map((c) => c.name);
+for (const point of [
+  'nivel_minimo', 'nivel_medio', 'nivel_maximo', 'nivel_seguranca',
+  'bomba1', 'bomba2', 'termico1', 'termico2', 'modo_manual',
+  'emergencia', 'falta_fase', 'painel_desligado', 'falha_boias', 'bomba1_do_dia', 'bomba2_do_dia',
+]) {
+  if (!pumpStationColumnsAfterPoints.includes(`${point}_invert`)) {
+    db.exec(`ALTER TABLE pump_station ADD COLUMN ${point}_invert INTEGER NOT NULL DEFAULT 0`);
+  }
+}

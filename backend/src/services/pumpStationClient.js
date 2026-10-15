@@ -10,31 +10,42 @@ import ModbusRTU from 'modbus-serial';
 
 const TIMEOUT_MS = 5000;
 
-// Cada "ponto" é { addr, type } — type decide qual função Modbus ler.
-// Coil/discrete voltam array de boolean; holding/input voltam array de
-// number (0/1 também contam como desligado/ligado nesse caso).
+// Cada "ponto" é { addr, type, invert } — type decide qual função Modbus
+// ler. Coil/discrete voltam array de boolean; holding/input voltam array de
+// number (0/1 também contam como desligado/ligado nesse caso). `invert`
+// inverte o booleano final — o sentido do contato (normalmente aberto vs.
+// normalmente fechado) varia de sinal pra sinal e de instalação pra
+// instalação (confirmado em campo: um circuito de segurança com contato NF
+// lê "1" com tudo normal e "0" só quando aciona), então é configurável por
+// ponto em vez de assumido fixo no código.
 async function readPoint(client, point) {
   if (point.addr === null || point.addr === undefined) return null;
   const addr = Number(point.addr);
+  let value;
   switch (point.type) {
     case 'discrete': {
       const r = await client.readDiscreteInputs(addr, 1);
-      return Boolean(r.data[0]);
+      value = Boolean(r.data[0]);
+      break;
     }
     case 'holding': {
       const r = await client.readHoldingRegisters(addr, 1);
-      return Number(r.data[0]) !== 0;
+      value = Number(r.data[0]) !== 0;
+      break;
     }
     case 'input': {
       const r = await client.readInputRegisters(addr, 1);
-      return Number(r.data[0]) !== 0;
+      value = Number(r.data[0]) !== 0;
+      break;
     }
     case 'coil':
     default: {
       const r = await client.readCoils(addr, 1);
-      return Boolean(r.data[0]);
+      value = Boolean(r.data[0]);
+      break;
     }
   }
+  return point.invert ? !value : value;
 }
 
 const POINT_KEYS = [
@@ -84,7 +95,11 @@ export async function readPumpStationStatus(config) {
     }
     return result;
   } catch (err) {
-    throw new Error(`Não consegui alcançar a IHM em ${config.host}:${config.port || 502} (${err.message}).`);
+    // Sem o host/porta na mensagem de propósito: esse erro sobe até
+    // GET /status, que qualquer usuário com o módulo "bombas" (não só quem
+    // edita a configuração) pode ver — IP/porta da IHM é detalhe de
+    // infraestrutura que não deve vazar pra fora da tela de configuração.
+    throw new Error(`Não consegui alcançar a IHM configurada (${err.message}).`);
   } finally {
     try {
       client.close(() => {});

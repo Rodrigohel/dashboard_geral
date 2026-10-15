@@ -24,6 +24,12 @@ const LEVEL_POINTS = [
 const PUMP_POINTS = [
   { key: 'bomba1', label: 'Bomba 1' },
   { key: 'bomba2', label: 'Bomba 2' },
+];
+// À parte de PUMP_POINTS de propósito — na tela de status isso vira UM
+// indicador só ("Bomba do dia: Bomba 1"), não duas linhas sim/não
+// separadas (ver bombaDoDiaLabel). Continuam aqui só pra aparecerem no
+// formulário de configuração (endereço/tipo/inverter de cada um).
+const BOMBA_DO_DIA_POINTS = [
   { key: 'bomba1DoDia', label: 'Bomba 1 é a "do dia"' },
   { key: 'bomba2DoDia', label: 'Bomba 2 é a "do dia"' },
 ];
@@ -36,6 +42,17 @@ const ALARM_POINTS = [
   { key: 'painelDesligado', label: 'Painel de bombas desligado' },
   { key: 'falhaBoias', label: 'Falha nas boias de nível' },
 ];
+
+// Em vez de duas linhas sim/não separadas (bomba1DoDia, bomba2DoDia), um
+// indicador só dizendo qual bomba é a líder do rodízio agora.
+function bombaDoDiaLabel(points) {
+  const p1 = points.bomba1DoDia === true;
+  const p2 = points.bomba2DoDia === true;
+  if (p1 && !p2) return 'Bomba 1';
+  if (p2 && !p1) return 'Bomba 2';
+  if (p1 && p2) return 'Bomba 1 e 2';
+  return null;
+}
 
 function PointBadge({ label, value }) {
   if (value === null || value === undefined) {
@@ -118,6 +135,12 @@ function StatusCard({ status, error, loaded, canEditConfig, onGoToConfig }) {
     );
   }
 
+  // Card detalhado (sim/não ponto a ponto) é só pra quem mexe na
+  // configuração — pra usuário comum, o desenho do tanque + alarme (ver
+  // TankVisualization, sempre visível) já cobre o que importa: nível,
+  // bomba ligada, bomba do dia, alarme ativo.
+  if (!canEditConfig) return null;
+
   const points = status?.points || {};
 
   return (
@@ -142,6 +165,16 @@ function StatusCard({ status, error, loaded, canEditConfig, onGoToConfig }) {
           {PUMP_POINTS.map((p) => (
             <PointBadge key={p.key} label={p.label} value={points[p.key]} />
           ))}
+          <div className="service-row">
+            <span>Bomba do dia</span>
+            {bombaDoDiaLabel(points) ? (
+              <span className="badge badge-neutral">
+                <span className="badge-dot" /> {bombaDoDiaLabel(points)}
+              </span>
+            ) : (
+              <span className="field-hint">não identificada</span>
+            )}
+          </div>
         </div>
         <div className="status-col">
           <div className="nav-subitem-label" style={{ marginBottom: 4 }}>
@@ -171,6 +204,7 @@ function TankVisualization({ status, error, loaded }) {
   const fillPercent = fillPercentFor(points);
   const activeStop = currentLevelStop(points);
   const waterColorVar = activeStop ? severityColorVar(activeStop.severity) : 'var(--text-tertiary)';
+  const bombaDoDia = bombaDoDiaLabel(points);
   const pump1On = points.bomba1 === true;
   const pump2On = points.bomba2 === true;
   const anyAlarm =
@@ -235,20 +269,26 @@ function TankVisualization({ status, error, loaded }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <Icon name="droplet" size={20} className={pump1On ? 'pump-icon-on' : ''} style={{ color: pump1On ? 'var(--chart-series-1)' : 'var(--text-tertiary)' }} />
             <div>
-              <div style={{ fontWeight: 600, fontSize: 13.5 }}>Bomba 1</div>
+              <div style={{ fontWeight: 600, fontSize: 13.5, display: 'flex', alignItems: 'center', gap: 6 }}>
+                Bomba 1
+                {bombaDoDia === 'Bomba 1' && <span className="badge badge-neutral">do dia</span>}
+              </div>
               <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{pump1On ? 'ligada agora' : 'desligada'}</div>
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <Icon name="droplet" size={20} className={pump2On ? 'pump-icon-on' : ''} style={{ color: pump2On ? 'var(--chart-series-2)' : 'var(--text-tertiary)' }} />
             <div>
-              <div style={{ fontWeight: 600, fontSize: 13.5 }}>Bomba 2</div>
+              <div style={{ fontWeight: 600, fontSize: 13.5, display: 'flex', alignItems: 'center', gap: 6 }}>
+                Bomba 2
+                {bombaDoDia === 'Bomba 2' && <span className="badge badge-neutral">do dia</span>}
+              </div>
               <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{pump2On ? 'ligada agora' : 'desligada'}</div>
             </div>
           </div>
           {anyAlarm && (
             <div className="badge badge-danger" style={{ width: 'fit-content' }}>
-              <span className="badge-dot" /> alarme de térmico ativo
+              <span className="badge-dot" /> alarme ativo
             </div>
           )}
         </div>
@@ -263,6 +303,12 @@ function TankVisualization({ status, error, loaded }) {
 // showAdvanced em ConfigCard). Sem isso, ninguém de fora de TI tinha ideia
 // do que "FC1/FC3/holding register" significava.
 function PointField({ label, point, showAdvanced, onChange }) {
+  const invertRow = (
+    <label className="checkbox-row" style={{ marginTop: 4 }}>
+      <input type="checkbox" checked={Boolean(point.invert)} onChange={(e) => onChange({ ...point, invert: e.target.checked })} />
+      <span className="field-hint">Inverter valor lido (contato normalmente fechado — vem "ligado" em repouso)</span>
+    </label>
+  );
   if (!showAdvanced) {
     return (
       <div className="field">
@@ -274,37 +320,41 @@ function PointField({ label, point, showAdvanced, onChange }) {
           placeholder="ex.: 103"
           onChange={(e) => onChange({ ...point, addr: e.target.value === '' ? null : Number(e.target.value) })}
         />
+        {invertRow}
       </div>
     );
   }
   return (
-    <div className="grid-2">
-      <div className="field">
-        <label className="field-label">{label} — endereço</label>
-        <input
-          className="input"
-          type="number"
-          value={point.addr ?? ''}
-          placeholder="ex.: 103"
-          onChange={(e) => onChange({ ...point, addr: e.target.value === '' ? null : Number(e.target.value) })}
-        />
+    <div className="field">
+      <div className="grid-2">
+        <div className="field">
+          <label className="field-label">{label} — endereço</label>
+          <input
+            className="input"
+            type="number"
+            value={point.addr ?? ''}
+            placeholder="ex.: 103"
+            onChange={(e) => onChange({ ...point, addr: e.target.value === '' ? null : Number(e.target.value) })}
+          />
+        </div>
+        <div className="field">
+          <label className="field-label">{label} — tipo de registrador</label>
+          <select className="select" value={point.type} onChange={(e) => onChange({ ...point, type: e.target.value })}>
+            {REG_TYPES.map((t) => (
+              <option key={t.value} value={t.value}>
+                {t.label}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
-      <div className="field">
-        <label className="field-label">{label} — tipo de registrador</label>
-        <select className="select" value={point.type} onChange={(e) => onChange({ ...point, type: e.target.value })}>
-          {REG_TYPES.map((t) => (
-            <option key={t.value} value={t.value}>
-              {t.label}
-            </option>
-          ))}
-        </select>
-      </div>
+      {invertRow}
     </div>
   );
 }
 
-const EMPTY_POINT = { addr: null, type: 'coil' };
-const ALL_POINT_KEYS = [...LEVEL_POINTS, ...PUMP_POINTS, ...ALARM_POINTS].map((p) => p.key);
+const EMPTY_POINT = { addr: null, type: 'coil', invert: false };
+const ALL_POINT_KEYS = [...LEVEL_POINTS, ...PUMP_POINTS, ...BOMBA_DO_DIA_POINTS, ...ALARM_POINTS].map((p) => p.key);
 
 function ConfigCard({ configId }) {
   const [enabled, setEnabled] = useState(false);
@@ -458,7 +508,7 @@ function ConfigCard({ configId }) {
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           {ALL_POINT_KEYS.map((key) => {
-            const meta = [...LEVEL_POINTS, ...PUMP_POINTS, ...ALARM_POINTS].find((p) => p.key === key);
+            const meta = [...LEVEL_POINTS, ...PUMP_POINTS, ...BOMBA_DO_DIA_POINTS, ...ALARM_POINTS].find((p) => p.key === key);
             return (
               <PointField
                 key={key}
