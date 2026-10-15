@@ -301,6 +301,15 @@ export default function Sidebar({ branding, view, onNavigate, onOpenDevice, can,
               ))}
             </>
           )}
+          {/* Quem não é dono mas tem alguma permissão fina de "usuarios.*"
+              (ver RBAC em config.js) ganha só o atalho de Usuários — Auditoria
+              e Saúde do servidor continuam só-dono. */}
+          {!isOwner && can('usuarios.ver') && (
+            <>
+              <div className="nav-section-label">Administração</div>
+              <NavButton item={ADMIN_ITEMS[0]} active={view === 'usuarios'} onNavigate={onNavigate} />
+            </>
+          )}
         </nav>
       </aside>
     </>

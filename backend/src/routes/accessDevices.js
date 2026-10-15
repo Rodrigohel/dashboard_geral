@@ -2,7 +2,7 @@ import { Router } from 'express';
 import multer from 'multer';
 import { db } from '../db/sqlite.js';
 import { encryptSecret, decryptSecret } from '../services/cryptoService.js';
-import { requireOwner, requireDeviceAccess, requireDeviceOpenAccess } from '../middleware/auth.js';
+import { requireDeviceAccess, requireDeviceOpenAccess, requirePermission, requireAnyPermission } from '../middleware/auth.js';
 import * as deviceApi from '../services/accessControlClient.js';
 import * as segplaceClient from '../services/segplaceClient.js';
 import * as cameraClient from '../services/cameraClient.js';
@@ -105,7 +105,7 @@ function getDeviceOr404(req, res) {
 // formulário "Novo equipamento" pra deixar o dono escolher qual portão
 // (a conta pode ter mais de um) essa linha do Portal vai representar, sem
 // precisar adivinhar o "id" interno da Segplace.
-accessDevicesRouter.post('/segplace/discover', requireOwner, async (req, res) => {
+accessDevicesRouter.post('/segplace/discover', requirePermission('acesso.equipamentos.incluir'), async (req, res) => {
   const { username, password } = req.body || {};
   if (!username || !password) {
     return res.status(400).json({ error: 'Usuário e senha do Segplace são obrigatórios' });
@@ -118,7 +118,10 @@ accessDevicesRouter.post('/segplace/discover', requireOwner, async (req, res) =>
   }
 });
 
-// --- CRUD do cadastro do equipamento (só owner) ---
+// --- CRUD do cadastro do equipamento — "ver" (GET) é implícito por já ter
+// o módulo + estar liberado em device_permissions (visibleDevices já filtra
+// isso); incluir/editar/excluir é que viraram permissão fina por usuário em
+// vez de só-dono. ---
 
 accessDevicesRouter.get('/', (req, res) => {
   res.json(
@@ -126,7 +129,7 @@ accessDevicesRouter.get('/', (req, res) => {
   );
 });
 
-accessDevicesRouter.post('/', requireOwner, (req, res) => {
+accessDevicesRouter.post('/', requirePermission('acesso.equipamentos.incluir'), (req, res) => {
   let {
     name,
     location,
@@ -190,7 +193,7 @@ accessDevicesRouter.post('/', requireOwner, (req, res) => {
   res.status(201).json(serializeDevice(db.prepare('SELECT * FROM access_devices WHERE id = ?').get(info.lastInsertRowid)));
 });
 
-accessDevicesRouter.put('/:id', requireOwner, (req, res) => {
+accessDevicesRouter.put('/:id', requirePermission('acesso.equipamentos.editar'), (req, res) => {
   const device = getDeviceOr404(req, res);
   if (!device) return;
   let {
@@ -251,14 +254,14 @@ accessDevicesRouter.put('/:id', requireOwner, (req, res) => {
   res.json(serializeDevice(db.prepare('SELECT * FROM access_devices WHERE id = ?').get(device.id)));
 });
 
-accessDevicesRouter.delete('/:id', requireOwner, (req, res) => {
+accessDevicesRouter.delete('/:id', requirePermission('acesso.equipamentos.excluir'), (req, res) => {
   const device = getDeviceOr404(req, res);
   if (!device) return;
   db.prepare('DELETE FROM access_devices WHERE id = ?').run(device.id);
   res.status(204).end();
 });
 
-accessDevicesRouter.post('/:id/test-connection', requireOwner, async (req, res) => {
+accessDevicesRouter.post('/:id/test-connection', requirePermission('acesso.equipamentos.editar'), async (req, res) => {
   const device = getDeviceOr404(req, res);
   if (!device) return;
   try {
@@ -333,9 +336,10 @@ accessDevicesRouter.get('/search-users', async (req, res) => {
   res.json({ results, errors });
 });
 
-// --- Usuários dentro do equipamento (liberado a quem tem device_permissions) ---
+// --- Moradores dentro do equipamento — precisa de device_permissions (qual
+// equipamento) E da permissão fina certa (o que pode fazer nele). ---
 
-accessDevicesRouter.get('/:deviceId/users', requireDeviceAccess, async (req, res) => {
+accessDevicesRouter.get('/:deviceId/users', requireDeviceAccess, requirePermission('acesso.moradores.ver'), async (req, res) => {
   const device = getDeviceOr404({ params: { id: req.params.deviceId } }, res);
   if (!device) return;
   try {
@@ -346,7 +350,7 @@ accessDevicesRouter.get('/:deviceId/users', requireDeviceAccess, async (req, res
   }
 });
 
-accessDevicesRouter.post('/:deviceId/users', requireDeviceAccess, async (req, res) => {
+accessDevicesRouter.post('/:deviceId/users', requireDeviceAccess, requirePermission('acesso.moradores.incluir'), async (req, res) => {
   const device = getDeviceOr404({ params: { id: req.params.deviceId } }, res);
   if (!device) return;
   const { name, registration, password, cardNumber, expiration, apartment } = req.body || {};
@@ -366,7 +370,7 @@ accessDevicesRouter.post('/:deviceId/users', requireDeviceAccess, async (req, re
   }
 });
 
-accessDevicesRouter.put('/:deviceId/users/:userId', requireDeviceAccess, async (req, res) => {
+accessDevicesRouter.put('/:deviceId/users/:userId', requireDeviceAccess, requirePermission('acesso.moradores.editar'), async (req, res) => {
   const device = getDeviceOr404({ params: { id: req.params.deviceId } }, res);
   if (!device) return;
   try {
@@ -377,7 +381,7 @@ accessDevicesRouter.put('/:deviceId/users/:userId', requireDeviceAccess, async (
   }
 });
 
-accessDevicesRouter.delete('/:deviceId/users/:userId', requireDeviceAccess, async (req, res) => {
+accessDevicesRouter.delete('/:deviceId/users/:userId', requireDeviceAccess, requirePermission('acesso.moradores.excluir'), async (req, res) => {
   const device = getDeviceOr404({ params: { id: req.params.deviceId } }, res);
   if (!device) return;
   try {
@@ -388,19 +392,25 @@ accessDevicesRouter.delete('/:deviceId/users/:userId', requireDeviceAccess, asyn
   }
 });
 
-accessDevicesRouter.post('/:deviceId/users/:userId/photo', requireDeviceAccess, upload.single('photo'), async (req, res) => {
-  const device = getDeviceOr404({ params: { id: req.params.deviceId } }, res);
-  if (!device) return;
-  if (!req.file) return res.status(400).json({ error: 'Envie um arquivo de foto (campo "photo")' });
-  try {
-    await deviceApi.setUserPhoto(device, decryptSecret(device.device_password_enc), req.params.userId, req.file.buffer, req.file.mimetype);
-    res.status(204).end();
-  } catch (err) {
-    res.status(502).json({ error: `Não foi possível enviar a foto: ${err.message}` });
+accessDevicesRouter.post(
+  '/:deviceId/users/:userId/photo',
+  requireDeviceAccess,
+  requireAnyPermission('acesso.moradores.incluir', 'acesso.moradores.editar'),
+  upload.single('photo'),
+  async (req, res) => {
+    const device = getDeviceOr404({ params: { id: req.params.deviceId } }, res);
+    if (!device) return;
+    if (!req.file) return res.status(400).json({ error: 'Envie um arquivo de foto (campo "photo")' });
+    try {
+      await deviceApi.setUserPhoto(device, decryptSecret(device.device_password_enc), req.params.userId, req.file.buffer, req.file.mimetype);
+      res.status(204).end();
+    } catch (err) {
+      res.status(502).json({ error: `Não foi possível enviar a foto: ${err.message}` });
+    }
   }
-});
+);
 
-accessDevicesRouter.get('/:deviceId/users/:userId/photo', requireDeviceAccess, async (req, res) => {
+accessDevicesRouter.get('/:deviceId/users/:userId/photo', requireDeviceAccess, requirePermission('acesso.moradores.ver'), async (req, res) => {
   const device = getDeviceOr404({ params: { id: req.params.deviceId } }, res);
   if (!device) return;
   try {

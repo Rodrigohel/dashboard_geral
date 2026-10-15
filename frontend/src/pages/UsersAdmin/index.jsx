@@ -13,14 +13,49 @@ const MODULE_LABELS = {
   bombas: 'Bombas',
   'rede.plantaBaixa': 'Rede: planta baixa',
   'rede.analise': 'Rede: análise',
+  'acesso.equipamentos.incluir': 'Equipamentos: incluir',
+  'acesso.equipamentos.editar': 'Equipamentos: editar',
+  'acesso.equipamentos.excluir': 'Equipamentos: excluir',
+  'acesso.moradores.ver': 'Moradores: ver',
+  'acesso.moradores.incluir': 'Moradores: incluir',
+  'acesso.moradores.editar': 'Moradores: editar',
+  'acesso.moradores.excluir': 'Moradores: excluir',
+  'bombas.editar': 'Bombas: editar',
+  'usuarios.ver': 'Usuários: ver',
+  'usuarios.incluir': 'Usuários: incluir',
+  'usuarios.editar': 'Usuários: editar',
+  'usuarios.excluir': 'Usuários: excluir',
 };
 // Lista fixa (não vem da API) só pra mostrar o "Tudo" do dono como uma
 // lista explícita de badges, igual a um usuário comum totalmente liberado
 // — o dono nunca tem essas linhas na tabela `permissions` (ele passa direto
 // por role), então não dá pra ler isso de `u.modules`.
-const ALL_PERMISSIONS = ['rede', 'rede.plantaBaixa', 'rede.analise', 'interfone', 'acesso', 'bombas'];
+const ALL_PERMISSIONS = [
+  'rede',
+  'rede.plantaBaixa',
+  'rede.analise',
+  'interfone',
+  'acesso',
+  'acesso.equipamentos.incluir',
+  'acesso.equipamentos.editar',
+  'acesso.equipamentos.excluir',
+  'acesso.moradores.ver',
+  'acesso.moradores.incluir',
+  'acesso.moradores.editar',
+  'acesso.moradores.excluir',
+  'bombas',
+  'bombas.editar',
+  'usuarios.ver',
+  'usuarios.incluir',
+  'usuarios.editar',
+  'usuarios.excluir',
+];
 
-export default function UsersAdmin({ currentUserId }) {
+export default function UsersAdmin({ currentUserId, isOwner, can }) {
+  const canCreate = isOwner || can('usuarios.incluir');
+  const canEditUsers = isOwner || can('usuarios.editar');
+  const canDeleteUsers = isOwner || can('usuarios.excluir');
+
   const [users, setUsers] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null);
@@ -63,9 +98,11 @@ export default function UsersAdmin({ currentUserId }) {
           <h1>Usuários do Portal</h1>
           <p>Quem pode entrar e o que cada um enxerga.</p>
         </div>
-        <button className="btn btn-primary" onClick={() => setShowForm(true)}>
-          <Icon name="plus" size={16} /> Novo usuário
-        </button>
+        {canCreate && (
+          <button className="btn btn-primary" onClick={() => setShowForm(true)}>
+            <Icon name="plus" size={16} /> Novo usuário
+          </button>
+        )}
       </div>
 
       {users === null ? (
@@ -111,17 +148,24 @@ export default function UsersAdmin({ currentUserId }) {
                   </td>
                   <td>
                     <div className="row-actions">
-                      <button className="btn btn-ghost btn-icon btn-sm" onClick={() => { setEditing(u); setShowForm(true); }} title="Editar">
-                        <Icon name="edit" size={15} />
-                      </button>
-                      <button
-                        className="btn btn-ghost btn-icon btn-sm"
-                        onClick={() => setDeleting(u)}
-                        disabled={u.id === currentUserId}
-                        title={u.id === currentUserId ? 'Você não pode excluir a própria conta' : 'Excluir'}
-                      >
-                        <Icon name="trash" size={15} />
-                      </button>
+                      {/* Quem não é dono nunca pode mexer numa conta de administrador
+                          (owner) — o backend bloqueia (assertNotTargetingOwner), então
+                          nem mostra o botão aqui. */}
+                      {canEditUsers && (isOwner || u.role !== 'owner') && (
+                        <button className="btn btn-ghost btn-icon btn-sm" onClick={() => { setEditing(u); setShowForm(true); }} title="Editar">
+                          <Icon name="edit" size={15} />
+                        </button>
+                      )}
+                      {canDeleteUsers && (isOwner || u.role !== 'owner') && (
+                        <button
+                          className="btn btn-ghost btn-icon btn-sm"
+                          onClick={() => setDeleting(u)}
+                          disabled={u.id === currentUserId}
+                          title={u.id === currentUserId ? 'Você não pode excluir a própria conta' : 'Excluir'}
+                        >
+                          <Icon name="trash" size={15} />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -135,6 +179,8 @@ export default function UsersAdmin({ currentUserId }) {
         <UserFormModal
           user={editing}
           currentUserId={currentUserId}
+          isOwner={isOwner}
+          can={can}
           onClose={() => { setShowForm(false); setEditing(null); }}
           onSave={handleSave}
         />

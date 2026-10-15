@@ -102,14 +102,14 @@ export default function App() {
         );
       case 'acesso':
         return can('acesso') ? (
-          <AccessControl isOwner={isOwner} initialDevice={acessoDevice} onInitialDeviceHandled={() => setAcessoDevice(null)} />
+          <AccessControl isOwner={isOwner} can={can} initialDevice={acessoDevice} onInitialDeviceHandled={() => setAcessoDevice(null)} />
         ) : (
           <NoAccess />
         );
       case 'bombas':
-        return can('bombas') ? <PumpStation isOwner={isOwner} /> : <NoAccess />;
+        return can('bombas') ? <PumpStation isOwner={isOwner} can={can} /> : <NoAccess />;
       case 'usuarios':
-        return isOwner ? <UsersAdmin currentUserId={user.id} /> : <NoAccess />;
+        return isOwner || can('usuarios.ver') ? <UsersAdmin currentUserId={user.id} isOwner={isOwner} can={can} /> : <NoAccess />;
       case 'servidor':
         return isOwner ? <ServerHealth /> : <NoAccess />;
       case 'auditoria':

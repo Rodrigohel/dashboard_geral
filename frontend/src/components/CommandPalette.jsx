@@ -48,7 +48,10 @@ export default function CommandPalette({ open, onClose, can, isOwner, onNavigate
     const needle = query.trim().toLowerCase();
     const matches = (s) => !needle || (s || '').toLowerCase().includes(needle);
 
-    const pageResults = PAGES.filter((p) => (p.ownerOnly ? isOwner : !p.module || can(p.module)))
+    const pageResults = PAGES.filter((p) => {
+      if (p.key === 'usuarios') return isOwner || can('usuarios.ver');
+      return p.ownerOnly ? isOwner : !p.module || can(p.module);
+    })
       .filter((p) => matches(p.label))
       .map((p) => ({ id: `page-${p.key}`, icon: p.icon, title: p.label, subtitle: 'Página', onSelect: () => onNavigate(p.key) }));
 

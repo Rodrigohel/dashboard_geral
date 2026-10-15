@@ -47,4 +47,35 @@ export const MODULE_KEYS = ['rede', 'interfone', 'acesso', 'bombas'];
 // Cadastro/edição/exclusão de equipamento não é feito pelo Portal (só
 // consulta) — por isso não existe "rede.dispositivos" aqui: isso é feito
 // direto no painel de Rede original.
-export const FEATURE_KEYS = ['rede.plantaBaixa', 'rede.analise'];
+//
+// "acesso.equipamentos.*"/"acesso.moradores.*"/"bombas.editar" seguem o
+// mesmo formato, pra dar controle fino (ver/incluir/editar/excluir) em vez
+// de só "tem o módulo ou não tem" — hoje cadastrar/editar/excluir um
+// equipamento de acesso ou mexer na configuração da casa de bombas é
+// sempre só-dono; essas chaves é que passam a controlar isso por usuário.
+// Não existe "acesso.equipamentos.ver" de propósito: quem já vê o
+// equipamento (módulo "acesso" + liberado em device_permissions) já pode
+// listar/olhar ele — criar uma chave de "ver" separada seria um segundo
+// portão redundante pro mesmo "sim" que já existe hoje.
+//
+// "usuarios.*" é diferente dos outros: não tem módulo pai (a tela
+// Usuários nunca foi um módulo escolhível no menu, sempre foi só-dono) —
+// por isso NÃO leva ponto antes de "usuarios" aqui, e setPermissions()
+// em users.js sabe que uma chave assim não precisa de um módulo pai
+// marcado junto (só os com prefixo rede./acesso./bombas. precisam).
+export const FEATURE_KEYS = [
+  'rede.plantaBaixa',
+  'rede.analise',
+  'acesso.equipamentos.incluir',
+  'acesso.equipamentos.editar',
+  'acesso.equipamentos.excluir',
+  'acesso.moradores.ver',
+  'acesso.moradores.incluir',
+  'acesso.moradores.editar',
+  'acesso.moradores.excluir',
+  'bombas.editar',
+  'usuarios.ver',
+  'usuarios.incluir',
+  'usuarios.editar',
+  'usuarios.excluir',
+];
