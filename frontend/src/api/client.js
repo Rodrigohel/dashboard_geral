@@ -96,6 +96,13 @@ export const api = {
       // JSON — e um <img src="..."> puro não manda o header Authorization,
       // por isso buscamos com fetch manual e viramos um blob URL local.
       getPhotoBlobUrl: async (deviceId, userId) => {
+        const blob = await api.accessDevices.users.getPhotoBlob(deviceId, userId);
+        return URL.createObjectURL(blob);
+      },
+      // Mesmo endpoint acima, mas devolvendo o Blob cru em vez do object
+      // URL — usado quando a foto vai ser reenviada pra OUTRO equipamento
+      // (ver "Liberar em outro equipamento"), não só exibida na tela.
+      getPhotoBlob: async (deviceId, userId) => {
         const token = getToken();
         const res = await fetch(`/api/access/devices/${deviceId}/users/${userId}/photo`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -109,8 +116,7 @@ export const api = {
           }
           throw new Error(message);
         }
-        const blob = await res.blob();
-        return URL.createObjectURL(blob);
+        return res.blob();
       },
     },
   },
