@@ -8,6 +8,20 @@ export function recordPumpStationEvent(pointKey, state) {
   db.prepare('INSERT INTO pump_events (point_key, state) VALUES (?, ?)').run(pointKey, state ? 1 : 0);
 }
 
+// Foto completa (todos os pontos) no instante em que uma bomba liga — ver
+// pump_activation_snapshots em sqlite.js e o chamador em
+// pumpStationHistoryPoller.js.
+export function recordPumpActivationSnapshot(points) {
+  db.prepare('INSERT INTO pump_activation_snapshots (points_json) VALUES (?)').run(JSON.stringify(points));
+}
+
+export function getPumpActivationSnapshots(limit = 10) {
+  return db
+    .prepare('SELECT id, points_json, created_at FROM pump_activation_snapshots ORDER BY id DESC LIMIT ?')
+    .all(limit)
+    .map((row) => ({ id: row.id, createdAt: row.created_at, points: JSON.parse(row.points_json) }));
+}
+
 const LEVEL_KEYS = ['nivelMinimo', 'nivelMedio', 'nivelMaximo', 'nivelSeguranca'];
 const PUMP_KEYS = ['bomba1', 'bomba2'];
 
