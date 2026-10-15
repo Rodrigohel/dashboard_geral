@@ -34,7 +34,7 @@ function getRow() {
 function serializeConfig(row) {
   const points = {};
   for (const [key, column] of POINTS) {
-    points[key] = { addr: row[`${column}_addr`], type: row[`${column}_type`] };
+    points[key] = { addr: row[`${column}_addr`], type: row[`${column}_type`], invert: Boolean(row[`${column}_invert`]) };
   }
   return {
     enabled: Boolean(row.enabled),
@@ -49,11 +49,11 @@ function serializeConfig(row) {
 
 const VALID_TYPES = new Set(['coil', 'discrete', 'holding', 'input']);
 
-// GET é liberado pra qualquer usuário do módulo "bombas" (não só dono) —
-// precisa saber os endereços configurados nem que seja só pra ler o status,
-// mas sem exigir acesso de dono só pra isso. A edição (PUT) é só dono, como
-// o resto da configuração de equipamento no Portal.
-pumpStationRouter.get('/config', (req, res) => {
+// IP/porta/unitId/endereços Modbus são detalhe de instalação (infra crítica)
+// — só quem tem bombas.editar (dono ou liberado) precisa ver isso. Quem só
+// acompanha o status (módulo "bombas" comum) usa GET /status, que já devolve
+// só nome/pollSeconds/valores — nunca os detalhes de configuração.
+pumpStationRouter.get('/config', requirePermission('bombas.editar'), (req, res) => {
   res.json(serializeConfig(getRow()));
 });
 
@@ -83,11 +83,13 @@ pumpStationRouter.put('/config', requirePermission('bombas.editar'), (req, res) 
     const incoming = body.points?.[key];
     const existingAddr = row[`${column}_addr`];
     const existingType = row[`${column}_type`];
+    const existingInvert = row[`${column}_invert`];
     const addrRaw = incoming?.addr;
     const addr = addrRaw === '' || addrRaw === null || addrRaw === undefined ? null : Number(addrRaw);
     const type = incoming?.type && VALID_TYPES.has(incoming.type) ? incoming.type : existingType;
-    assignments.push(`${column}_addr = ?`, `${column}_type = ?`);
-    values.push(incoming ? addr : existingAddr, type);
+    const invert = incoming && incoming.invert !== undefined ? (incoming.invert ? 1 : 0) : existingInvert;
+    assignments.push(`${column}_addr = ?`, `${column}_type = ?`, `${column}_invert = ?`);
+    values.push(incoming ? addr : existingAddr, type, invert);
   }
 
   db.prepare(`UPDATE pump_station SET ${assignments.join(', ')} WHERE id = 1`).run(...values);
