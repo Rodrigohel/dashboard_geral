@@ -219,6 +219,8 @@ export const api = {
     saveRetention: (payload) => request('/api/settings/retention', { method: 'PUT', body: payload }),
     getPush: () => request('/api/settings/push'),
     savePush: (payload) => request('/api/settings/push', { method: 'PUT', body: payload }),
+    getModuleCards: () => request('/api/settings/module-cards'),
+    saveModuleCard: (moduleKey, payload) => request(`/api/settings/module-cards/${moduleKey}`, { method: 'PUT', body: payload }),
   },
 
   push: {

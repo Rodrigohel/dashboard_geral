@@ -40,6 +40,8 @@
   --module-interfone-glow: rgba(45, 212, 191, 0.32);
   --module-acesso: #ec4899;
   --module-acesso-glow: rgba(236, 72, 153, 0.32);
+  --module-bombas: #6366f1;
+  --module-bombas-glow: rgba(99, 102, 241, 0.32);
 
   /* Segunda parada de cor pra gradiente dos gráficos de cada módulo — só
      decorativo (sparkline, linha de tendência), nunca usado sozinho pra
@@ -47,6 +49,16 @@
   --module-rede-end: #8b5cf6;
   --module-interfone-end: #4c8dff;
   --module-acesso-end: #f59e0b;
+  --module-bombas-end: #22d3ee;
+
+  /* Rampa de severidade das 4 boias da casa de bombas (mínimo -> segurança)
+     — verde/normal até vermelho/crítico, mesma lógica de "status" (bom/
+     atenção/sério/crítico) já usada nos badges online-offline do Portal,
+     só com um degrau a mais no meio pra render a transição mais suave. */
+  --level-1: #22c55e;
+  --level-2: #a3c93a;
+  --level-3: #f0973a;
+  --level-4: #ef4444;
 
   /* Gradientes só dos gráficos de análise (Rede/Interfone) — decorativo,
      pedido explicitamente pelo cliente pra ficar mais vivo que uma cor só.
