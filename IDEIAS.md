@@ -112,3 +112,48 @@ HIPÓTESE, não confirmada: se a API dos porteiros (XPE3200/SS3532MF) expuser ev
 reconhecimento facial (não só abrir porta), dava pra mostrar um feed tipo "Fulano passou pela
 portaria às 14:32" ao vivo no Portal. Precisa descobrir primeiro se o equipamento realmente
 expõe esse evento via API — não é garantido.
+
+## Módulo "Gerador" (grupo gerador de energia)
+Novo módulo nativo, mesmo padrão do módulo Bombas: card na Início + tela própria, endereço de
+comunicação configurável (protocolo ainda não confirmado — provavelmente Modbus TCP via algum
+controlador/IHM do gerador, igual Bombas lê a IHM Weintek em vez do LOGO direto, mas isso
+precisa ser descoberto, não é garantido que seja a mesma coisa). Informações que o Rodrigo
+quer no card: se o gerador está pronto (em condições de entrar em operação) ou não, e se tem
+alguma falha. O Rodrigo mencionou já ter mandado um "modelo"/especificação do gerador numa
+conversa anterior — não está disponível nesta sessão, perguntar/pedir de novo antes de
+começar a implementar. Pedido explícito: **desenhar uma prévia do card primeiro** (mesma
+dinâmica já usada pro card de Bombas via Artifact, aprovada antes de implementar de verdade)
+antes de escrever qualquer código.
+
+## Alertas insistentes com prioridade, via Telegram
+Sistema de notificação bem mais robusto que o push PWA que já existe (que hoje só avisa
+porteiro offline e força bruta, pros donos, sem repetição nem prioridade). O que o Rodrigo
+pediu, junto:
+- Mandar mensagem via **Telegram** (bot) quando um alarme dispara, não só push do navegador.
+- Poder marcar quais sinais/alarmes são **prioridade** (ex.: Bombas, Gerador, alguns itens de
+  Rede) vs. não-prioridade — provavelmente um checkbox por sinal em algum lugar da
+  configuração de cada módulo.
+- Pra alarmes de prioridade, **reenviar a mensagem de forma insistente** até alguém
+  resolver — com o **intervalo configurável** (a cada quanto tempo insiste).
+- Poder **responder a mensagem no Telegram** (ex.: "já verifiquei"/"estou verificando") e o
+  Portal **parar de insistir** nesse alarme específico a partir daí.
+
+Isso implica: um bot do Telegram de verdade (token, chat ID dos destinatários), um endpoint
+recebendo os updates/respostas do bot (webhook ou polling), e algum registro de "alarmes
+ativos reconhecidos vs. não reconhecidos" no banco pra saber quando parar de insistir em cada
+um. Escopo bem maior que uma tela só — avaliar com calma antes de começar.
+
+## Bombas: permitir adicionar pontos customizados (não só os fixos)
+Hoje a tela "Bombas → Configuração" só tem os 15 sinais fixos já mapeados (nivelMinimo ...
+bomba2DoDia, ver `docs/casa-de-bombas.md`) — cada sinal novo exige mexer no código
+(`pump_station` no schema, `POINTS` nas três rotas/serviços, os componentes React). O Rodrigo
+quer poder **adicionar um sinal novo sozinho, sem deploy**, direto na tela: ex. "Entrada I11 →
+LB00120, nome: Bomba Reserva". Pedido explícito de fazer em duas fases:
+1. **Agora**: só a parte de dados — conseguir adicionar/nomear/configurar (endereço + tipo +
+   inverter) um ponto extra qualquer, mesmo que ele apareça de forma genérica/crua na tela de
+   status (sem desenho específico, só um nome + sim/não).
+2. **Depois** (não agora): alguém faz a parte gráfica bonita desses campos extras.
+Arquiteturalmente isso significa trocar o esquema fixo (uma coluna addr/type/invert por sinal
+nomeado) por uma lista dinâmica de pontos — provavelmente uma tabela nova
+(`pump_station_custom_points` ou similar) em vez de colunas fixas, já que não dá pra prever
+quantos campos custom vão existir.
