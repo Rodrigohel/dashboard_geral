@@ -24,11 +24,17 @@ const LEVEL_POINTS = [
 const PUMP_POINTS = [
   { key: 'bomba1', label: 'Bomba 1' },
   { key: 'bomba2', label: 'Bomba 2' },
+  { key: 'bomba1DoDia', label: 'Bomba 1 é a "do dia"' },
+  { key: 'bomba2DoDia', label: 'Bomba 2 é a "do dia"' },
 ];
 const ALARM_POINTS = [
   { key: 'termico1', label: 'Térmico bomba 1 desarmado' },
   { key: 'termico2', label: 'Térmico bomba 2 desarmado' },
   { key: 'modoManual', label: 'Modo manual (não automático)' },
+  { key: 'emergencia', label: 'Emergência acionada' },
+  { key: 'faltaFase', label: 'Falta de fase na rede elétrica' },
+  { key: 'painelDesligado', label: 'Painel de bombas desligado' },
+  { key: 'falhaBoias', label: 'Falha nas boias de nível' },
 ];
 
 function PointBadge({ label, value }) {
@@ -167,7 +173,13 @@ function TankVisualization({ status, error, loaded }) {
   const waterColorVar = activeStop ? severityColorVar(activeStop.severity) : 'var(--text-tertiary)';
   const pump1On = points.bomba1 === true;
   const pump2On = points.bomba2 === true;
-  const anyAlarm = points.termico1 === true || points.termico2 === true;
+  const anyAlarm =
+    points.termico1 === true ||
+    points.termico2 === true ||
+    points.emergencia === true ||
+    points.faltaFase === true ||
+    points.painelDesligado === true ||
+    points.falhaBoias === true;
 
   const tankTop = 20;
   const tankBottom = 220;

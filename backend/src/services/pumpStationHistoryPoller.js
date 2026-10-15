@@ -14,6 +14,12 @@ const POINTS = [
   ['termico1', 'termico1'],
   ['termico2', 'termico2'],
   ['modoManual', 'modo_manual'],
+  ['emergencia', 'emergencia'],
+  ['faltaFase', 'falta_fase'],
+  ['painelDesligado', 'painel_desligado'],
+  ['falhaBoias', 'falha_boias'],
+  ['bomba1DoDia', 'bomba1_do_dia'],
+  ['bomba2DoDia', 'bomba2_do_dia'],
 ];
 
 function getConfig() {

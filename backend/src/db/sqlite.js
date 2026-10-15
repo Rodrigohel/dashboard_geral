@@ -320,3 +320,12 @@ const pumpStationColumns = db.prepare('PRAGMA table_info(pump_station)').all().m
 if (!pumpStationColumns.includes('poll_seconds')) {
   db.exec('ALTER TABLE pump_station ADD COLUMN poll_seconds INTEGER NOT NULL DEFAULT 10');
 }
+// 6 pontos novos identificados na planilha real de Data Transfer da IHM
+// (emergência, falta de fase, painel desligado, falha das boias, qual
+// bomba é "a do dia" de cada uma) — além dos 9 já existentes acima.
+for (const point of ['emergencia', 'falta_fase', 'painel_desligado', 'falha_boias', 'bomba1_do_dia', 'bomba2_do_dia']) {
+  if (!pumpStationColumns.includes(`${point}_addr`)) {
+    db.exec(`ALTER TABLE pump_station ADD COLUMN ${point}_addr INTEGER`);
+    db.exec(`ALTER TABLE pump_station ADD COLUMN ${point}_type TEXT NOT NULL DEFAULT 'coil'`);
+  }
+}
