@@ -34,9 +34,16 @@ function baseUrlOf(device) {
   return `${scheme}://${device.host}:${device.port}`;
 }
 
-function deriveRegistration(name) {
-  const slug = String(name || 'user').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 12) || 'user';
-  return `${slug}${Math.random().toString(36).slice(2, 6)}`;
+// ID numérico (não um slug com letras) quando a pessoa não digita uma
+// matrícula — confirmado em campo que o próprio equipamento (SS 3532 MF)
+// cadastra usuários criados pela sua própria tela com um "ID Usuário"
+// numérico (ex.: "4070"); um ID com letras, embora aceito no cadastro em
+// si, é inconsistente com o que o equipamento gera sozinho. Usa os 9
+// últimos dígitos do timestamp em ms — só precisa ser único dentro do
+// mesmo equipamento, e colisão no mesmo milissegundo é praticamente
+// impossível no uso real (criação é sempre uma pessoa de cada vez).
+function deriveRegistration() {
+  return String(Date.now()).slice(-9);
 }
 
 // ======================================================================
@@ -381,7 +388,7 @@ async function xpeLegacyUploadPhotoAndCommit(device, plainPassword, item, fileBu
 // de quem só editava outro campo sem redigitá-la).
 function xpeBuildItem(input) {
   return {
-    UserID: input.registration || deriveRegistration(input.name),
+    UserID: input.registration || deriveRegistration(),
     Name: input.name,
     // NÃO é o campo "Termo de validade" (isso é outra coisa, só existe na
     // tela legada — ver xpeLegacySetValiditySempre). Frequency/Validity=0
@@ -626,7 +633,7 @@ async function biotListUsers() {
 }
 
 async function biotCreateUser(device, password, input) {
-  const userId = input.registration || deriveRegistration(input.name);
+  const userId = input.registration || deriveRegistration();
   const body = { UserList: [biotUserBody(userId, input.name, input.expiration)] };
   let text = await biotRequest(device, password, 'AccessUser.cgi', 'insertMulti', { jsonBody: body });
   if (!biotIsOk(text) && /alreadyexist/i.test(text)) {
