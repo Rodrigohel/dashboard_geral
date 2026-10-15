@@ -65,6 +65,22 @@ db.exec(`
     PRIMARY KEY (user_id, device_id)
   );
 
+  -- Guarda a ÚLTIMA foto facial enviada pelo Portal pra cada nome (não por
+  -- equipamento) — a foto que o próprio equipamento devolve depois de
+  -- cadastrada já passou pela recompressão/redimensionamento dele (pensado
+  -- pro motor de reconhecimento facial, não pra qualidade); reusar ela como
+  -- origem ao "liberar em outro equipamento" ia piorando a cada salto
+  -- ("cópia da cópia"). Guardando o arquivo original aqui (de qualquer
+  -- envio feito pelo Portal, tela única ou vários equipamentos de uma vez),
+  -- "liberar em outro equipamento" sempre parte do original, nunca de uma
+  -- cópia já reprocessada pelo equipamento.
+  CREATE TABLE IF NOT EXISTS morador_photos (
+    name_key TEXT PRIMARY KEY,
+    photo BLOB NOT NULL,
+    mimetype TEXT NOT NULL DEFAULT 'image/jpeg',
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
   -- Configuração de cada gateway (Rede/Interfone): endereço do backend real
   -- na rede local + conta de serviço que o Portal usa para logar nele em
   -- nome do usuário (o usuário final só loga uma vez, no Portal).

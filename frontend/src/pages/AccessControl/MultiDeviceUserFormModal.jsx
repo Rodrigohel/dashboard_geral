@@ -45,6 +45,24 @@ export default function MultiDeviceUserFormModal({ devices, initialName = '', ex
     if (!existingEntries?.length) return;
     let cancelled = false;
     (async () => {
+      // Primeiro tenta a foto ORIGINAL guardada pelo Portal (antes de
+      // qualquer equipamento recomprimir/redimensionar) — só cai pro
+      // round-trip "busca no equipamento" se essa pessoa nunca teve foto
+      // enviada por aqui (cadastro antigo, de antes dessa opção existir).
+      // Sem isso, cada "liberar em outro equipamento" ia copiando a cópia
+      // já degradada pelo equipamento anterior, piorando a cada salto.
+      try {
+        const blob = await api.accessDevices.users.getCachedPhotoBlob(initialName);
+        if (!cancelled) {
+          setPhotoFile(blob);
+          setPhotoSource('existing');
+          setPhotoLoading(false);
+        }
+        return;
+      } catch {
+        // Sem foto original em cache — tenta direto num dos equipamentos.
+      }
+
       for (const { device, user } of existingEntries) {
         // `=== false` (não `!device.isFacial`) de propósito: se esse campo
         // não vier preenchido por algum motivo, tenta buscar a foto mesmo
@@ -91,7 +109,7 @@ export default function MultiDeviceUserFormModal({ devices, initialName = '', ex
       return { device, ok: true, message: 'Usuário criado. Este equipamento não é facial — foto não enviada.' };
     }
     try {
-      await api.accessDevices.users.setPhoto(deviceId, created.id, photoFile);
+      await api.accessDevices.users.setPhoto(deviceId, created.id, photoFile, form.name);
       return { device, ok: true, message: 'Usuário criado e foto enviada.' };
     } catch (err) {
       return { device, ok: 'partial', message: `Usuário criado, mas a foto falhou: ${err.message}` };

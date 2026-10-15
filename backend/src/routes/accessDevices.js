@@ -336,6 +336,42 @@ accessDevicesRouter.get('/search-users', async (req, res) => {
   res.json({ results, errors });
 });
 
+function normalizeName(name) {
+  return String(name || '').trim().toLowerCase();
+}
+
+// Foto original (antes de passar pelo equipamento) cadastrada pelo Portal
+// pra esse nome — usada em "Liberar em outro equipamento" pra não repetir
+// o "cópia da cópia" (ver comentário da tabela morador_photos em
+// sqlite.js). Só serve a foto se o nome bater com um morador de verdade em
+// algum equipamento que ESSE ator enxerga AGORA (mesma checagem de
+// visibilidade do /search-users) — sem isso, "ver moradores" em um
+// equipamento qualquer daria acesso à foto de qualquer nome digitado,
+// mesmo de gente cadastrada só em equipamentos que esse ator não gerencia.
+accessDevicesRouter.get('/users/photo-cache', requirePermission('acesso.moradores.ver'), async (req, res) => {
+  const nameKey = normalizeName(req.query.name);
+  if (!nameKey) return res.status(400).json({ error: 'Informe o nome (query "name")' });
+
+  const cached = db.prepare('SELECT photo, mimetype FROM morador_photos WHERE name_key = ?').get(nameKey);
+  if (!cached) return res.status(404).json({ error: 'Nenhuma foto em cache para esse nome.' });
+
+  const devices = visibleDevices(req);
+  const visibleHere = await Promise.all(
+    devices.map(async (device) => {
+      try {
+        const users = await deviceApi.listUsers(device, decryptSecret(device.device_password_enc));
+        return users.some((u) => normalizeName(u.name) === nameKey);
+      } catch {
+        return false;
+      }
+    })
+  );
+  if (!visibleHere.some(Boolean)) return res.status(404).json({ error: 'Nenhuma foto em cache para esse nome.' });
+
+  res.set('Content-Type', cached.mimetype || 'image/jpeg');
+  res.send(cached.photo);
+});
+
 // --- Moradores dentro do equipamento — precisa de device_permissions (qual
 // equipamento) E da permissão fina certa (o que pode fazer nele). ---
 
@@ -403,6 +439,18 @@ accessDevicesRouter.post(
     if (!req.file) return res.status(400).json({ error: 'Envie um arquivo de foto (campo "photo")' });
     try {
       await deviceApi.setUserPhoto(device, decryptSecret(device.device_password_enc), req.params.userId, req.file.buffer, req.file.mimetype);
+      // Guarda o arquivo ORIGINAL (antes do equipamento recomprimir/
+      // redimensionar pro motor facial dele) — ver comentário da tabela
+      // morador_photos em sqlite.js. `name` é opcional (o campo só existe
+      // nos formulários que já sabem o nome na hora do envio); sem ele,
+      // só não atualiza o cache — o envio em si não é afetado.
+      const nameKey = normalizeName(req.body?.name);
+      if (nameKey) {
+        db.prepare(
+          `INSERT INTO morador_photos (name_key, photo, mimetype, updated_at) VALUES (?, ?, ?, datetime('now'))
+           ON CONFLICT(name_key) DO UPDATE SET photo = excluded.photo, mimetype = excluded.mimetype, updated_at = excluded.updated_at`
+        ).run(nameKey, req.file.buffer, req.file.mimetype || 'image/jpeg');
+      }
       res.status(204).end();
     } catch (err) {
       res.status(502).json({ error: `Não foi possível enviar a foto: ${err.message}` });
