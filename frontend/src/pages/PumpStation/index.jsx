@@ -21,6 +21,9 @@ const LEVEL_POINTS = [
   { key: 'nivelMaximo', label: 'Nível máximo' },
   { key: 'nivelSeguranca', label: 'Nível de segurança' },
 ];
+// Rótulo curto por sensor (sem o "Nível" repetido) — usado nos pares de
+// fronteira do histórico de enchimento/esvaziamento.
+const BOUNDARY_LABEL = { nivelMinimo: 'Mínimo', nivelMedio: 'Médio', nivelMaximo: 'Máximo', nivelSeguranca: 'Segurança' };
 const PUMP_POINTS = [
   { key: 'bomba1', label: 'Bomba 1' },
   { key: 'bomba2', label: 'Bomba 2' },
@@ -190,7 +193,11 @@ function StatusCard({ status, error, loaded, canEditConfig, onGoToConfig }) {
 function TankVisualization({ status, error, loaded }) {
   if (!loaded || error) return null;
   const points = status?.points || {};
-  const fillPercent = fillPercentFor(points);
+  // Analógico de verdade assim que tiver amostra histórica suficiente pra
+  // essa fronteira (ver getFillEstimate no backend) — até lá, cai pro
+  // degrau fixo das 4 boias, sem precisar de nenhuma troca manual.
+  const estimate = status?.fillEstimate;
+  const fillPercent = estimate?.percent ?? fillPercentFor(points);
   const activeStop = currentLevelStop(points);
   const waterColorVar = activeStop ? severityColorVar(activeStop.severity) : 'var(--text-tertiary)';
   const bombaDoDia = bombaDoDiaLabel(points);
@@ -221,10 +228,16 @@ function TankVisualization({ status, error, loaded }) {
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700, marginBottom: 4 }}>
         <Icon name="droplet" size={17} />
         Nível do poço
+        {estimate && (
+          <span className="badge badge-neutral" style={{ fontWeight: 600 }}>
+            ~{estimate.percent}% {estimate.direction}
+          </span>
+        )}
       </div>
       <div className="field-hint" style={{ marginBottom: 16 }}>
-        O sistema só tem 4 boias (sem sensor contínuo) — a animação mostra a boia mais alta ativa agora, suavizada
-        entre as marcas.
+        {estimate
+          ? `Estimativa baseada no histórico de quanto tempo leva pra ${estimate.direction} entre as boias (${estimate.sampleCount} ciclos registrados) — o sistema só tem 4 sensores discretos, sem medição contínua de verdade.`
+          : 'O sistema só tem 4 boias (sem sensor contínuo) — a animação mostra a boia mais alta ativa agora, suavizada entre as marcas. Assim que tiver histórico suficiente de quanto tempo leva pra encher/esvaziar entre as boias, a estimativa fica mais precisa sozinha.'}
       </div>
 
       <div style={{ display: 'flex', gap: 28, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -678,6 +691,38 @@ function HistoryCard() {
               sub={history.stats.minimoToMedioSampleCount ? `${history.stats.minimoToMedioSampleCount} ciclos` : 'sem dados ainda'}
             />
           </div>
+
+          {history.levelTransitions && (
+            <div style={{ marginBottom: 20 }}>
+              <div className="nav-subitem-label" style={{ marginBottom: 8 }}>
+                Tempo médio entre boias (histórico completo, não só os {days} dias acima)
+              </div>
+              <div className="grid-2">
+                <div className="surface" style={{ padding: 16 }}>
+                  <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 8 }}>Enchendo</div>
+                  {history.levelTransitions.map((t) => (
+                    <div className="service-row" key={`rising-${t.from}`}>
+                      <span style={{ fontSize: 12.5 }}>{BOUNDARY_LABEL[t.from]} → {BOUNDARY_LABEL[t.to]}</span>
+                      <span className="field-hint">
+                        {t.rising ? `${formatDuration(t.rising.avgSeconds)} (${t.rising.sampleCount}x)` : 'sem dados ainda'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <div className="surface" style={{ padding: 16 }}>
+                  <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 8 }}>Esvaziando</div>
+                  {history.levelTransitions.map((t) => (
+                    <div className="service-row" key={`falling-${t.from}`}>
+                      <span style={{ fontSize: 12.5 }}>{BOUNDARY_LABEL[t.to]} → {BOUNDARY_LABEL[t.from]}</span>
+                      <span className="field-hint">
+                        {t.falling ? `${formatDuration(t.falling.avgSeconds)} (${t.falling.sampleCount}x)` : 'sem dados ainda'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
 
           <PumpHistoryChart activations={history.activations} days={days} />
 

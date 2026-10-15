@@ -4,7 +4,7 @@ import Ring, { healthPercent } from '../components/Ring.jsx';
 import Modal from '../components/Modal.jsx';
 import { api } from '../api/client.js';
 import { timeAgo } from '../utils/relativeTime.js';
-import { LEVEL_STOPS, currentLevelStop, severityColorVar, bombaDoDiaLabel } from '../utils/pumpLevel.js';
+import { LEVEL_STOPS, currentLevelStop, severityColorVar, bombaDoDiaLabel, fillPercentFor } from '../utils/pumpLevel.js';
 
 // Mesma lista do util, só em ordem crescente (mínimo primeiro) — as barrinhas
 // do card ficam mais baixas->mais altas da esquerda pra direita.
@@ -606,6 +606,13 @@ export default function Home({ user, onNavigate, can }) {
             const configured = !needsGateway || Boolean(info?.configured);
             const data = cardDataFor(key, info);
             const spark = configured ? buildSparkline(data.points) : null;
+            // Analógico assim que tiver histórico suficiente (ver
+            // fillEstimate no backend); até lá, cai pro degrau fixo das 4
+            // boias — igual na tela de Bombas, nunca fica em branco.
+            const bombasFillPercent =
+              key === 'bombas' && bombasStatus
+                ? bombasStatus.fillEstimate?.percent ?? fillPercentFor(bombasStatus.points || {})
+                : null;
             const override = cardOverrides[key];
             const cardTitle = override?.title || meta.title;
             const cardDesc = override?.description || meta.desc;
@@ -628,7 +635,9 @@ export default function Home({ user, onNavigate, can }) {
                 <span className="module-card-corner br" />
 
                 <div className="module-card-top">
-                  {data.total > 0 ? (
+                  {bombasFillPercent !== null ? (
+                    <Ring percent={bombasFillPercent} color={meta.color} value={`${bombasFillPercent}%`} size={52} />
+                  ) : data.total > 0 ? (
                     <Ring percent={healthPercent(data.online, data.total)} color={meta.color} value={`${healthPercent(data.online, data.total)}%`} size={52} />
                   ) : (
                     <div className="module-card-icon" style={{ background: meta.glow, color: meta.color }}>

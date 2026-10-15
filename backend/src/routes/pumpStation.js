@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { db } from '../db/sqlite.js';
 import { requirePermission } from '../middleware/auth.js';
 import { readPumpStationStatus, testPumpStationConnection } from '../services/pumpStationClient.js';
-import { getPumpStationHistory } from '../services/pumpStationHistoryService.js';
+import { getPumpStationHistory, getFillEstimate } from '../services/pumpStationHistoryService.js';
 
 export const pumpStationRouter = Router();
 
@@ -115,7 +115,10 @@ pumpStationRouter.get('/status', async (req, res) => {
   }
   try {
     const points = await readPumpStationStatus(config);
-    res.json({ name: config.name, pollSeconds: config.pollSeconds, points });
+    // null até ter amostra histórica suficiente pra essa fronteira — o
+    // front cai pro degrau fixo nesse caso, sem precisar de troca manual
+    // nenhuma (ver getFillEstimate).
+    res.json({ name: config.name, pollSeconds: config.pollSeconds, points, fillEstimate: getFillEstimate(points) });
   } catch (err) {
     res.status(502).json({ error: err.message });
   }
