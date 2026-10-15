@@ -67,3 +67,42 @@ export function requireDeviceOpenAccess(req, res, next) {
   if (!allowed) return res.status(403).json({ error: 'Você não tem permissão para abrir este equipamento.' });
   next();
 }
+
+// Igual requireModule, mesma tabela — só com nome diferente pra ficar claro
+// no código da rota que a chave é uma ação fina (ex.:
+// "acesso.equipamentos.incluir"), não um módulo inteiro. 'owner' sempre
+// passa, igual todo o resto.
+export function requirePermission(key) {
+  return (req, res, next) => {
+    if (req.user?.role === 'owner') return next();
+
+    const allowed = db.prepare('SELECT 1 FROM permissions WHERE user_id = ? AND module_key = ?').get(req.user.sub, key);
+
+    if (!allowed) return res.status(403).json({ error: 'Você não tem permissão para fazer isso.' });
+    next();
+  };
+}
+
+// Passa se o usuário tiver QUALQUER UMA das chaves — usado só onde uma
+// mesma ação de verdade é coberta por mais de uma permissão (ex.: mandar a
+// foto faz parte tanto de "incluir" quanto de "editar" um morador — exigir
+// só uma das duas quebraria o fluxo de "criar com foto" pra quem só tem
+// "incluir").
+export function requireAnyPermission(...keys) {
+  return (req, res, next) => {
+    if (req.user?.role === 'owner') return next();
+
+    const allowed = keys.some((key) => db.prepare('SELECT 1 FROM permissions WHERE user_id = ? AND module_key = ?').get(req.user.sub, key));
+
+    if (!allowed) return res.status(403).json({ error: 'Você não tem permissão para fazer isso.' });
+    next();
+  };
+}
+
+// Conjunto de chaves de permissão que um usuário tem AGORA — usado pelos
+// guardas de escalonamento em users.js: ninguém que não é dono pode
+// conceder (criar/editar outra conta com) uma permissão que ele mesmo não
+// tem. 'owner' não usa isso (já passa por tudo via role).
+export function getUserPermissionKeys(userId) {
+  return new Set(db.prepare('SELECT module_key FROM permissions WHERE user_id = ?').all(userId).map((r) => r.module_key));
+}

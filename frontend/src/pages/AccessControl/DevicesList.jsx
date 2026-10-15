@@ -60,7 +60,11 @@ function CameraThumbnail({ device }) {
   );
 }
 
-export default function DevicesList({ isOwner, onOpenDevice }) {
+export default function DevicesList({ isOwner, can, onOpenDevice }) {
+  const canIncluirEquip = isOwner || can('acesso.equipamentos.incluir');
+  const canEditarEquip = isOwner || can('acesso.equipamentos.editar');
+  const canExcluirEquip = isOwner || can('acesso.equipamentos.excluir');
+  const canIncluirMoradores = isOwner || can('acesso.moradores.incluir');
   const [devices, setDevices] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null);
@@ -150,12 +154,12 @@ export default function DevicesList({ isOwner, onOpenDevice }) {
             {devices.length > 1 && <UserSearch devices={devices} onOpenDevice={onOpenDevice} />}
 
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginLeft: 'auto' }}>
-              {isOwner && (
+              {canIncluirMoradores && (
                 <button className="btn btn-secondary" onClick={() => setShowMultiUserForm(true)}>
                   <Icon name="users" size={16} /> Novo usuário em vários equipamentos
                 </button>
               )}
-              {isOwner && (
+              {canIncluirEquip && (
                 <button className="btn btn-primary" onClick={() => setShowForm(true)}>
                   <Icon name="plus" size={16} /> Novo equipamento
                 </button>
@@ -175,9 +179,9 @@ export default function DevicesList({ isOwner, onOpenDevice }) {
         <EmptyState
           icon="shieldFace"
           title="Nenhum equipamento cadastrado"
-          description={isOwner ? 'Cadastre o primeiro porteiro ou portão para começar a gerenciar acessos remotamente.' : 'Peça ao administrador para liberar um equipamento para você.'}
+          description={canIncluirEquip ? 'Cadastre o primeiro porteiro ou portão para começar a gerenciar acessos remotamente.' : 'Peça ao administrador para liberar um equipamento para você.'}
           action={
-            isOwner && (
+            canIncluirEquip && (
               <button className="btn btn-primary" onClick={() => setShowForm(true)}>
                 <Icon name="plus" size={16} /> Novo equipamento
               </button>
@@ -199,17 +203,23 @@ export default function DevicesList({ isOwner, onOpenDevice }) {
                     <span className="badge-dot" /> {statusMeta.label}
                   </span>
                 </div>
-                {isOwner && (
+                {(canEditarEquip || canExcluirEquip) && (
                   <div className="row-actions" onClick={(e) => e.stopPropagation()}>
-                    <button className="btn btn-ghost btn-icon btn-sm" onClick={() => handleTest(d)} title="Testar conexão">
-                      {testing === d.id ? <span className="spinner spinner-dark" /> : <Icon name="wifi" size={15} />}
-                    </button>
-                    <button className="btn btn-ghost btn-icon btn-sm" onClick={() => { setEditing(d); setShowForm(true); }} title="Editar">
-                      <Icon name="edit" size={15} />
-                    </button>
-                    <button className="btn btn-ghost btn-icon btn-sm" onClick={() => setDeleting(d)} title="Excluir">
-                      <Icon name="trash" size={15} />
-                    </button>
+                    {canEditarEquip && (
+                      <>
+                        <button className="btn btn-ghost btn-icon btn-sm" onClick={() => handleTest(d)} title="Testar conexão">
+                          {testing === d.id ? <span className="spinner spinner-dark" /> : <Icon name="wifi" size={15} />}
+                        </button>
+                        <button className="btn btn-ghost btn-icon btn-sm" onClick={() => { setEditing(d); setShowForm(true); }} title="Editar">
+                          <Icon name="edit" size={15} />
+                        </button>
+                      </>
+                    )}
+                    {canExcluirEquip && (
+                      <button className="btn btn-ghost btn-icon btn-sm" onClick={() => setDeleting(d)} title="Excluir">
+                        <Icon name="trash" size={15} />
+                      </button>
+                    )}
                   </div>
                 )}
               </div>

@@ -45,7 +45,10 @@ app.use('/manifest.webmanifest', manifestRouter);
 
 app.use('/api/auth', authRouter);
 app.use('/api/modules', requireAuth, modulesRouter);
-app.use('/api/users', requireAuth, requireOwner, usersRouter);
+// Sem requireOwner no mount — cada rota dentro do router agora checa a
+// permissão fina certa (usuarios.ver/incluir/editar/excluir), com guardas
+// contra escalonamento pra quem não é dono (ver users.js).
+app.use('/api/users', requireAuth, usersRouter);
 app.use('/api/access/devices', requireAuth, requireModule('acesso'), accessDevicesRouter);
 app.use('/api/pumpstation', requireAuth, requireModule('bombas'), pumpStationRouter);
 // Precisa vir antes do mount geral de '/api/settings' (dono-só) logo abaixo

@@ -7,7 +7,11 @@ import DeviceUserFormModal from './DeviceUserFormModal.jsx';
 import { api } from '../../api/client.js';
 import { useToast } from '../../hooks/useToast.jsx';
 
-export default function DeviceUsers({ device, onBack }) {
+export default function DeviceUsers({ device, isOwner, can, onBack }) {
+  const canVer = isOwner || can('acesso.moradores.ver');
+  const canIncluir = isOwner || can('acesso.moradores.incluir');
+  const canEditar = isOwner || can('acesso.moradores.editar');
+  const canExcluir = isOwner || can('acesso.moradores.excluir');
   const [users, setUsers] = useState(null);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
@@ -21,13 +25,14 @@ export default function DeviceUsers({ device, onBack }) {
   const toast = useToast();
 
   function reload() {
+    if (!canVer) return;
     setError('');
     api.accessDevices.users
       .list(device.id)
       .then(setUsers)
       .catch((err) => setError(err.message));
   }
-  useEffect(reload, [device.id]);
+  useEffect(reload, [device.id, canVer]);
 
   async function handleSave(form) {
     const payload = { ...form, expiration: form.expiration ? new Date(form.expiration).toISOString() : undefined };
@@ -108,7 +113,11 @@ export default function DeviceUsers({ device, onBack }) {
         </div>
       </div>
 
-      {error && device.model === 'segplace' ? (
+      {!canVer ? (
+        <div className="surface" style={{ padding: 48, textAlign: 'center', color: 'var(--text-secondary)' }}>
+          Você não tem permissão para ver os moradores deste equipamento.
+        </div>
+      ) : error && device.model === 'segplace' ? (
         <div className="surface" style={{ padding: 20, borderLeft: '3px solid var(--warning-500)' }}>
           <strong style={{ color: 'var(--warning-500)' }}>Portões Segplace/Axiom Wifi não têm cadastro de moradores.</strong>
           <p style={{ color: 'var(--text-secondary)', marginTop: 6, fontSize: 13.5 }}>
@@ -137,16 +146,16 @@ export default function DeviceUsers({ device, onBack }) {
         )
       )}
 
-      {!error && (
+      {canVer && !error && (
         <div className="toolbar-search input-with-icon">
           <Icon name="search" size={16} />
           <input className="input" placeholder="Buscar por nome..." value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
       )}
 
-      {!error && users === null && <div className="skeleton" style={{ height: 220, borderRadius: 20 }} />}
+      {canVer && !error && users === null && <div className="skeleton" style={{ height: 220, borderRadius: 20 }} />}
 
-      {!error && users !== null && filtered.length === 0 && (
+      {canVer && !error && users !== null && filtered.length === 0 && (
         <EmptyState
           icon="users"
           title="Nenhum usuário encontrado"
@@ -154,7 +163,7 @@ export default function DeviceUsers({ device, onBack }) {
         />
       )}
 
-      {!error && filtered.length > 0 && (
+      {canVer && !error && filtered.length > 0 && (
         <div className="table-wrap">
           <table className="data-table">
             <thead>
@@ -190,15 +199,21 @@ export default function DeviceUsers({ device, onBack }) {
                   <td>{u.expiration ? new Date(u.expiration).toLocaleDateString('pt-BR') : 'Sem prazo'}</td>
                   <td>
                     <div className="row-actions">
-                      <button className="btn btn-ghost btn-icon btn-sm" title="Cadastrar/trocar foto" onClick={() => triggerPhotoUpload(u.id)}>
-                        {uploadingId === String(u.id) ? <span className="spinner spinner-dark" /> : <Icon name="camera" size={15} />}
-                      </button>
-                      <button className="btn btn-ghost btn-icon btn-sm" title="Editar" onClick={() => { setEditing(u); setShowForm(true); }}>
-                        <Icon name="edit" size={15} />
-                      </button>
-                      <button className="btn btn-ghost btn-icon btn-sm" title="Remover" onClick={() => setDeleting(u)}>
-                        <Icon name="trash" size={15} />
-                      </button>
+                      {(canIncluir || canEditar) && (
+                        <button className="btn btn-ghost btn-icon btn-sm" title="Cadastrar/trocar foto" onClick={() => triggerPhotoUpload(u.id)}>
+                          {uploadingId === String(u.id) ? <span className="spinner spinner-dark" /> : <Icon name="camera" size={15} />}
+                        </button>
+                      )}
+                      {canEditar && (
+                        <button className="btn btn-ghost btn-icon btn-sm" title="Editar" onClick={() => { setEditing(u); setShowForm(true); }}>
+                          <Icon name="edit" size={15} />
+                        </button>
+                      )}
+                      {canExcluir && (
+                        <button className="btn btn-ghost btn-icon btn-sm" title="Remover" onClick={() => setDeleting(u)}>
+                          <Icon name="trash" size={15} />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>

@@ -92,7 +92,7 @@ function usePumpStationStatus() {
   return { status, error, loaded };
 }
 
-function StatusCard({ status, error, loaded, isOwner, onGoToConfig }) {
+function StatusCard({ status, error, loaded, canEditConfig, onGoToConfig }) {
   if (!loaded) return <div className="skeleton" style={{ height: 220, borderRadius: 20 }} />;
 
   if (error) {
@@ -103,7 +103,7 @@ function StatusCard({ status, error, loaded, isOwner, onGoToConfig }) {
           Casa de bombas
         </div>
         <p style={{ color: 'var(--text-secondary)', fontSize: 13.5 }}>{error}</p>
-        {isOwner && (
+        {canEditConfig && (
           <button className="btn btn-secondary btn-sm" style={{ marginTop: 8 }} onClick={onGoToConfig}>
             Ir para configuração
           </button>
@@ -659,8 +659,9 @@ function HistoryCard() {
   );
 }
 
-export default function PumpStation({ isOwner }) {
+export default function PumpStation({ isOwner, can }) {
   const configId = 'bombas-config';
+  const canEditConfig = isOwner || can('bombas.editar');
   const { status, error, loaded } = usePumpStationStatus();
 
   return (
@@ -678,13 +679,13 @@ export default function PumpStation({ isOwner }) {
         status={status}
         error={error}
         loaded={loaded}
-        isOwner={isOwner}
+        canEditConfig={canEditConfig}
         onGoToConfig={() => document.getElementById(configId)?.scrollIntoView({ behavior: 'smooth' })}
       />
 
       <HistoryCard />
 
-      {isOwner && <ConfigCard configId={configId} />}
+      {canEditConfig && <ConfigCard configId={configId} />}
     </>
   );
 }

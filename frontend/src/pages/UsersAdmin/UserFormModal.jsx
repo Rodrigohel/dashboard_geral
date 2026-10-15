@@ -19,7 +19,42 @@ const REDE_FEATURES = [
   { key: 'rede.analise', label: 'Análise de rede e histórico de eventos' },
 ];
 
-export default function UserFormModal({ user, currentUserId, onClose, onSave }) {
+// Mesma ideia das REDE_FEATURES acima, só que pro Controle de acesso: quem
+// marcar "acesso" acima já vê a lista de equipamentos e moradores (visão
+// controlada por device_permissions, não por essas chaves); essas aqui
+// liberam as AÇÕES (incluir/editar/excluir) em cima do que já vê.
+const ACESSO_EQUIPAMENTOS_FEATURES = [
+  { key: 'acesso.equipamentos.incluir', label: 'Cadastrar novos equipamentos' },
+  { key: 'acesso.equipamentos.editar', label: 'Editar equipamentos (e testar conexão)' },
+  { key: 'acesso.equipamentos.excluir', label: 'Excluir equipamentos' },
+];
+const ACESSO_MORADORES_FEATURES = [
+  { key: 'acesso.moradores.ver', label: 'Ver moradores cadastrados' },
+  { key: 'acesso.moradores.incluir', label: 'Cadastrar moradores' },
+  { key: 'acesso.moradores.editar', label: 'Editar moradores (e foto)' },
+  { key: 'acesso.moradores.excluir', label: 'Excluir moradores' },
+];
+const BOMBAS_FEATURES = [{ key: 'bombas.editar', label: 'Editar configuração da casa de bombas' }];
+
+// Sem módulo pai (a tela Usuários nunca foi um item de menu só-módulo,
+// sempre foi só-dono) — por isso aparece numa seção própria, não dentro de
+// "Módulos liberados" acima.
+const USUARIOS_FEATURES = [
+  { key: 'usuarios.ver', label: 'Ver usuários do Portal' },
+  { key: 'usuarios.incluir', label: 'Criar novos usuários' },
+  { key: 'usuarios.editar', label: 'Editar usuários' },
+  { key: 'usuarios.excluir', label: 'Excluir usuários' },
+];
+
+export default function UserFormModal({ user, currentUserId, isOwner, can, onClose, onSave }) {
+  // Mesma regra de escalonamento do backend (assertNoEscalation em
+  // users.js): quem não é dono só pode marcar, pra outra conta, uma
+  // permissão que ele mesmo já tem — nunca uma a mais. Reenviar sem
+  // querer uma permissão que a conta editada já tinha (e o ator não tem)
+  // não conta como "conceder", então o backend deixa passar — aqui só
+  // escondemos o checkbox pra não dar a entender que é possível MUDAR algo
+  // que já não aparece na tela.
+  const allowed = (key) => isOwner || can(key);
   const [form, setForm] = useState({
     username: user?.username || '',
     displayName: user?.displayName || '',
@@ -118,20 +153,25 @@ export default function UserFormModal({ user, currentUserId, onClose, onSave }) 
           <input className="input" type="password" value={form.password} onChange={(e) => set('password', e.target.value)} placeholder={user ? 'deixe em branco para manter' : ''} />
         </div>
 
-        <div className="field">
-          <label className="field-label">Papel</label>
-          <select className="select" value={form.role} disabled={isSelf} onChange={(e) => set('role', e.target.value)}>
-            <option value="user">Usuário (só o que for liberado abaixo)</option>
-            <option value="owner">Administrador (acesso total)</option>
-          </select>
-        </div>
+        {/* Quem não é dono nunca pode criar/promover um administrador —
+            o backend bloqueia isso (assertNoEscalation), então nem mostra
+            a opção aqui pra não dar falsa esperança. */}
+        {isOwner && (
+          <div className="field">
+            <label className="field-label">Papel</label>
+            <select className="select" value={form.role} disabled={isSelf} onChange={(e) => set('role', e.target.value)}>
+              <option value="user">Usuário (só o que for liberado abaixo)</option>
+              <option value="owner">Administrador (acesso total)</option>
+            </select>
+          </div>
+        )}
 
         {form.role === 'user' && (
           <>
             <div className="field">
               <label className="field-label">Módulos liberados</label>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
-                {MODULES.map((m) => (
+                {MODULES.filter((m) => allowed(m.key)).map((m) => (
                   <label className="checkbox-row" key={m.key}>
                     <input type="checkbox" checked={form.modules.includes(m.key)} onChange={() => toggleModule(m.key)} />
                     {m.label}
@@ -140,11 +180,11 @@ export default function UserFormModal({ user, currentUserId, onClose, onSave }) 
               </div>
             </div>
 
-            {form.modules.includes('rede') && (
+            {form.modules.includes('rede') && REDE_FEATURES.some((f) => allowed(f.key)) && (
               <div className="field">
                 <label className="field-label">Dentro de Rede, também libera:</label>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4, paddingLeft: 4 }}>
-                  {REDE_FEATURES.map((f) => (
+                  {REDE_FEATURES.filter((f) => allowed(f.key)).map((f) => (
                     <label className="checkbox-row" key={f.key}>
                       <input type="checkbox" checked={form.modules.includes(f.key)} onChange={() => toggleModule(f.key)} />
                       {f.label}
@@ -156,32 +196,91 @@ export default function UserFormModal({ user, currentUserId, onClose, onSave }) 
             )}
 
             {form.modules.includes('acesso') && (
-              <div className="field">
-                <label className="field-label">Equipamentos de controle de acesso liberados</label>
-                {devices.length === 0 ? (
-                  <span className="field-hint">Nenhum equipamento cadastrado ainda.</span>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
-                    {devices.map((d) => (
-                      <div key={d.id}>
-                        <label className="checkbox-row">
-                          <input type="checkbox" checked={form.deviceIds.includes(d.id)} onChange={() => toggleDevice(d.id)} />
-                          {d.name} <span className="field-hint">({d.location || d.host})</span>
+              <>
+                {ACESSO_EQUIPAMENTOS_FEATURES.some((f) => allowed(f.key)) && (
+                  <div className="field">
+                    <label className="field-label">Equipamentos de controle de acesso, pode:</label>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4, paddingLeft: 4 }}>
+                      {ACESSO_EQUIPAMENTOS_FEATURES.filter((f) => allowed(f.key)).map((f) => (
+                        <label className="checkbox-row" key={f.key}>
+                          <input type="checkbox" checked={form.modules.includes(f.key)} onChange={() => toggleModule(f.key)} />
+                          {f.label}
                         </label>
-                        {form.deviceIds.includes(d.id) && (
-                          <label className="checkbox-row" style={{ paddingLeft: 26, marginTop: 4 }}>
-                            <input
-                              type="checkbox"
-                              checked={form.openDeviceIds.includes(d.id)}
-                              onChange={() => toggleOpenDevice(d.id)}
-                            />
-                            <span className="field-hint">Também pode abrir esse porteiro remotamente pelo Portal</span>
-                          </label>
-                        )}
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
                 )}
+
+                {ACESSO_MORADORES_FEATURES.some((f) => allowed(f.key)) && (
+                  <div className="field">
+                    <label className="field-label">Moradores cadastrados nos equipamentos liberados abaixo, pode:</label>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4, paddingLeft: 4 }}>
+                      {ACESSO_MORADORES_FEATURES.filter((f) => allowed(f.key)).map((f) => (
+                        <label className="checkbox-row" key={f.key}>
+                          <input type="checkbox" checked={form.modules.includes(f.key)} onChange={() => toggleModule(f.key)} />
+                          {f.label}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="field">
+                  <label className="field-label">Equipamentos de controle de acesso liberados</label>
+                  {devices.length === 0 ? (
+                    <span className="field-hint">Nenhum equipamento cadastrado ainda.</span>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
+                      {devices.map((d) => (
+                        <div key={d.id}>
+                          <label className="checkbox-row">
+                            <input type="checkbox" checked={form.deviceIds.includes(d.id)} onChange={() => toggleDevice(d.id)} />
+                            {d.name} <span className="field-hint">({d.location || d.host})</span>
+                          </label>
+                          {form.deviceIds.includes(d.id) && (
+                            <label className="checkbox-row" style={{ paddingLeft: 26, marginTop: 4 }}>
+                              <input
+                                type="checkbox"
+                                checked={form.openDeviceIds.includes(d.id)}
+                                onChange={() => toggleOpenDevice(d.id)}
+                              />
+                              <span className="field-hint">Também pode abrir esse porteiro remotamente pelo Portal</span>
+                            </label>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+
+            {form.modules.includes('bombas') && BOMBAS_FEATURES.some((f) => allowed(f.key)) && (
+              <div className="field">
+                <label className="field-label">Dentro de Bombas, também libera:</label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4, paddingLeft: 4 }}>
+                  {BOMBAS_FEATURES.filter((f) => allowed(f.key)).map((f) => (
+                    <label className="checkbox-row" key={f.key}>
+                      <input type="checkbox" checked={form.modules.includes(f.key)} onChange={() => toggleModule(f.key)} />
+                      {f.label}
+                    </label>
+                  ))}
+                </div>
+                <span className="field-hint">Sem marcar aqui, o usuário ainda vê o status da casa de bombas — só não edita a configuração.</span>
+              </div>
+            )}
+
+            {USUARIOS_FEATURES.some((f) => allowed(f.key)) && (
+              <div className="field">
+                <label className="field-label">Tela de Usuários do Portal, pode:</label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
+                  {USUARIOS_FEATURES.filter((f) => allowed(f.key)).map((f) => (
+                    <label className="checkbox-row" key={f.key}>
+                      <input type="checkbox" checked={form.modules.includes(f.key)} onChange={() => toggleModule(f.key)} />
+                      {f.label}
+                    </label>
+                  ))}
+                </div>
               </div>
             )}
           </>

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { db } from '../db/sqlite.js';
-import { requireOwner } from '../middleware/auth.js';
+import { requirePermission } from '../middleware/auth.js';
 import { readPumpStationStatus, testPumpStationConnection } from '../services/pumpStationClient.js';
 import { getPumpStationHistory } from '../services/pumpStationHistoryService.js';
 
@@ -51,7 +51,7 @@ pumpStationRouter.get('/config', (req, res) => {
   res.json(serializeConfig(getRow()));
 });
 
-pumpStationRouter.put('/config', requireOwner, (req, res) => {
+pumpStationRouter.put('/config', requirePermission('bombas.editar'), (req, res) => {
   const row = getRow();
   const body = req.body || {};
   const name = body.name ?? row.name;
@@ -88,7 +88,7 @@ pumpStationRouter.put('/config', requireOwner, (req, res) => {
   res.json(serializeConfig(getRow()));
 });
 
-pumpStationRouter.post('/test-connection', requireOwner, async (req, res) => {
+pumpStationRouter.post('/test-connection', requirePermission('bombas.editar'), async (req, res) => {
   const { host, port, unitId } = req.body || {};
   if (!host) return res.status(400).json({ error: 'Informe o IP da IHM' });
   try {
