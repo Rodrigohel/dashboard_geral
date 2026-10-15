@@ -170,6 +170,7 @@ export default function UserSearch({ devices, onOpenDevice }) {
         <MultiDeviceUserFormModal
           devices={devices.filter((d) => !new Set(addingFor.entries.map((e) => e.device.id)).has(d.id))}
           initialName={addingFor.name}
+          existingEntries={addingFor.entries}
           onClose={() => setAddingFor(null)}
           onDone={() => {
             toast('Usuário cadastrado.');

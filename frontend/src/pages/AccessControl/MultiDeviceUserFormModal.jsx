@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Modal from '../../components/Modal.jsx';
 import Icon from '../../components/Icon.jsx';
 import { api } from '../../api/client.js';
@@ -16,7 +16,7 @@ function supportsUserManagement(device) {
   return device.model !== 'segplace';
 }
 
-export default function MultiDeviceUserFormModal({ devices, initialName = '', onClose, onDone }) {
+export default function MultiDeviceUserFormModal({ devices, initialName = '', existingEntries, onClose, onDone }) {
   const manageableDevices = devices.filter(supportsUserManagement);
   const hiddenCount = devices.length - manageableDevices.length;
   const [form, setForm] = useState({
@@ -29,9 +29,42 @@ export default function MultiDeviceUserFormModal({ devices, initialName = '', on
   });
   const [selected, setSelected] = useState([]);
   const [photoFile, setPhotoFile] = useState(null);
+  const [photoSource, setPhotoSource] = useState(null); // 'existing' | 'uploaded' | null
+  const [photoLoading, setPhotoLoading] = useState(Boolean(existingEntries?.length));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [results, setResults] = useState(null); // [{ device, ok: true|'partial'|false, message }] | null
+
+  // "Liberar em outro equipamento": a pessoa já tem cadastro (com foto) em
+  // algum equipamento — em vez de obrigar a procurar/anexar a foto nua e
+  // crua de novo, busca ela de onde já está cadastrada e pré-preenche aqui.
+  // Tenta cada equipamento já cadastrado até achar um com foto de verdade
+  // (nem todo cadastro tem uma); se nenhum tiver, segue sem foto, igual
+  // sempre foi.
+  useEffect(() => {
+    if (!existingEntries?.length) return;
+    let cancelled = false;
+    (async () => {
+      for (const { device, user } of existingEntries) {
+        if (!device.isFacial) continue;
+        try {
+          const blob = await api.accessDevices.users.getPhotoBlob(device.id, user.id);
+          if (!cancelled) {
+            setPhotoFile(blob);
+            setPhotoSource('existing');
+          }
+          break;
+        } catch {
+          // Esse equipamento não tem foto (ou falhou) — tenta o próximo.
+        }
+      }
+      if (!cancelled) setPhotoLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function set(field, value) {
     setForm((f) => ({ ...f, [field]: value }));
@@ -143,7 +176,7 @@ export default function MultiDeviceUserFormModal({ devices, initialName = '', on
           <button className="btn btn-secondary" onClick={onClose} disabled={saving}>
             Cancelar
           </button>
-          <button className="btn btn-primary" onClick={handleSubmit} disabled={saving}>
+          <button className="btn btn-primary" onClick={handleSubmit} disabled={saving || photoLoading}>
             {saving ? <span className="spinner" /> : `Cadastrar em ${selected.length || ''} equipamento${selected.length === 1 ? '' : 's'}`}
           </button>
         </>
@@ -188,12 +221,29 @@ export default function MultiDeviceUserFormModal({ devices, initialName = '', on
 
         <div className="field">
           <label className="field-label">Foto facial (opcional)</label>
-          <input
-            className="input"
-            type="file"
-            accept="image/*"
-            onChange={(e) => setPhotoFile(e.target.files?.[0] || null)}
-          />
+          {photoLoading ? (
+            <span className="field-hint">
+              <span className="spinner spinner-dark" style={{ width: 12, height: 12, marginRight: 6 }} />
+              Buscando a foto já cadastrada...
+            </span>
+          ) : (
+            <>
+              {photoSource === 'existing' && (
+                <div className="badge badge-success" style={{ width: 'fit-content', marginBottom: 6 }}>
+                  <span className="badge-dot" /> Foto copiada do cadastro existente — escolha outra abaixo se quiser trocar
+                </div>
+              )}
+              <input
+                className="input"
+                type="file"
+                accept="image/*"
+                onChange={(e) => {
+                  setPhotoFile(e.target.files?.[0] || null);
+                  setPhotoSource(e.target.files?.[0] ? 'uploaded' : null);
+                }}
+              />
+            </>
+          )}
           <span className="field-hint">
             Enviada logo depois de criar o usuário em cada equipamento marcado como facial (veja "sem foto" na lista
             abaixo). Se algum equipamento recusar (ex.: tamanho/formato), o resto continua normalmente — o resultado
