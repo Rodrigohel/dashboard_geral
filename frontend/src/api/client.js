@@ -87,9 +87,15 @@ export const api = {
       update: (deviceId, userId, payload) =>
         request(`/api/access/devices/${deviceId}/users/${userId}`, { method: 'PUT', body: payload }),
       remove: (deviceId, userId) => request(`/api/access/devices/${deviceId}/users/${userId}`, { method: 'DELETE' }),
-      setPhoto: (deviceId, userId, file) => {
+      // `name` é opcional — quando informado, o backend guarda esse arquivo
+      // original (antes do equipamento recomprimir/redimensionar) como a
+      // "foto de referência" da pessoa, reusada em "Liberar em outro
+      // equipamento" pra nunca copiar uma cópia já degradada pelo
+      // equipamento.
+      setPhoto: (deviceId, userId, file, name) => {
         const form = new FormData();
         form.append('photo', file);
+        if (name) form.append('name', name);
         return request(`/api/access/devices/${deviceId}/users/${userId}/photo`, { method: 'POST', body: form, isForm: true });
       },
       // Não usa `request()`: a resposta é a imagem em si (binário), não
@@ -105,6 +111,27 @@ export const api = {
       getPhotoBlob: async (deviceId, userId) => {
         const token = getToken();
         const res = await fetch(`/api/access/devices/${deviceId}/users/${userId}/photo`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (!res.ok) {
+          let message = `Erro ${res.status}`;
+          try {
+            message = (await res.json()).error || message;
+          } catch {
+            // resposta sem corpo JSON — mantém a mensagem genérica
+          }
+          throw new Error(message);
+        }
+        return res.blob();
+      },
+      // Foto ORIGINAL cadastrada pelo Portal pra esse nome (antes de passar
+      // pelo equipamento) — ver setPhoto acima e "Liberar em outro
+      // equipamento". 404 se nunca foi enviada uma foto com esse nome por
+      // aqui, ou se o nome não bate com nenhum morador que o usuário logado
+      // enxerga agora.
+      getCachedPhotoBlob: async (name) => {
+        const token = getToken();
+        const res = await fetch(`/api/access/devices/users/photo-cache?name=${encodeURIComponent(name)}`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
         if (!res.ok) {

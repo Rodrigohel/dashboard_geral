@@ -66,8 +66,9 @@ export default function DeviceUsers({ device, isOwner, can, onBack }) {
     e.target.value = '';
     if (!file || !userId) return;
     setUploadingId(userId);
+    const residentName = users?.find((u) => String(u.id) === String(userId))?.name;
     try {
-      await api.accessDevices.users.setPhoto(device.id, userId, file);
+      await api.accessDevices.users.setPhoto(device.id, userId, file, residentName);
       toast('Foto facial enviada.');
       reload();
     } catch (err) {
