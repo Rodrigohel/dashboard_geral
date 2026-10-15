@@ -78,5 +78,113 @@ export function getPumpStationHistory({ days = 30 } = {}) {
     : null;
   stats.minimoToMedioSampleCount = avgSamples.length;
 
-  return { days, activations: inRange, stats };
+  return { days, activations: inRange, stats, levelTransitions: getLevelTransitionStats() };
+}
+
+// Quanto tempo leva pra cruzar cada fronteira entre boias consecutivas,
+// enchendo (a boia de cima liga depois da de baixo já estar ligada) e
+// esvaziando (a boia de cima desliga, depois, tempo depois, a de baixo
+// desliga também) — calculado do mesmo log de borda já gravado (nenhuma
+// tabela nova), processando os 4 sinais de nível em ordem cronológica.
+// Usado tanto pro histórico (ver tela Bombas) quanto pra estimar um %
+// analógico de enchimento em tempo real (ver getFillEstimate abaixo).
+const BOUNDARIES = [
+  { from: 'nivelMinimo', to: 'nivelMedio', fromPercent: 24, toPercent: 48 },
+  { from: 'nivelMedio', to: 'nivelMaximo', fromPercent: 48, toPercent: 72 },
+  { from: 'nivelMaximo', to: 'nivelSeguranca', fromPercent: 72, toPercent: 92 },
+];
+
+export function getLevelTransitionStats() {
+  const rows = db
+    .prepare(`SELECT point_key, state, created_at FROM pump_events WHERE point_key IN (?, ?, ?, ?) ORDER BY created_at ASC, id ASC`)
+    .all(...LEVEL_KEYS);
+
+  const lastOnAt = {};
+  const lastOffAt = {};
+  const risingSamples = BOUNDARIES.map(() => []);
+  const fallingSamples = BOUNDARIES.map(() => []);
+
+  for (const row of rows) {
+    const atMs = new Date(row.created_at.replace(' ', 'T') + 'Z').getTime();
+    const idx = LEVEL_KEYS.indexOf(row.point_key);
+    if (row.state === 1) {
+      // Subindo: essa boia ligou — se a de baixo já estava ligada, essa é a
+      // duração de cruzar a fronteira entre as duas.
+      if (idx > 0 && lastOnAt[LEVEL_KEYS[idx - 1]] !== undefined) {
+        risingSamples[idx - 1].push(atMs - lastOnAt[LEVEL_KEYS[idx - 1]]);
+      }
+      lastOnAt[row.point_key] = atMs;
+    } else {
+      // Descendo: essa boia desligou — se a de cima já tinha desligado
+      // antes, essa é a duração de cruzar a mesma fronteira esvaziando.
+      if (idx < LEVEL_KEYS.length - 1 && lastOffAt[LEVEL_KEYS[idx + 1]] !== undefined) {
+        fallingSamples[idx].push(atMs - lastOffAt[LEVEL_KEYS[idx + 1]]);
+      }
+      lastOffAt[row.point_key] = atMs;
+    }
+  }
+
+  function summarize(samplesMs) {
+    if (samplesMs.length === 0) return null;
+    const avgMs = samplesMs.reduce((a, b) => a + b, 0) / samplesMs.length;
+    return { avgSeconds: Math.round(avgMs / 1000), sampleCount: samplesMs.length };
+  }
+
+  return BOUNDARIES.map((b, i) => ({
+    from: b.from,
+    to: b.to,
+    rising: summarize(risingSamples[i]),
+    falling: summarize(fallingSamples[i]),
+  }));
+}
+
+// Mínimo de amostras pra confiar na média o bastante pra usar num cálculo
+// analógico em vez de só mostrar o degrau — abaixo disso, uma ou duas
+// enchidas atípicas (chuva forte, maré) distorceriam demais a estimativa.
+const MIN_SAMPLES_FOR_ESTIMATE = 3;
+
+function lastEventAt(pointKey, state) {
+  const row = db
+    .prepare('SELECT created_at FROM pump_events WHERE point_key = ? AND state = ? ORDER BY id DESC LIMIT 1')
+    .get(pointKey, state ? 1 : 0);
+  return row ? new Date(row.created_at.replace(' ', 'T') + 'Z').getTime() : null;
+}
+
+// % de enchimento estimado de forma contínua (não só os 4 degraus das
+// boias) — interpola entre a marca atual e a próxima/anterior usando o
+// tempo decorrido desde que entrou nessa faixa, dividido pela duração
+// média histórica de cruzar essa fronteira (nessa direção: enchendo ou
+// esvaziando). Sem amostra suficiente ainda pra essa fronteira específica,
+// devolve null — quem chama cai pro degrau fixo (fillPercentFor), sem
+// precisar de nenhuma troca manual: assim que acumular amostra o bastante,
+// passa a vir preenchido sozinho.
+export function getFillEstimate(points) {
+  const pumping = points?.bomba1 === true || points?.bomba2 === true;
+  const activeIdx = LEVEL_KEYS.reduce((acc, k, i) => (points?.[k] === true ? i : acc), -1);
+
+  // Faixa "abaixo do mínimo" (nenhuma boia ativa) ou "acima da segurança"
+  // (todas ativas) não têm fronteira rastreada de um dos lados — sem como
+  // estimar, fica pro degrau fixo.
+  if (activeIdx === -1 || activeIdx === LEVEL_KEYS.length - 1) return null;
+
+  // A faixa atual (entre LEVEL_KEYS[activeIdx] e LEVEL_KEYS[activeIdx+1]) é
+  // sempre a fronteira de mesmo índice em BOUNDARIES — enchendo ou
+  // esvaziando, é a mesma fronteira sendo cruzada, só a direção muda.
+  const boundaryIdx = activeIdx;
+
+  const boundary = BOUNDARIES[boundaryIdx];
+  const stats = getLevelTransitionStats()[boundaryIdx];
+  const dirStats = pumping ? stats.falling : stats.rising;
+  if (!dirStats || dirStats.sampleCount < MIN_SAMPLES_FOR_ESTIMATE) return null;
+
+  const anchorMs = pumping ? lastEventAt(boundary.to, false) : lastEventAt(boundary.from, true);
+  if (anchorMs === null) return null;
+
+  const elapsedSeconds = (Date.now() - anchorMs) / 1000;
+  const ratio = Math.min(1, Math.max(0, elapsedSeconds / dirStats.avgSeconds));
+  const percent = pumping
+    ? boundary.toPercent - ratio * (boundary.toPercent - boundary.fromPercent)
+    : boundary.fromPercent + ratio * (boundary.toPercent - boundary.fromPercent);
+
+  return { percent: Math.round(percent), direction: pumping ? 'esvaziando' : 'enchendo', sampleCount: dirStats.sampleCount };
 }
