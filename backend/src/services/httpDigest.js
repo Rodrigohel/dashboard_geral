@@ -45,11 +45,37 @@ function buildAuthHeader({ username, password, method, uri, realm, nonce, opaque
 // só deixa de economizar o round-trip dessa vez.
 const digestCache = new Map();
 
+// O contador `nc` (nonce count) do desafio Digest guardado em digestCache é
+// um objeto mutável compartilhado por host+usuário — se duas chamadas pro
+// MESMO equipamento saírem ao mesmo tempo (ex.: busca de moradores + envio
+// de foto + outra tela consultando ao mesmo tempo), uma pode terminar antes
+// da outra e mandar um `nc` fora de ordem, que o equipamento recusa como
+// nonce inválido/replay. Numa rede local isso quase nunca dá tempo de
+// acontecer; atrás de um proxy mais lento (Cloudflare Tunnel) a janela pra
+// essa corrida abre bem mais — bateu com o 502/"não responde" visto só no
+// equipamento Digest (SS 3532 MF), nunca nos que usam Basic auth. Serializa
+// as chamadas por host+usuário (uma de cada vez) pra eliminar a corrida.
+const digestQueues = new Map();
+
+export function digestFetch(url, { method = 'GET', username, password, jsonBody } = {}) {
+  const host = new URL(url).host;
+  const queueKey = `${username}@${host}`;
+  const prev = digestQueues.get(queueKey) || Promise.resolve();
+  const run = prev.then(
+    () => digestFetchSerialized(url, { method, username, password, jsonBody }),
+    () => digestFetchSerialized(url, { method, username, password, jsonBody })
+  );
+  // Nunca deixa a fila travada por uma falha anterior — cada chamada decide
+  // seu próprio sucesso/erro (o `.catch` aqui só protege o encadeamento).
+  digestQueues.set(queueKey, run.catch(() => {}));
+  return run;
+}
+
 // Faz a requisição sem autenticação primeiro; se o equipamento responder
 // 401 com um desafio Digest, monta o header de autorização e tenta de novo
 // — igual o `fetch` faria automaticamente se suportasse Digest nativamente
 // (não suporta).
-export async function digestFetch(url, { method = 'GET', username, password, jsonBody } = {}) {
+async function digestFetchSerialized(url, { method = 'GET', username, password, jsonBody } = {}) {
   const headers = jsonBody ? { 'Content-Type': 'application/json' } : {};
   const body = jsonBody ? JSON.stringify(jsonBody) : undefined;
   const opts = { method, headers, body, signal: AbortSignal.timeout(8000) };
