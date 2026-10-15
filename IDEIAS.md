@@ -2,6 +2,33 @@
 
 Backlog de ideias discutidas mas não implementadas — não é compromisso de fazer, só pra não esquecer.
 
+## Problemas conhecidos (pendências a revisitar)
+
+Bugs relatados que ainda não foram fechados de verdade — perguntar ao Rodrigo de vez em
+quando se quer atacar algum destes.
+
+- **Exclusão de morador continua dando erro 502**, mesmo equipamento por equipamento, mesmo
+  depois de corrigir a instabilidade do túnel Cloudflare (QUIC → HTTP/2, ver histórico do git)
+  e a corrida de nonce Digest da Academia. Testado direto no servidor via `localhost:3000`
+  (sem passar pela Cloudflare) e funcionou limpo — o relato é de uso real, pela Cloudflare. Pra
+  avançar da próxima vez: pedir o print/texto exato do erro na hora que acontecer (não só "deu
+  502") e em qual equipamento especificamente, pra comparar com os logs do `cloudflared` e do
+  `portal-backend` daquele instante exato.
+- **Porteiro da Academia (SS 3532 MF) não salva a foto**, mesmo depois da correção da corrida
+  de nonce Digest (#136 — resolveu outros sintomas da Academia, mas não esse). Suspeita ainda
+  não confirmada: um teste anterior (com uma imagem de 1 pixel, só pra validar o fluxo) recebeu
+  `"Batch Process Error"` do equipamento — pode ser que o formato/tamanho que o Portal manda
+  pra `AccessFace.cgi` (ver `biotSetUserPhoto` em `accessControlClient.js`) não seja o que esse
+  modelo espera de verdade (essa implementação nunca foi validada contra hardware real antes
+  desta sessão). Precisa testar com uma foto de rosto real (não a de 1 pixel) pra confirmar se
+  o erro é de formato ou outra coisa.
+- **Busca de morador não acha por nome parcial/apelido** — ex.: buscar "Rodri" não encontrou
+  um morador cadastrado como "Rodrigo H". Ponto técnico pra quando for investigar: o código
+  atual (`GET /search-users` em `accessDevices.js`) já faz `.includes(q)` (substring, não exige
+  o nome inteiro) — em teoria "rodri" já deveria bater dentro de "rodrigo h". Não reproduzido
+  ainda; primeiro passo da próxima vez é confirmar o termo exato digitado e o nome exato salvo
+  no equipamento (podem não ser bem o que parecem — maiúsculo/acento/espaço a mais etc.).
+
 ## ~~Notificações push (PWA)~~ — feito (parcial)
 Implementado: liga/desliga em Configurações (dono), cada administrador ativa depois no
 próprio navegador em "Minha conta". Avisa: porteiro ficou offline (transição, não repete
