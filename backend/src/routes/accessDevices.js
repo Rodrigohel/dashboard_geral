@@ -325,7 +325,7 @@ accessDevicesRouter.get('/search-users', async (req, res) => {
         const users = await deviceApi.listUsers(device, decryptSecret(device.device_password_enc));
         for (const user of users) {
           if ((user.name || '').toLowerCase().includes(q)) {
-            results.push({ device: { id: device.id, name: device.name, location: device.location }, user });
+            results.push({ device: { id: device.id, name: device.name, location: device.location, isFacial: Boolean(device.is_facial) }, user });
           }
         }
       } catch (err) {
