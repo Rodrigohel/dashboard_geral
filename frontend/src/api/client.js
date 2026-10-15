@@ -238,6 +238,7 @@ export const api = {
     testConnection: (payload) => request('/api/pumpstation/test-connection', { method: 'POST', body: payload }),
     status: () => request('/api/pumpstation/status'),
     history: (days = 30) => request(`/api/pumpstation/history?days=${days}`),
+    activationSnapshots: () => request('/api/pumpstation/activation-snapshots'),
   },
 
   settings: {

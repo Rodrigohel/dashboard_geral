@@ -29,6 +29,15 @@ export function severityColorVar(severity) {
   return `var(--level-${Math.min(4, Math.max(1, severity || 1))})`;
 }
 
+// Gradiente contínuo (não os 4 degraus de severityColorVar) pra colorir a
+// própria água do tanque conforme o % de enchimento — verde (seguro) até
+// vermelho (pior caso, nível de segurança), passando por amarelo no meio.
+export function waterColorForPercent(percent) {
+  const p = Math.min(100, Math.max(0, percent ?? 0));
+  const hue = 130 - 130 * (p / 100);
+  return `hsl(${hue.toFixed(0)}, 72%, 45%)`;
+}
+
 // Qual bomba é a líder do rodízio agora — um indicador só ("Bomba 1"),
 // não duas linhas sim/não separadas (bomba1DoDia/bomba2DoDia). Usado tanto
 // pela tela de Bombas quanto pelo card resumido da Início.

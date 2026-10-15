@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { db } from '../db/sqlite.js';
 import { requirePermission } from '../middleware/auth.js';
 import { readPumpStationStatus, testPumpStationConnection } from '../services/pumpStationClient.js';
-import { getPumpStationHistory, getFillEstimate } from '../services/pumpStationHistoryService.js';
+import { getPumpStationHistory, getFillEstimate, getPumpActivationSnapshots } from '../services/pumpStationHistoryService.js';
 
 export const pumpStationRouter = Router();
 
@@ -127,4 +127,12 @@ pumpStationRouter.get('/status', async (req, res) => {
 pumpStationRouter.get('/history', (req, res) => {
   const days = Math.min(365, Math.max(1, Number(req.query.days) || 30));
   res.json(getPumpStationHistory({ days }));
+});
+
+// Fotos automáticas tiradas no instante em que uma bomba liga — pra
+// comparar com o painel físico sem precisar estar lá esperando (ver
+// IDEIAS.md). Mesma permissão de /config: é diagnóstico de infra, não pro
+// usuário comum.
+pumpStationRouter.get('/activation-snapshots', requirePermission('bombas.editar'), (req, res) => {
+  res.json(getPumpActivationSnapshots());
 });

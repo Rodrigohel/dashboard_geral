@@ -2,7 +2,29 @@ import { useEffect, useState } from 'react';
 import Icon from '../../components/Icon.jsx';
 import { api } from '../../api/client.js';
 import { useToast } from '../../hooks/useToast.jsx';
-import { LEVEL_STOPS, fillPercentFor, currentLevelStop, severityColorVar, bombaDoDiaLabel } from '../../utils/pumpLevel.js';
+import { LEVEL_STOPS, fillPercentFor, severityColorVar, bombaDoDiaLabel, waterColorForPercent } from '../../utils/pumpLevel.js';
+
+// Caminho ondulado (não uma linha reta) pra simular a superfície da água se
+// movendo — alternando curvas pra cima/baixo em torno de baseY. Começa uma
+// "wavelength" antes de `left` e termina uma depois de `right` de propósito:
+// deslizar exatamente uma wavelength via CSS (ver .pump-tank-wave) fica sem
+// costura, porque o padrão se repete.
+function wavePath(baseY, amplitude, wavelength, left, right, bottom) {
+  const half = wavelength / 2;
+  let d = `M${left - wavelength},${baseY}`;
+  let x = left - wavelength;
+  let up = true;
+  const end = right + wavelength;
+  while (x < end) {
+    const nx = x + half;
+    const cy = baseY + (up ? -amplitude : amplitude);
+    d += ` Q${x + half / 2},${cy} ${nx},${baseY}`;
+    x = nx;
+    up = !up;
+  }
+  d += ` L${end},${bottom} L${left - wavelength},${bottom} Z`;
+  return d;
+}
 
 const DEFAULT_POLL_MS = 10000;
 
@@ -198,8 +220,9 @@ function TankVisualization({ status, error, loaded }) {
   // degrau fixo das 4 boias, sem precisar de nenhuma troca manual.
   const estimate = status?.fillEstimate;
   const fillPercent = estimate?.percent ?? fillPercentFor(points);
-  const activeStop = currentLevelStop(points);
-  const waterColorVar = activeStop ? severityColorVar(activeStop.severity) : 'var(--text-tertiary)';
+  // Cor da água em degrade contínuo conforme o %, não os 4 degraus de
+  // severidade (esses continuam só nos pontinhos/texto das boias ao lado).
+  const waterColor = waterColorForPercent(fillPercent);
   const bombaDoDia = bombaDoDiaLabel(points);
   const pump1On = points.bomba1 === true;
   const pump2On = points.bomba2 === true;
@@ -215,13 +238,21 @@ function TankVisualization({ status, error, loaded }) {
   const tankBottom = 220;
   const tankHeight = tankBottom - tankTop;
   const waterY = tankBottom - (fillPercent / 100) * tankHeight;
+  const WAVELENGTH = 40;
+  // Coordenadas locais com "linha d'água" em y=0 — o grupo inteiro desliza
+  // pra cima/baixo via translateY (anima liso, diferente de `d`, que não dá
+  // pra fazer CSS animar suavemente). `bottom` só precisa ser generoso: o
+  // clipPath corta o excesso.
+  const waveBack = wavePath(-2, 5, WAVELENGTH, 14, 106, 260);
+  const waveFront = wavePath(1, 4, WAVELENGTH, 14, 106, 260);
 
   return (
     <div className="surface" style={{ padding: 24 }}>
       <style>{`
-        .pump-tank-water { transition: y 2.5s var(--ease, ease), height 2.5s var(--ease, ease); }
-        .pump-tank-wave { animation: pump-tank-wave-move 3.2s linear infinite; }
-        @keyframes pump-tank-wave-move { from { transform: translateX(0); } to { transform: translateX(-40px); } }
+        .pump-tank-wave-level { transition: transform 2.5s var(--ease, ease); }
+        .pump-tank-wave-back { animation: pump-tank-wave-move 4.4s linear infinite reverse; }
+        .pump-tank-wave-front { animation: pump-tank-wave-move 2.6s linear infinite; }
+        @keyframes pump-tank-wave-move { from { transform: translateX(0); } to { transform: translateX(${WAVELENGTH}px); } }
         .pump-icon-on { animation: pump-icon-pulse 1.1s ease-in-out infinite; }
         @keyframes pump-icon-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
       `}</style>
@@ -249,8 +280,10 @@ function TankVisualization({ status, error, loaded }) {
           </defs>
           <rect x={14} y={tankTop} width={92} height={tankHeight} rx={8} fill="none" stroke="var(--border-strong)" strokeWidth="2" />
           <g clipPath="url(#pump-tank-clip)">
-            <rect className="pump-tank-water" x={14} y={waterY} width={92} height={tankBottom - waterY} fill={waterColorVar} opacity="0.55" />
-            <rect className="pump-tank-water pump-tank-wave" x={0} y={waterY - 3} width={200} height={8} fill={waterColorVar} opacity="0.8" />
+            <g className="pump-tank-wave-level" style={{ transform: `translateY(${waterY}px)` }}>
+              <path className="pump-tank-wave-back" d={waveBack} fill={waterColor} opacity="0.35" />
+              <path className="pump-tank-wave-front" d={waveFront} fill={waterColor} opacity="0.65" />
+            </g>
           </g>
           {LEVEL_STOPS.map((stop) => {
             const y = tankBottom - (stop.percent / 100) * tankHeight;
@@ -647,10 +680,18 @@ function LEVELS_ACTIVE_LABEL(levelsAtStart) {
   return active.length ? active.join(' + ') : '—';
 }
 
-function HistoryCard() {
+const SNAPSHOT_LABEL = {
+  ...BOUNDARY_LABEL,
+  bomba1: 'Bomba 1',
+  bomba2: 'Bomba 2',
+  ...Object.fromEntries(ALARM_POINTS.map((p) => [p.key, p.label])),
+};
+
+function HistoryCard({ canEditConfig }) {
   const [days, setDays] = useState(30);
   const [history, setHistory] = useState(null);
   const [error, setError] = useState('');
+  const [snapshots, setSnapshots] = useState(null);
 
   useEffect(() => {
     setHistory(null);
@@ -660,6 +701,14 @@ function HistoryCard() {
       .then(setHistory)
       .catch((err) => setError(err.message));
   }, [days]);
+
+  // Fotos automáticas tiradas no instante em que uma bomba liga — só pra
+  // quem edita config (mesmo público de /config), pra comparar com o
+  // painel físico sem precisar estar lá esperando.
+  useEffect(() => {
+    if (!canEditConfig) return;
+    api.pumpStation.activationSnapshots().then(setSnapshots).catch(() => setSnapshots([]));
+  }, [canEditConfig]);
 
   return (
     <div className="surface" style={{ padding: 24 }}>
@@ -749,6 +798,40 @@ function HistoryCard() {
               </div>
             )}
           </div>
+
+          {canEditConfig && snapshots && snapshots.length > 0 && (
+            <div style={{ marginTop: 20 }}>
+              <div className="nav-subitem-label" style={{ marginBottom: 8 }}>
+                Fotos automáticas ao ligar uma bomba (pra comparar com o painel físico)
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 320, overflowY: 'auto' }}>
+                {snapshots.map((s) => (
+                  <div key={s.id} className="surface" style={{ padding: 12 }}>
+                    <div style={{ fontWeight: 600, fontSize: 12.5, marginBottom: 6 }}>{formatDateTime(s.createdAt)}</div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                      {Object.entries(s.points)
+                        .filter(([key]) => SNAPSHOT_LABEL[key])
+                        .map(([key, value]) => (
+                          <span
+                            key={key}
+                            className="field-hint"
+                            style={{
+                              padding: '2px 8px',
+                              borderRadius: 999,
+                              background: value === true ? 'var(--chart-series-1)' : 'transparent',
+                              color: value === true ? '#fff' : undefined,
+                              border: value === true ? 'none' : '1px solid var(--border)',
+                            }}
+                          >
+                            {SNAPSHOT_LABEL[key]}: {value === true ? 'sim' : value === false ? 'não' : '—'}
+                          </span>
+                        ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>
@@ -779,7 +862,7 @@ export default function PumpStation({ isOwner, can }) {
         onGoToConfig={() => document.getElementById(configId)?.scrollIntoView({ behavior: 'smooth' })}
       />
 
-      <HistoryCard />
+      <HistoryCard canEditConfig={canEditConfig} />
 
       {canEditConfig && <ConfigCard configId={configId} />}
     </>

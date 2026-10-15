@@ -1,6 +1,6 @@
 import { db } from '../db/sqlite.js';
 import { readPumpStationStatus } from './pumpStationClient.js';
-import { recordPumpStationEvent } from './pumpStationHistoryService.js';
+import { recordPumpStationEvent, recordPumpActivationSnapshot } from './pumpStationHistoryService.js';
 
 // Mesmos 9 sinais da tela "Bombas" — centralizado aqui pra bater com
 // routes/pumpStation.js sem importar o router inteiro só por causa disso.
@@ -57,6 +57,13 @@ async function pollOnce() {
     const boolValue = Boolean(value);
     if (hasBaseline && lastKnown[key] !== boolValue) {
       recordPumpStationEvent(key, boolValue);
+      // Bomba acabou de ligar: tira uma foto de TODOS os pontos nesse exato
+      // instante, pra comparar depois com o painel físico sem precisar
+      // estar lá esperando ligar (pedido do Rodrigo após a discrepância da
+      // bomba 1 — ver IDEIAS.md).
+      if ((key === 'bomba1' || key === 'bomba2') && boolValue === true) {
+        recordPumpActivationSnapshot(status);
+      }
     }
     lastKnown[key] = boolValue;
   }

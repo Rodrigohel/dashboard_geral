@@ -239,6 +239,15 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_pump_events_created_at ON pump_events(created_at);
 
+  -- Foto completa (todos os pontos, já com invert aplicado) tirada sozinha
+  -- no instante em que bomba1 OU bomba2 liga (ver pumpStationHistoryPoller.js)
+  -- — pra comparar com o painel físico sem precisar estar lá esperando ligar.
+  CREATE TABLE IF NOT EXISTS pump_activation_snapshots (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    points_json TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
   -- Título/descrição customizados dos cards de módulo na tela Início —
   -- título/descrição em branco = usa o padrão (ver MODULE_META no front).
   -- Só dono edita (tela Início, botão de lápis no card); todo mundo lê, pra
