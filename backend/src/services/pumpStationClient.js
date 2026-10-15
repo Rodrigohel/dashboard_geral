@@ -47,6 +47,12 @@ const POINT_KEYS = [
   'termico1',
   'termico2',
   'modoManual',
+  'emergencia',
+  'faltaFase',
+  'painelDesligado',
+  'falhaBoias',
+  'bomba1DoDia',
+  'bomba2DoDia',
 ];
 
 // `config` é a linha da tabela pump_station já convertida pra camelCase
