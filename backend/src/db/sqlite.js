@@ -248,6 +248,21 @@ db.exec(`
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
 
+  -- Fase 1 de "pontos customizados" (ver IDEIAS.md): sinal extra que o
+  -- Rodrigo cadastra sozinho quando o CLP ganha um I/O novo, sem precisar de
+  -- deploy. Mesma forma addr/type/invert dos pontos fixos de pump_station,
+  -- só que em lista (uma linha por ponto) em vez de colunas fixas, porque
+  -- não dá pra prever quantos vão existir. Exibição ainda genérica (sim/não
+  -- com o nome que a pessoa deu) — o desenho bonito fica pra uma fase 2.
+  CREATE TABLE IF NOT EXISTS pump_custom_points (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    addr INTEGER,
+    type TEXT NOT NULL DEFAULT 'coil',
+    invert INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
   -- Título/descrição customizados dos cards de módulo na tela Início —
   -- título/descrição em branco = usa o padrão (ver MODULE_META no front).
   -- Só dono edita (tela Início, botão de lápis no card); todo mundo lê, pra

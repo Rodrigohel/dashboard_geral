@@ -68,7 +68,11 @@ const POINT_KEYS = [
 
 // `config` é a linha da tabela pump_station já convertida pra camelCase
 // (ver serializePumpStationConfig em routes/pumpStation.js) — espera
-// `points.<chave> = { addr, type }` pra cada um dos POINT_KEYS acima.
+// `points.<chave> = { addr, type }` pra cada um dos POINT_KEYS acima, e
+// opcionalmente `customPoints = [{ id, addr, type, invert }]` (ver
+// pump_custom_points) — pontos extras que o Rodrigo cadastra sozinho, lidos
+// do mesmo jeito mas devolvidos à parte (chave `custom_<id>`), já que não
+// têm um nome fixo conhecido em código.
 export async function readPumpStationStatus(config) {
   if (!config.host) {
     throw new Error('Endereço (IP) da IHM não configurado.');
@@ -91,6 +95,13 @@ export async function readPumpStationStatus(config) {
         // (endereço configurado mas a IHM recusou/não respondeu). Não
         // derruba a leitura inteira por causa de UM sinal com problema.
         result[key] = { error: err.message };
+      }
+    }
+    for (const point of config.customPoints || []) {
+      try {
+        result[`custom_${point.id}`] = await readPoint(client, point);
+      } catch (err) {
+        result[`custom_${point.id}`] = { error: err.message };
       }
     }
     return result;

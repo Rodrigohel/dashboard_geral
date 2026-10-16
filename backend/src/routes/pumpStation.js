@@ -31,6 +31,14 @@ function getRow() {
   return db.prepare('SELECT * FROM pump_station WHERE id = 1').get();
 }
 
+function getCustomPointRows() {
+  return db.prepare('SELECT id, name, addr, type, invert FROM pump_custom_points ORDER BY id ASC').all();
+}
+
+function serializeCustomPoint(row) {
+  return { id: row.id, name: row.name, addr: row.addr, type: row.type, invert: Boolean(row.invert) };
+}
+
 function serializeConfig(row) {
   const points = {};
   for (const [key, column] of POINTS) {
@@ -44,6 +52,7 @@ function serializeConfig(row) {
     unitId: row.unit_id,
     pollSeconds: row.poll_seconds,
     points,
+    customPoints: getCustomPointRows().map(serializeCustomPoint),
   };
 }
 
@@ -96,6 +105,42 @@ pumpStationRouter.put('/config', requirePermission('bombas.editar'), (req, res) 
   res.json(serializeConfig(getRow()));
 });
 
+// Fase 1 de "pontos customizados" (ver IDEIAS.md): o Rodrigo cadastra um
+// sinal novo sozinho (nome + endereço + tipo), sem precisar de deploy.
+// Exibição ainda genérica (sim/não com o nome dado) — igual aos pontos
+// fixos, mas em lista em vez de colunas fixas no schema.
+pumpStationRouter.post('/custom-points', requirePermission('bombas.editar'), (req, res) => {
+  const { name, addr, type, invert } = req.body || {};
+  if (!name || !String(name).trim()) return res.status(400).json({ error: 'Informe um nome pro ponto.' });
+  const validType = VALID_TYPES.has(type) ? type : 'coil';
+  const addrValue = addr === '' || addr === null || addr === undefined ? null : Number(addr);
+  const { lastInsertRowid } = db
+    .prepare('INSERT INTO pump_custom_points (name, addr, type, invert) VALUES (?, ?, ?, ?)')
+    .run(String(name).trim(), addrValue, validType, invert ? 1 : 0);
+  res.status(201).json(serializeCustomPoint(db.prepare('SELECT id, name, addr, type, invert FROM pump_custom_points WHERE id = ?').get(lastInsertRowid)));
+});
+
+pumpStationRouter.put('/custom-points/:id', requirePermission('bombas.editar'), (req, res) => {
+  const existing = db.prepare('SELECT id, name, addr, type, invert FROM pump_custom_points WHERE id = ?').get(req.params.id);
+  if (!existing) return res.status(404).json({ error: 'Ponto customizado não encontrado.' });
+  const body = req.body || {};
+  const newName = body.name && String(body.name).trim() ? String(body.name).trim() : existing.name;
+  const newType = VALID_TYPES.has(body.type) ? body.type : existing.type;
+  // `addr` não enviado (campo ausente do body) tem que MANTER o valor atual
+  // — só limpa o endereço quando a chave vem explicitamente como
+  // null/''/undefined no payload (a tela sempre manda o objeto inteiro, mas
+  // a API não pode depender disso). Mesmo cuidado já usado em PUT /config.
+  const addrValue = 'addr' in body ? (body.addr === '' || body.addr === null || body.addr === undefined ? null : Number(body.addr)) : existing.addr;
+  const newInvert = body.invert === undefined ? existing.invert : (body.invert ? 1 : 0);
+  db.prepare('UPDATE pump_custom_points SET name = ?, addr = ?, type = ?, invert = ? WHERE id = ?').run(newName, addrValue, newType, newInvert, existing.id);
+  res.json(serializeCustomPoint(db.prepare('SELECT id, name, addr, type, invert FROM pump_custom_points WHERE id = ?').get(existing.id)));
+});
+
+pumpStationRouter.delete('/custom-points/:id', requirePermission('bombas.editar'), (req, res) => {
+  db.prepare('DELETE FROM pump_custom_points WHERE id = ?').run(req.params.id);
+  res.json({ ok: true });
+});
+
 pumpStationRouter.post('/test-connection', requirePermission('bombas.editar'), async (req, res) => {
   const { host, port, unitId } = req.body || {};
   if (!host) return res.status(400).json({ error: 'Informe o IP da IHM' });
@@ -118,7 +163,8 @@ pumpStationRouter.get('/status', async (req, res) => {
     // null até ter amostra histórica suficiente pra essa fronteira — o
     // front cai pro degrau fixo nesse caso, sem precisar de troca manual
     // nenhuma (ver getFillEstimate).
-    res.json({ name: config.name, pollSeconds: config.pollSeconds, points, fillEstimate: getFillEstimate(points) });
+    const customPoints = config.customPoints.map((p) => ({ id: p.id, name: p.name, value: points[`custom_${p.id}`] }));
+    res.json({ name: config.name, pollSeconds: config.pollSeconds, points, customPoints, fillEstimate: getFillEstimate(points) });
   } catch (err) {
     res.status(502).json({ error: err.message });
   }
