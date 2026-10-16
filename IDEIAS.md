@@ -141,9 +141,10 @@ existente) nem o módulo Gerador (que ainda não existe). O que foi implementado
 - Mensagem é mandada uma vez quando o alarme dispara (sempre, prioridade ou não); se for
   prioridade, **reenvia a cada X tempo** (configurável: 5min/15min/30min/1h/2h) até resolver
   ou ser reconhecido.
-- Qualquer resposta no chat do bot reconhece **todos** os alarmes ativos no momento (não
-  amarra a resposta a um alarme específico — simplificação de propósito, documentada no
-  código) e o Portal manda uma confirmação de volta.
+- Cada mensagem de alarme já vem com **dois botões** ("✅ Visto" e "🔧 Em manutenção") —
+  tocar um deles reconhece SÓ aquele alarme específico (via `callback_data`), parando de
+  insistir nesse sem mexer nos outros alarmes ativos. Digitar qualquer mensagem solta no chat
+  (sem tocar botão) continua reconhecendo todos os alarmes ativos de uma vez, como fallback.
 - Endpoint do webhook (`POST /api/telegram/webhook/<secret>`) é público (o Telegram chama,
   não um usuário logado) mas protegido por um segredo aleatório na própria URL, não por JWT.
 
@@ -151,8 +152,6 @@ existente) nem o módulo Gerador (que ainda não existe). O que foi implementado
 - Marcar **equipamentos/sinais de outros módulos** (rede, interfone, porteiro offline) como
   prioridade — hoje só os 7 alarmes de Bombas têm essa opção.
 - Sinalização visual de "equipamento crítico" na tela (não só pra fins de alerta).
-- Amarrar a resposta no Telegram a um alarme específico (reply_to_message) — hoje qualquer
-  resposta reconhece todos os alarmes ativos de uma vez, de propósito simplificado.
 - **Ligação telefônica de verdade** (Twilio ou alternativa mais barata) pros equipamentos
   habilitados — desligando automático ao atender (atender já conta como reconhecimento).
   Precisa cotar preço antes de decidir qual provedor usar.

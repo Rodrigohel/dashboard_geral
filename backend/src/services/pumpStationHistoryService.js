@@ -135,7 +135,7 @@ export function getLevelTransitionStats() {
       // esvaziamento, não é mais o mesmo ciclo).
       if (idx > 0) {
         if (pendingAscent[idx - 1] !== null) {
-          risingSamples[idx - 1].push(atMs - pendingAscent[idx - 1]);
+          risingSamples[idx - 1].push({ ms: atMs - pendingAscent[idx - 1], startAt: pendingAscent[idx - 1], endAt: atMs });
           pendingAscent[idx - 1] = null;
         }
         pendingDescent[idx - 1] = null;
@@ -150,7 +150,7 @@ export function getLevelTransitionStats() {
       // completar o enchimento).
       if (idx < BOUNDARIES.length) {
         if (pendingDescent[idx] !== null) {
-          fallingSamples[idx].push(atMs - pendingDescent[idx]);
+          fallingSamples[idx].push({ ms: atMs - pendingDescent[idx], startAt: pendingDescent[idx], endAt: atMs });
           pendingDescent[idx] = null;
         }
         pendingAscent[idx] = null;
@@ -161,10 +161,18 @@ export function getLevelTransitionStats() {
     }
   }
 
-  function summarize(samplesMs) {
-    if (samplesMs.length === 0) return null;
-    const avgMs = samplesMs.reduce((a, b) => a + b, 0) / samplesMs.length;
-    return { avgSeconds: Math.round(avgMs / 1000), sampleCount: samplesMs.length };
+  // `samples` vai junto na resposta pra dar pra CONFERIR de onde veio a
+  // média (pedido do Rodrigo — "onde você tirou esse número?") — cada item
+  // é um ciclo real, com data/hora de início e fim, não só o número final.
+  // Limitado aos 20 mais recentes pra não inflar a resposta à toa.
+  function summarize(samples) {
+    if (samples.length === 0) return null;
+    const avgMs = samples.reduce((a, s) => a + s.ms, 0) / samples.length;
+    const recent = [...samples]
+      .sort((a, b) => b.endAt - a.endAt)
+      .slice(0, 20)
+      .map((s) => ({ startAt: new Date(s.startAt).toISOString(), endAt: new Date(s.endAt).toISOString(), seconds: Math.round(s.ms / 1000) }));
+    return { avgSeconds: Math.round(avgMs / 1000), sampleCount: samples.length, samples: recent };
   }
 
   return BOUNDARIES.map((b, i) => ({

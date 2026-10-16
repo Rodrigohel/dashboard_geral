@@ -397,9 +397,18 @@ db.exec(`
     alarm_key TEXT PRIMARY KEY,
     active_since TEXT NOT NULL DEFAULT (datetime('now')),
     last_sent_at TEXT NOT NULL DEFAULT (datetime('now')),
-    acknowledged_at TEXT
+    acknowledged_at TEXT,
+    ack_reason TEXT NOT NULL DEFAULT ''
   );
 `);
+
+// `ack_reason` adicionado depois de telegram_alarm_state já estar em
+// produção (botões "Visto"/"Em manutenção" — ver telegramService.js) —
+// mesmo cuidado de sempre, ALTER TABLE guardado por PRAGMA table_info.
+const telegramAlarmStateColumns = db.prepare('PRAGMA table_info(telegram_alarm_state)').all().map((c) => c.name);
+if (!telegramAlarmStateColumns.includes('ack_reason')) {
+  db.exec("ALTER TABLE telegram_alarm_state ADD COLUMN ack_reason TEXT NOT NULL DEFAULT ''");
+}
 
 // Flag "prioridade" por sinal de alarme da casa de bombas — só esses 7
 // pontos fazem sentido como "alarme" (os 4 sensores de nível não são
