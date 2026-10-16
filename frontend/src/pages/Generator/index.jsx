@@ -511,6 +511,7 @@ function ConfigCard({ configId }) {
         <div className="field">
           <label className="field-label">Porta Modbus</label>
           <input className="input" type="number" value={port} onChange={(e) => setPort(e.target.value)} />
+          <span className="field-hint">Normalmente 502 — não é a porta 23 (Telnet) usada só pela sonda de rede em Configurações.</span>
         </div>
         <div className="field">
           <label className="field-label">Unit ID</label>

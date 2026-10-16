@@ -538,6 +538,16 @@ for (const [column, defaultAddr] of Object.entries(VALUE_POINT_DEFAULTS)) {
   }
 }
 
+// Autocorreção: o diagnóstico Modbus que o Rodrigo rodou mostrou que a
+// porta salva em Configuração do Gerador estava 23 (Telnet, usada só pela
+// sonda de rede/diagnóstico — ver networkProbeService.js) em vez de 502
+// (Modbus TCP de verdade) — explica todo "Timed out", nenhum function code
+// nem unit ID respondia porque nada ali fala Modbus. 23 nunca é uma porta
+// Modbus válida pra esse controlador, então corrige sozinho de volta pro
+// default — só se ainda estiver exatamente nesse valor (não mexe se o
+// Rodrigo põe outra porta de propósito depois).
+db.prepare("UPDATE generator_station SET port = 502 WHERE id = 1 AND port = 23").run();
+
 // Flag "prioridade" por porteiro — mesma ideia do `_priority` dos pontos de
 // pump_station, só que aqui é por EQUIPAMENTO (não por sinal): porteiro cair
 // com essa marcação insiste via Telegram até reconhecer, igual os alarmes
