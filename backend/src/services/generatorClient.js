@@ -78,6 +78,17 @@ function decodeEnum(labels, rawValue) {
   return { code: rawValue, label: labels[rawValue] ?? `Código ${rawValue} (não mapeado)` };
 }
 
+// Alguns controladores derrubam a conexão TCP em vez de responder a um
+// pedido que não entendem (ver diagnoseModbus) — sem reconectar, UMA leitura
+// assim mata a sequência inteira: tudo depois vira "Port Not Open", mascarando
+// o que cada ponto realmente diria. Reconecta uma vez se achar a porta
+// fechada antes do próximo ponto.
+async function ensureOpen(client, host, port, unitId) {
+  if (client.isOpen) return;
+  await client.connectTCP(host, { port: port || 502 });
+  client.setID(unitId || 1);
+}
+
 export async function readGeneratorStatus(config) {
   if (!config.host) {
     throw new Error('Endereço (IP) do controlador não configurado.');
@@ -93,6 +104,7 @@ export async function readGeneratorStatus(config) {
     for (const key of POINT_KEYS) {
       const point = config.points[key];
       try {
+        await ensureOpen(client, config.host, config.port, config.unitId);
         result[key] = await readPoint(client, point);
       } catch (err) {
         result[key] = { error: err.message };
@@ -101,23 +113,27 @@ export async function readGeneratorStatus(config) {
     for (const key of VALUE_POINT_KEYS) {
       const point = config.valuePoints[key];
       try {
+        await ensureOpen(client, config.host, config.port, config.unitId);
         result[key] = await readValuePoint(client, point);
       } catch (err) {
         result[key] = { error: err.message };
       }
     }
     try {
+      await ensureOpen(client, config.host, config.port, config.unitId);
       result.estadoMotor = decodeEnum(ENGINE_STATE_LABELS, await readValuePoint(client, config.valuePoints.estadoMotor));
     } catch (err) {
       result.estadoMotor = { error: err.message };
     }
     try {
+      await ensureOpen(client, config.host, config.port, config.unitId);
       result.modoControlador = decodeEnum(CONTROLLER_MODE_LABELS, await readValuePoint(client, config.valuePoints.modoControlador));
     } catch (err) {
       result.modoControlador = { error: err.message };
     }
     for (const point of config.customPoints || []) {
       try {
+        await ensureOpen(client, config.host, config.port, config.unitId);
         result[`custom_${point.id}`] = await readPoint(client, point);
       } catch (err) {
         result[`custom_${point.id}`] = { error: err.message };
@@ -133,6 +149,62 @@ export async function readGeneratorStatus(config) {
       // socket já pode ter caído sozinho
     }
   }
+}
+
+// Diagnóstico Modbus (ver IDEIAS.md — o Rodrigo achou "Timed out" seguido
+// de "Port Not Open" em todos os pontos). "Timed out" na 1ª leitura com
+// "Port Not Open" em cascata nas seguintes é a conexão sendo DERRUBADA pelo
+// controlador em vez de responder — compatível com dois motivos bem
+// diferentes: (a) function code errado (o CM-Ethernet pode só falar
+// holding/input register — FC3/4 — e recusar coil/discrete — FC1/2, mesmo
+// a documentação dizendo que FC1/2 é permitido) ou (b) unit ID errado (o
+// "Endereço do Controlador", registrador de setpoint 03029, pode não ser
+// 1). Testa os dois de uma vez, cada combinação numa conexão nova (pra um
+// teste que derruba a porta não estragar o próximo) com timeout curto.
+async function tryRead(host, port, unitId, fn) {
+  const client = new ModbusRTU();
+  client.setTimeout(800);
+  try {
+    await client.connectTCP(host, { port: port || 502 });
+    client.setID(unitId);
+    const value = await fn(client);
+    return { ok: true, value };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  } finally {
+    try {
+      client.close(() => {});
+    } catch {
+      // idem
+    }
+  }
+}
+
+export async function diagnoseModbus({ host, port, unitId }) {
+  if (!host) throw new Error('Informe o IP do controlador.');
+  const baseId = Number(unitId) || 1;
+
+  const functionCodes = {
+    'FC3 (holding register) — Tensão Gerador L1-N @ 33': (id) => tryRead(host, port, id, (c) => c.readHoldingRegisters(33, 1).then((r) => r.data[0])),
+    'FC1 (coil) — Pronto @ 39': (id) => tryRead(host, port, id, (c) => c.readCoils(39, 1).then((r) => r.data[0])),
+    'FC2 (discrete input) — Pronto @ 39': (id) => tryRead(host, port, id, (c) => c.readDiscreteInputs(39, 1).then((r) => r.data[0])),
+    'FC4 (input register) — Tensão Gerador L1-N @ 33': (id) => tryRead(host, port, id, (c) => c.readInputRegisters(33, 1).then((r) => r.data[0])),
+  };
+  const byFunctionCode = {};
+  for (const [label, test] of Object.entries(functionCodes)) {
+    byFunctionCode[label] = await test(baseId);
+  }
+
+  // Varredura de Unit ID (só com FC3, o teste acima menos arriscado de
+  // derrubar a porta) — 1 a 10 cobre a maioria das instalações reais; o
+  // range oficial do ComAp vai até 32, mas raramente passa de poucas
+  // unidades numa instalação com um gerador só.
+  const byUnitId = {};
+  for (let id = 1; id <= 10; id++) {
+    byUnitId[id] = await tryRead(host, port, id, (c) => c.readHoldingRegisters(33, 1).then((r) => r.data[0]));
+  }
+
+  return { host, port: port || 502, configuredUnitId: baseId, byFunctionCode, byUnitId };
 }
 
 export async function testGeneratorConnection(host, port, unitId) {

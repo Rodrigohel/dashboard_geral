@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { db } from '../db/sqlite.js';
 import { requirePermission } from '../middleware/auth.js';
-import { readGeneratorStatus, testGeneratorConnection } from '../services/generatorClient.js';
+import { readGeneratorStatus, testGeneratorConnection, diagnoseModbus } from '../services/generatorClient.js';
 import { encryptSecret } from '../services/cryptoService.js';
 import { getGeneratorHistory, getGeneratorActivationSnapshots } from '../services/generatorHistoryService.js';
 
@@ -193,6 +193,24 @@ generatorRouter.post('/test-connection', requirePermission('gerador.editar'), as
   try {
     await testGeneratorConnection(host, Number(port) || 502, Number(unitId) || 1);
     res.json({ ok: true });
+  } catch (err) {
+    res.status(502).json({ error: err.message });
+  }
+});
+
+// Diagnóstico Modbus (ver generatorClient.js) — testa FC1/2/3/4 e uma
+// varredura de Unit ID de uma vez, pra achar por que as leituras normais
+// estão dando "erro de leitura" sem precisar ficar chutando.
+generatorRouter.post('/modbus-diagnose', requirePermission('gerador.editar'), async (req, res) => {
+  const row = getRow();
+  const { host, port, unitId } = req.body || {};
+  try {
+    const result = await diagnoseModbus({
+      host: host || row.host,
+      port: Number(port) || row.port,
+      unitId: unitId !== undefined ? Number(unitId) : row.unit_id,
+    });
+    res.json(result);
   } catch (err) {
     res.status(502).json({ error: err.message });
   }
