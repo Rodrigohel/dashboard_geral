@@ -35,3 +35,59 @@ export function probeTcp({ host, port, send = '', timeoutMs = 4000 }) {
     });
   });
 }
+
+// Varredura de portas (pedido do Rodrigo: "eu só queria botar o IP e ele
+// catar... os IPs e as portas que aquele IP tem aberta") — não troca dados
+// com nenhuma, só tenta conectar em cada uma e vê se fecha a conexão TCP
+// (aberta) ou recusa/não responde (fechada/filtrada). `spec` é uma lista
+// tipo "22,80,443,8000-8100"; capada em MAX_PORTS pra um clique não travar
+// a tela sondando a faixa inteira (65535) sem querer.
+const MAX_PORTS = 5000;
+
+export function parsePortSpec(spec) {
+  const ports = new Set();
+  for (const part of String(spec || '').split(',').map((s) => s.trim()).filter(Boolean)) {
+    const m = part.match(/^(\d+)(?:-(\d+))?$/);
+    if (!m) continue;
+    const start = Number(m[1]);
+    const end = m[2] ? Number(m[2]) : start;
+    for (let p = Math.min(start, end); p <= Math.max(start, end); p++) {
+      if (p >= 1 && p <= 65535) ports.add(p);
+    }
+  }
+  if (ports.size === 0) throw new Error('Nenhuma porta válida nessa lista.');
+  if (ports.size > MAX_PORTS) throw new Error(`Muitas portas de uma vez (máximo ${MAX_PORTS}) — divida em faixas menores.`);
+  return [...ports].sort((a, b) => a - b);
+}
+
+function isPortOpen(host, port, timeoutMs) {
+  return new Promise((resolve) => {
+    const socket = new net.Socket();
+    let done = false;
+    function finish(open) {
+      if (done) return;
+      done = true;
+      socket.destroy();
+      resolve(open);
+    }
+    socket.setTimeout(timeoutMs);
+    socket.once('connect', () => finish(true));
+    socket.once('timeout', () => finish(false));
+    socket.once('error', () => finish(false));
+    socket.connect(port, host);
+  });
+}
+
+export async function scanPorts({ host, ports, timeoutMs = 350, concurrency = 150 }) {
+  if (!host) throw new Error('Informe o IP/host.');
+  const open = [];
+  let next = 0;
+  async function worker() {
+    while (next < ports.length) {
+      const port = ports[next++];
+      if (await isPortOpen(host, port, timeoutMs)) open.push(port);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(concurrency, ports.length) }, worker));
+  return { host, scanned: ports.length, open: open.sort((a, b) => a - b) };
+}

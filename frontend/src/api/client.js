@@ -293,6 +293,7 @@ export const api = {
     getModuleCards: () => request('/api/settings/module-cards'),
     saveModuleCard: (moduleKey, payload) => request(`/api/settings/module-cards/${moduleKey}`, { method: 'PUT', body: payload }),
     networkProbe: (payload) => request('/api/settings/network-probe', { method: 'POST', body: payload }),
+    portScan: (payload) => request('/api/settings/port-scan', { method: 'POST', body: payload }),
   },
 
   push: {

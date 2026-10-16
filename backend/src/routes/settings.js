@@ -12,7 +12,7 @@ import { getPushSettings, setPushEnabled } from '../services/pushService.js';
 import { getTelegramSettings, saveTelegramSettings, testTelegramToken, getSavedBotToken, registerWebhook } from '../services/telegramService.js';
 import { getTwilioSettings, saveTwilioSettings, testTwilioConnection } from '../services/twilioService.js';
 import { listCriticalExternalDevices, setExternalDevicePriority, supportsCriticalPriority } from '../services/externalDeviceService.js';
-import { probeTcp } from '../services/networkProbeService.js';
+import { probeTcp, parsePortSpec, scanPorts } from '../services/networkProbeService.js';
 
 export const settingsRouter = Router();
 const GATEWAY_MODULES = MODULE_KEYS.filter((k) => k !== 'acesso'); // 'rede' | 'interfone'
@@ -212,6 +212,19 @@ settingsRouter.post('/network-probe', async (req, res) => {
   try {
     const result = await probeTcp({ host, port: Number(port), send: String(send || '').slice(0, 200) });
     res.json(result);
+  } catch (err) {
+    res.status(502).json({ error: err.message });
+  }
+});
+
+// Varredura de portas — só o IP, sem precisar saber a porta de antemão (ver
+// scanPorts em networkProbeService.js). `ports` é a lista/faixa em texto
+// (ex.: "1-1024,8080,8443"); vazio usa um default razoável.
+settingsRouter.post('/port-scan', async (req, res) => {
+  const { host, ports } = req.body || {};
+  try {
+    const portList = parsePortSpec(ports || '1-1024,3389,5000,5900,8000,8008,8080,8081,8443,8888,9000,9090,9100');
+    res.json(await scanPorts({ host, ports: portList }));
   } catch (err) {
     res.status(502).json({ error: err.message });
   }
