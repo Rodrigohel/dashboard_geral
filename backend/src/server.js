@@ -21,7 +21,7 @@ import { gatewayProxy } from './services/gatewayService.js';
 import { startDeviceHealthPoller } from './services/deviceHealthPoller.js';
 import { startAuditRetentionPruner } from './services/auditRetentionPruner.js';
 import { startPumpStationHistoryPoller } from './services/pumpStationHistoryPoller.js';
-import { isValidWebhookSecret, acknowledgeAllActiveAlarms, sendTelegramMessage } from './services/telegramService.js';
+import { isValidWebhookSecret, acknowledgeAllActiveAlarms, sendTelegramMessage, handleCallbackQuery } from './services/telegramService.js';
 import './db/sqlite.js';
 
 const app = express();
@@ -51,9 +51,18 @@ app.use('/manifest.webmanifest', manifestRouter);
 app.post('/api/telegram/webhook/:secret', async (req, res) => {
   if (!isValidWebhookSecret(req.params.secret)) return res.status(404).end();
   res.status(200).end(); // responde rápido — o Telegram não espera processamento
-  const text = req.body?.message?.text;
-  if (!text) return;
   try {
+    // Toque num botão ("Visto"/"Em manutenção") — reconhece só aquele
+    // alarme (ver handleCallbackQuery).
+    const callback = req.body?.callback_query;
+    if (callback) {
+      await handleCallbackQuery(callback.data, callback.id);
+      return;
+    }
+    // Mensagem de texto solta — reconhece todos os alarmes ativos (fallback
+    // pra quem prefere digitar em vez de tocar num botão).
+    const text = req.body?.message?.text;
+    if (!text) return;
     const acked = await acknowledgeAllActiveAlarms();
     if (acked.length > 0) {
       await sendTelegramMessage(`✅ ${acked.length} alarme(s) reconhecido(s), parei de insistir.`).catch(() => {});

@@ -1,9 +1,11 @@
 // Alertas via Telegram (ver IDEIAS.md) — manda mensagem quando um alarme da
-// casa de bombas dispara; alarmes marcados como "prioridade" insistem
-// (reenviam) a cada X segundos até alguém responder qualquer coisa no chat
-// do bot, o que reconhece TODOS os alarmes ativos no momento (v1 simples:
-// não tenta amarrar a resposta a um alarme específico via reply_to_message,
-// qualquer mensagem no chat configurado conta como "já vi, pode parar").
+// casa de bombas dispara, com dois botões ("Visto" / "Em manutenção")
+// embutidos na própria mensagem. Tocar um botão reconhece SÓ aquele alarme
+// (via callback_data = "ack:<alarmKey>" / "maint:<alarmKey>"), diferente de
+// só digitar uma mensagem solta no chat, que continua reconhecendo todos os
+// alarmes ativos de uma vez (fallback pra quem prefere digitar).
+// Alarmes marcados como "prioridade" insistem (reenviam) a cada X segundos
+// até alguém reconhecer, de um jeito ou de outro.
 import crypto from 'node:crypto';
 import { db } from '../db/sqlite.js';
 import { encryptSecret, decryptSecret } from './cryptoService.js';
@@ -76,21 +78,72 @@ export async function registerWebhook(baseUrl) {
   return url;
 }
 
-export async function sendTelegramMessage(text) {
+export async function sendTelegramMessage(text, replyMarkup) {
   const row = getRow();
   if (!row.enabled || !row.bot_token_enc || !row.chat_id) return;
   const token = decryptSecret(row.bot_token_enc);
-  await callTelegramApi(token, 'sendMessage', { chat_id: row.chat_id, text });
+  await callTelegramApi(token, 'sendMessage', { chat_id: row.chat_id, text, reply_markup: replyMarkup });
 }
 
-// Qualquer mensagem recebida no chat configurado reconhece TODOS os alarmes
-// ativos ainda não reconhecidos — simples de propósito (ver comentário no
-// topo do arquivo). Confirma de volta no chat o que foi reconhecido.
+// Manda a mensagem de alarme com os dois botões embutidos — tocar um deles
+// manda uma "callback_query" pro webhook (ver handleCallbackQuery abaixo),
+// sem precisar digitar nada.
+function alarmReplyMarkup(alarmKey) {
+  return {
+    inline_keyboard: [
+      [
+        { text: '✅ Visto', callback_data: `ack:${alarmKey}` },
+        { text: '🔧 Em manutenção', callback_data: `maint:${alarmKey}` },
+      ],
+    ],
+  };
+}
+
+const ACK_REASON_LABEL = { ack: 'visto', maint: 'em manutenção', texto: 'reconhecido pelo chat' };
+
+// Reconhece UM alarme específico — usado quando a pessoa toca um dos
+// botões da mensagem (ver handleCallbackQuery). `reason` é só pra confirmar
+// de volta no chat com a palavra certa ("visto" vs "em manutenção").
+function acknowledgeAlarm(alarmKey, reason) {
+  const info = db
+    .prepare("UPDATE telegram_alarm_state SET acknowledged_at = datetime('now'), ack_reason = ? WHERE alarm_key = ? AND acknowledged_at IS NULL")
+    .run(reason, alarmKey);
+  return info.changes > 0;
+}
+
+// Qualquer MENSAGEM DE TEXTO solta no chat (não um toque de botão) reconhece
+// TODOS os alarmes ativos ainda não reconhecidos — fallback pra quem prefere
+// só digitar "já verifiquei" em vez de tocar num botão.
 export async function acknowledgeAllActiveAlarms() {
   const pending = db.prepare('SELECT alarm_key FROM telegram_alarm_state WHERE acknowledged_at IS NULL').all();
   if (pending.length === 0) return [];
-  db.prepare("UPDATE telegram_alarm_state SET acknowledged_at = datetime('now') WHERE acknowledged_at IS NULL").run();
+  db.prepare("UPDATE telegram_alarm_state SET acknowledged_at = datetime('now'), ack_reason = 'texto' WHERE acknowledged_at IS NULL").run();
   return pending.map((r) => r.alarm_key);
+}
+
+// Chamado pelo webhook quando chega uma "callback_query" (toque de botão).
+// `data` é o callback_data mandado ("ack:bombas.termico1" ou
+// "maint:bombas.termico1") — processa, responde o callback (pra tirar o
+// "carregando" do botão no app do Telegram) e manda uma confirmação no chat.
+export async function handleCallbackQuery(data, callbackQueryId) {
+  const row = getRow();
+  const [action, alarmKey] = String(data || '').split(':');
+  if (!['ack', 'maint'].includes(action) || !alarmKey) {
+    if (row.bot_token_enc) await callTelegramApi(decryptSecret(row.bot_token_enc), 'answerCallbackQuery', { callback_query_id: callbackQueryId }).catch(() => {});
+    return;
+  }
+  const ok = acknowledgeAlarm(alarmKey, action);
+  const label = ALARM_LABELS[alarmKey.replace('bombas.', '')] || alarmKey;
+  if (row.bot_token_enc) {
+    const token = decryptSecret(row.bot_token_enc);
+    await callTelegramApi(token, 'answerCallbackQuery', {
+      callback_query_id: callbackQueryId,
+      text: ok ? `Marcado como ${ACK_REASON_LABEL[action]}.` : 'Esse alarme já não estava mais ativo.',
+    }).catch(() => {});
+  }
+  if (ok) {
+    await sendTelegramMessage(`✅ "${label}" marcado como ${ACK_REASON_LABEL[action]} — parei de insistir nesse.`).catch(() => {});
+  }
 }
 
 // Checa o webhook_secret da URL contra o salvo — único jeito (nessa versão
@@ -136,7 +189,7 @@ export async function checkBombasAlarms(points, priorityByKey) {
 
     if (!existing) {
       db.prepare('INSERT INTO telegram_alarm_state (alarm_key, active_since, last_sent_at) VALUES (?, datetime(\'now\'), datetime(\'now\'))').run(alarmKey);
-      await sendTelegramMessage(`⚠️ Bombas: ${label}`).catch(() => {});
+      await sendTelegramMessage(`⚠️ Bombas: ${label}`, alarmReplyMarkup(alarmKey)).catch(() => {});
       continue;
     }
 
@@ -146,7 +199,7 @@ export async function checkBombasAlarms(points, priorityByKey) {
     const elapsedSeconds = (Date.now() - lastSentMs) / 1000;
     if (elapsedSeconds >= settings.resendIntervalSeconds) {
       db.prepare("UPDATE telegram_alarm_state SET last_sent_at = datetime('now') WHERE alarm_key = ?").run(alarmKey);
-      await sendTelegramMessage(`⚠️ Bombas (ainda ativo): ${label}`).catch(() => {});
+      await sendTelegramMessage(`⚠️ Bombas (ainda ativo): ${label}`, alarmReplyMarkup(alarmKey)).catch(() => {});
     }
   }
 }

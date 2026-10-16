@@ -807,6 +807,48 @@ function StatTile({ label, value, sub }) {
   );
 }
 
+// Linha de "tempo médio entre boias" com os ciclos reais por trás,
+// expansível — pedido direto do Rodrigo ("onde você tirou esse número?").
+// Cada ciclo mostra data/hora de início e fim, não só o número final.
+function TransitionRow({ label, stat }) {
+  const [open, setOpen] = useState(false);
+  if (!stat) {
+    return (
+      <div className="service-row">
+        <span style={{ fontSize: 12.5 }}>{label}</span>
+        <span className="field-hint">ainda sem ciclos suficientes registrados</span>
+      </div>
+    );
+  }
+  return (
+    <div style={{ marginBottom: 2 }}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        style={{ all: 'unset', cursor: 'pointer', display: 'flex', width: '100%', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0' }}
+      >
+        <span style={{ fontSize: 12.5 }}>{label}</span>
+        <span className="field-hint">
+          ~{formatDuration(stat.avgSeconds)} em média ({stat.sampleCount} ciclos) {open ? '▲' : '▼'}
+        </span>
+      </button>
+      {open && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2, padding: '4px 0 8px', maxHeight: 220, overflowY: 'auto' }}>
+          {stat.samples.map((s, i) => (
+            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11.5, color: 'var(--text-tertiary)' }}>
+              <span>{formatDateTime(s.startAt)} → {formatDateTime(s.endAt)}</span>
+              <span>{formatDuration(s.seconds)}</span>
+            </div>
+          ))}
+          {stat.sampleCount > stat.samples.length && (
+            <span className="field-hint">+ {stat.sampleCount - stat.samples.length} ciclo(s) mais antigo(s), não mostrados</span>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function LEVELS_ACTIVE_LABEL(levelsAtStart) {
   const active = LEVEL_POINTS.filter((p) => levelsAtStart?.[p.key]).map((p) => p.label.replace('Nível ', ''));
   return active.length ? active.join(' + ') : '—';
@@ -882,27 +924,13 @@ function HistoryCard({ canEditConfig }) {
                 <div className="surface" style={{ padding: 16 }}>
                   <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 8 }}>Enchendo (nível subindo)</div>
                   {history.levelTransitions.map((t) => (
-                    <div className="service-row" key={`rising-${t.from}`}>
-                      <span style={{ fontSize: 12.5 }}>{BOUNDARY_LABEL[t.from]} → {BOUNDARY_LABEL[t.to]}</span>
-                      <span className="field-hint">
-                        {t.rising
-                          ? `~${formatDuration(t.rising.avgSeconds)} em média (${t.rising.sampleCount} ciclos registrados)`
-                          : 'ainda sem ciclos suficientes registrados'}
-                      </span>
-                    </div>
+                    <TransitionRow key={`rising-${t.from}`} label={`${BOUNDARY_LABEL[t.from]} → ${BOUNDARY_LABEL[t.to]}`} stat={t.rising} />
                   ))}
                 </div>
                 <div className="surface" style={{ padding: 16 }}>
                   <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 8 }}>Esvaziando (nível baixando)</div>
                   {history.levelTransitions.map((t) => (
-                    <div className="service-row" key={`falling-${t.from}`}>
-                      <span style={{ fontSize: 12.5 }}>{BOUNDARY_LABEL[t.to]} → {BOUNDARY_LABEL[t.from]}</span>
-                      <span className="field-hint">
-                        {t.falling
-                          ? `~${formatDuration(t.falling.avgSeconds)} em média (${t.falling.sampleCount} ciclos registrados)`
-                          : 'ainda sem ciclos suficientes registrados'}
-                      </span>
-                    </div>
+                    <TransitionRow key={`falling-${t.from}`} label={`${BOUNDARY_LABEL[t.to]} → ${BOUNDARY_LABEL[t.from]}`} stat={t.falling} />
                   ))}
                 </div>
               </div>
