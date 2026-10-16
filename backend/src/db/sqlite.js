@@ -560,3 +560,30 @@ const telegramSettingsColumnsForStatus = db.prepare('PRAGMA table_info(telegram_
 if (!telegramSettingsColumnsForStatus.includes('webhook_registered_url')) {
   db.exec("ALTER TABLE telegram_settings ADD COLUMN webhook_registered_url TEXT NOT NULL DEFAULT ''");
 }
+
+// "Já estou indo" (ver snoozeAlarm em telegramService.js) — botão que adia
+// a insistência sem reconhecer de verdade. `snooze_minutes` é o tanto que
+// adia, configurável igual resend_interval_seconds.
+if (!telegramSettingsColumnsForStatus.includes('snooze_minutes')) {
+  db.exec('ALTER TABLE telegram_settings ADD COLUMN snooze_minutes INTEGER NOT NULL DEFAULT 10');
+}
+if (!telegramAlarmStateColumnsForCall.includes('snoozed_until')) {
+  db.exec('ALTER TABLE telegram_alarm_state ADD COLUMN snoozed_until TEXT');
+}
+
+// Prioridade por equipamento de Rede/Interfone — diferente de Acesso (cujos
+// equipamentos são cadastrados NESTE banco, com um id local estável), Rede e
+// Interfone são painéis à parte (ver gatewayService.js): cada equipamento
+// tem um id que só existe LÁ. Guardamos aqui só a flag de prioridade, por
+// módulo+id externo — pedido do Rodrigo pra escolher, entre os equipamentos
+// já marcados como "favorito" no painel de Rede, quais ele quer que também
+// insistam via Telegram (em vez de um alarme só pra "N offline" do módulo
+// inteiro, que vira ruído conforme mais equipamento cai).
+db.exec(`
+  CREATE TABLE IF NOT EXISTS external_device_priority (
+    module_key TEXT NOT NULL,
+    device_id TEXT NOT NULL,
+    priority INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (module_key, device_id)
+  );
+`);

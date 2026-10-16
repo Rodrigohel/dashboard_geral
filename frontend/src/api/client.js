@@ -151,6 +151,9 @@ export const api = {
   system: {
     health: () => request('/api/system/health'),
     healthHistory: () => request('/api/system/health/history'),
+    // Rota própria, fora de /api/system (que exige dono) — a versão aparece
+    // pra qualquer usuário logado na Sidebar, não só pro dono.
+    version: () => request('/api/version'),
   },
 
   audit: {
@@ -269,6 +272,9 @@ export const api = {
     registerTelegramWebhook: (baseUrl) => request('/api/settings/telegram/register-webhook', { method: 'POST', body: { baseUrl } }),
     getTelegramPriorities: () => request('/api/settings/telegram/priorities'),
     saveTelegramPriorities: (payload) => request('/api/settings/telegram/priorities', { method: 'PUT', body: payload }),
+    getExternalDevices: (moduleKey) => request(`/api/settings/external-devices/${moduleKey}`),
+    saveExternalDevicePriority: (moduleKey, deviceId, priority) =>
+      request(`/api/settings/external-devices/${moduleKey}/${deviceId}`, { method: 'PUT', body: { priority } }),
     getTwilio: () => request('/api/settings/twilio'),
     saveTwilio: (payload) => request('/api/settings/twilio', { method: 'PUT', body: payload }),
     testTwilio: (payload) => request('/api/settings/twilio/test-connection', { method: 'POST', body: payload }),

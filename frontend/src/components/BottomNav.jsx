@@ -24,12 +24,12 @@ export default function BottomNav({ view, onNavigate, can, onMoreClick }) {
           className={`bottom-nav-item ${view === item.key ? 'active' : ''}`}
           onClick={() => onNavigate(item.key)}
         >
-          <Icon name={item.icon} size={20} strokeWidth={view === item.key ? 2.3 : 1.8} />
+          <Icon name={item.icon} size={18} strokeWidth={view === item.key ? 2.3 : 1.8} />
           <span>{item.label}</span>
         </button>
       ))}
       <button className="bottom-nav-item" onClick={onMoreClick}>
-        <Icon name="menu" size={20} />
+        <Icon name="menu" size={18} />
         <span>Mais</span>
       </button>
     </nav>

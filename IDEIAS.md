@@ -2,6 +2,15 @@
 
 Backlog de ideias discutidas mas não implementadas — não é compromisso de fazer, só pra não esquecer.
 
+## Versão do Portal
+Aparece em `v1.1.0` no rodapé da barra lateral (qualquer usuário vê, não só dono) — vem de
+`backend/package.json` (`GET /api/version`, público); `frontend/package.json` é mantido com o
+mesmo número só pra não ter dois números pra mesma coisa. Convenção (semver, a critério de cada
+PR, sem processo formal): **patch** (1.1.0 → 1.1.1) pra correção pequena/ajuste; **minor**
+(1.1.x → 1.2.0) quando entra alguma coisa nova de verdade (feature, módulo); **major** (1.x →
+2.0.0) só pra mudança grande o bastante pra mudar como o Portal funciona por fora. Bump manual,
+um PR por vez — não existe automação pra isso.
+
 ## Problemas conhecidos (pendências a revisitar)
 
 Bugs relatados que ainda não foram fechados de verdade — perguntar ao Rodrigo de vez em
@@ -196,6 +205,20 @@ Generalizado pra cobrir rede, interfone, acesso (porteiro offline + força bruta
 - Lista de equipamentos (Acesso → Equipamentos) mostra um badge "prioridade" no card de quem
   está marcado, pra não precisar abrir o formulário de editar pra saber quem tem a opção
   ligada.
+- Terceiro botão **"🚗 Já estou indo"** em toda mensagem de alarme de prioridade — diferente de
+  "Visto"/"Em manutenção" (que reconhecem de vez), esse só ADIA a insistência por um tempo
+  configurável (Configurações → Alertas, padrão 10min): se não resolver até lá, volta a
+  insistir sozinho, sem precisar de nenhuma ação extra pra "destravar".
+- **Rede por equipamento, não o módulo inteiro**: lendo o código do painel de Rede
+  (Debian_dashboard), achei que ele já tem um campo "favorito" por equipamento (usado hoje só
+  como estrela na listagem de lá) — a tela de Prioridades do Portal agora lista só os
+  equipamentos JÁ favoritados no painel de Rede, e deixa marcar quais desses também insistem
+  via Telegram aqui. Resolve o medo do Rodrigo de "500 avisos" se vários equipamentos caírem
+  junto: só os que ele escolheu (favoritar lá + marcar prioridade aqui) geram alarme. O alarme
+  agregado antigo ("Rede — N offline") foi removido. **Interfone continua agregado** — esse
+  painel (FreePBX_Asterisk) ainda não tem campo de favorito; o Rodrigo disse que vai adicionar,
+  e aí o Portal pode ser estendido do mesmo jeito (`externalDeviceService.js` já está pronto
+  pra isso, só falta o campo existir lá e mapear o endpoint certo).
 
 **Ainda não implementado** (não pedido, fica pra depois se fizer falta): sinalização visual de
 "equipamento crítico" fora do card de equipamento (ex.: na própria Início).

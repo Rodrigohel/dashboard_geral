@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import path from 'node:path';
 import fs from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { config } from './config.js';
 import { authRouter } from './routes/auth.js';
 import { usersRouter } from './routes/users.js';
@@ -42,6 +43,15 @@ app.use(cors({ origin: config.corsOrigin }));
 app.use(express.json());
 
 app.get('/health', (req, res) => res.json({ ok: true }));
+
+// Versão do Portal — uma só pros dois lados (backend/package.json é a fonte;
+// o frontend não tem como ler esse arquivo sozinho, então pede aqui).
+// Público de propósito, igual /api/branding: a Sidebar mostra pra qualquer
+// usuário logado, não só dono. Bump manual a cada PR que mude algo de
+// verdade (ver convenção no topo do IDEIAS.md) — não é automático.
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const PACKAGE_JSON = JSON.parse(fs.readFileSync(path.join(__dirname, '../package.json'), 'utf8'));
+app.get('/api/version', (req, res) => res.json({ version: PACKAGE_JSON.version }));
 
 // Sem requireAuth no mount — GET é público (tela de login precisa mostrar
 // nome/logo antes de autenticar); o PUT já exige dono dentro do próprio
