@@ -341,6 +341,8 @@ function ConfigCard({ configId }) {
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [diagnosing, setDiagnosing] = useState(false);
+  const [diagnoseResult, setDiagnoseResult] = useState(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [customPoints, setCustomPoints] = useState([]);
   const [newPointName, setNewPointName] = useState('');
@@ -453,6 +455,19 @@ function ConfigCard({ configId }) {
     }
   }
 
+  async function handleDiagnose() {
+    setDiagnosing(true);
+    setDiagnoseResult(null);
+    try {
+      const result = await api.generator.modbusDiagnose({ host, port: Number(port), unitId: Number(unitId) });
+      setDiagnoseResult(result);
+    } catch (err) {
+      toast(err.message, 'error');
+    } finally {
+      setDiagnosing(false);
+    }
+  }
+
   if (!loaded) return <div className="skeleton" style={{ height: 360, borderRadius: 20 }} />;
 
   const canTest = Boolean(host);
@@ -544,8 +559,40 @@ function ConfigCard({ configId }) {
         <button className="btn btn-secondary" onClick={handleTest} disabled={testing || saving || !canTest}>
           {testing ? <span className="spinner spinner-dark" /> : 'Testar conexão'}
         </button>
+        <button className="btn btn-secondary" onClick={handleDiagnose} disabled={diagnosing || !canTest} title="Testa FC1/2/3/4 e varre Unit ID — usa pra descobrir por que uma leitura dá erro">
+          {diagnosing ? <span className="spinner spinner-dark" /> : 'Diagnóstico Modbus'}
+        </button>
       </div>
       {!canTest && <span className="field-hint">Preencha o IP do controlador para poder testar.</span>}
+
+      {diagnoseResult && (
+        <div className="surface" style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ fontWeight: 600, fontSize: 13 }}>Resultado — {diagnoseResult.host}:{diagnoseResult.port}</div>
+          <div>
+            <div className="field-hint" style={{ marginBottom: 4 }}>Por tipo de leitura (unit ID {diagnoseResult.configuredUnitId}):</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {Object.entries(diagnoseResult.byFunctionCode).map(([label, r]) => (
+                <div key={label} style={{ fontSize: 12.5 }}>
+                  <span className={`badge ${r.ok ? 'badge-success' : 'badge-danger'}`} style={{ marginRight: 6 }}>
+                    <span className="badge-dot" /> {r.ok ? `ok (${r.value})` : r.error}
+                  </span>
+                  {label}
+                </div>
+              ))}
+            </div>
+          </div>
+          <div>
+            <div className="field-hint" style={{ marginBottom: 4 }}>Varredura de Unit ID (FC3, endereço 33):</div>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {Object.entries(diagnoseResult.byUnitId).map(([id, r]) => (
+                <span key={id} className={`badge ${r.ok ? 'badge-success' : 'badge-neutral'}`} title={r.ok ? `valor ${r.value}` : r.error}>
+                  <span className="badge-dot" /> {id}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: 16, marginTop: 4 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
