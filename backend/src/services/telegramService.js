@@ -350,8 +350,9 @@ export async function checkBombasAlarms(points, priorityByKey) {
 // Chamado a cada leitura do gerador (ver generatorPoller.js) — só "falha"
 // faz sentido como alarme (pronto/emOperacao são estado normal, não algo
 // pra avisar/insistir).
-export async function checkGeneratorAlarms(points, falhaPriority) {
-  await upsertAlarm('gerador.falha', 'Gerador: falha ativa', points?.falha === true, Boolean(falhaPriority));
+export async function checkGeneratorAlarms(points, falhaPriority, avisoPriority) {
+  await upsertAlarm('gerador.falha', 'Gerador: falha ativa (nível 2/shutdown)', points?.falha === true, Boolean(falhaPriority));
+  await upsertAlarm('gerador.aviso', 'Gerador: aviso ativo (nível 1)', points?.avisoAtivo === true, Boolean(avisoPriority));
 }
 
 // Chamado a cada rodada do deviceHealthPoller.js, com TODOS os porteiros

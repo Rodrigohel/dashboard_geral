@@ -38,7 +38,45 @@ async function readPoint(client, point) {
   return point.invert ? !value : value;
 }
 
-const POINT_KEYS = ['pronto', 'falha', 'emOperacao'];
+const POINT_KEYS = ['pronto', 'falha', 'emOperacao', 'avisoAtivo'];
+
+// Lê o valor NUMÉRICO cru de um registrador (holding/input) — diferente de
+// readPoint acima, que sempre devolve booleano. Usado pros pontos de valor
+// (tensões em Volts, e os códigos de Estado do Motor/Modo do Controlador,
+// decodificados abaixo via ENGINE_STATE_LABELS/CONTROLLER_MODE_LABELS).
+async function readValuePoint(client, point) {
+  if (point.addr === null || point.addr === undefined) return null;
+  const addr = Number(point.addr);
+  const r = point.type === 'input' ? await client.readInputRegisters(addr, 1) : await client.readHoldingRegisters(addr, 1);
+  return Number(r.data[0]);
+}
+
+const VALUE_POINT_KEYS = [
+  'tensaoGeradorL1N',
+  'tensaoGeradorL2N',
+  'tensaoGeradorL3N',
+  'tensaoRedeL1N',
+  'tensaoRedeL2N',
+  'tensaoRedeL3N',
+];
+
+// Mapa do ComAp InteliLite4 (List#8/List#15 do cfgmodbus.txt mandado pelo
+// Rodrigo) — "Estado do Motor" (Com.Obj 9244) e "Modo do Controlador"
+// (Com.Obj 9887) vêm como código numérico; valor fora da lista mostra o
+// código cru em vez de travar (controlador pode ter uma versão de firmware
+// com mais estados do que os documentados aqui).
+const ENGINE_STATE_LABELS = {
+  0: 'Iniciando', 1: 'Pronto', 2: 'Não Pronto', 3: 'Pré-Partida', 4: 'Arranque', 5: 'Pausa',
+  6: 'Em Partida', 7: 'Em Funcionamento', 8: 'Em Carga', 9: 'Rampa de Descarga', 10: 'Resfriamento',
+  11: 'Parada', 12: 'Shutdown', 13: 'Ventilação', 14: 'Emergência Manual', 15: 'Rampa de Carga',
+  16: 'Espere Parar', 17: 'Ventilação (Shutdown)',
+};
+const CONTROLLER_MODE_LABELS = { 0: 'Off', 1: 'Manual', 2: 'Automático', 3: 'Teste' };
+
+function decodeEnum(labels, rawValue) {
+  if (rawValue === null) return null;
+  return { code: rawValue, label: labels[rawValue] ?? `Código ${rawValue} (não mapeado)` };
+}
 
 export async function readGeneratorStatus(config) {
   if (!config.host) {
@@ -59,6 +97,24 @@ export async function readGeneratorStatus(config) {
       } catch (err) {
         result[key] = { error: err.message };
       }
+    }
+    for (const key of VALUE_POINT_KEYS) {
+      const point = config.valuePoints[key];
+      try {
+        result[key] = await readValuePoint(client, point);
+      } catch (err) {
+        result[key] = { error: err.message };
+      }
+    }
+    try {
+      result.estadoMotor = decodeEnum(ENGINE_STATE_LABELS, await readValuePoint(client, config.valuePoints.estadoMotor));
+    } catch (err) {
+      result.estadoMotor = { error: err.message };
+    }
+    try {
+      result.modoControlador = decodeEnum(CONTROLLER_MODE_LABELS, await readValuePoint(client, config.valuePoints.modoControlador));
+    } catch (err) {
+      result.modoControlador = { error: err.message };
     }
     for (const point of config.customPoints || []) {
       try {

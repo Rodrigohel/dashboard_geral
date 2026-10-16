@@ -489,6 +489,55 @@ if (!generatorStationColumns.includes('falha_priority')) {
   db.exec('ALTER TABLE generator_station ADD COLUMN falha_priority INTEGER NOT NULL DEFAULT 0');
 }
 
+// Mapa real de registradores do ComAp InteliLite4 (AMF9) — mandado pelo
+// Rodrigo (cfgmodbus.txt + CSV de valores). Endereço Modbus = número do
+// registrador na tabela "Values" MENOS 1000 (ex.: registrador 01303 =
+// endereço 303); os coils (função 01, tabela "Binaries") já vêm 0-based,
+// usados direto. Preenche só o que ainda está em branco (NULL) — nunca
+// sobrescreve um endereço que o Rodrigo já tenha ajustado na tela.
+// - pronto: coil 00039 "Pronto" (word 9144, Log Saídas Binárias 2, bit 5)
+// - em_operacao: coil 00043 "Em Funcionamento" (mesma word, bit 9)
+// - falha: coil 00066 "Alarme Comum Nível 2 Ativo" (shutdown) — mais grave
+// - aviso_ativo (novo, abaixo): coil 00065 "Alarme Comum Nível 1 Ativo" —
+//   aviso, menos grave que "falha"
+if (generatorStationColumns.includes('pronto_addr')) {
+  db.prepare("UPDATE generator_station SET pronto_addr = 39 WHERE id = 1 AND pronto_addr IS NULL").run();
+  db.prepare("UPDATE generator_station SET em_operacao_addr = 43 WHERE id = 1 AND em_operacao_addr IS NULL").run();
+  db.prepare("UPDATE generator_station SET falha_addr = 66 WHERE id = 1 AND falha_addr IS NULL").run();
+}
+
+// "Aviso ativo" (nível 1 — menos grave que "falha", que agora é o nível 2/
+// shutdown) — boolean igual aos outros pontos, com prioridade própria (pode
+// insistir via Telegram separado de "falha", ver telegramService.js).
+if (!generatorStationColumns.includes('aviso_ativo_addr')) {
+  db.exec('ALTER TABLE generator_station ADD COLUMN aviso_ativo_addr INTEGER DEFAULT 65');
+  db.exec("ALTER TABLE generator_station ADD COLUMN aviso_ativo_type TEXT NOT NULL DEFAULT 'coil'");
+  db.exec('ALTER TABLE generator_station ADD COLUMN aviso_ativo_invert INTEGER NOT NULL DEFAULT 0');
+  db.exec('ALTER TABLE generator_station ADD COLUMN aviso_ativo_priority INTEGER NOT NULL DEFAULT 0');
+}
+
+// Pontos de VALOR (não booleanos) — estado/modo vêm como código numérico
+// decodificado em texto (ver listas List#8/List#15 em generatorClient.js);
+// tensões vêm em Volts, sem escala (Values table: Dec=0). Registradores reais:
+// Estado do Motor=01303, Modo do Controlador=01347, Tensão Gerador L1-N/L2-
+// N/L3-N=01033/34/35, Tensão Rede L1-N/L2-N/L3-N=01045/46/47 (todos -1000).
+const VALUE_POINT_DEFAULTS = {
+  estado_motor: 303,
+  modo_controlador: 347,
+  tensao_gerador_l1n: 33,
+  tensao_gerador_l2n: 34,
+  tensao_gerador_l3n: 35,
+  tensao_rede_l1n: 45,
+  tensao_rede_l2n: 46,
+  tensao_rede_l3n: 47,
+};
+for (const [column, defaultAddr] of Object.entries(VALUE_POINT_DEFAULTS)) {
+  if (!generatorStationColumns.includes(`${column}_addr`)) {
+    db.exec(`ALTER TABLE generator_station ADD COLUMN ${column}_addr INTEGER DEFAULT ${defaultAddr}`);
+    db.exec(`ALTER TABLE generator_station ADD COLUMN ${column}_type TEXT NOT NULL DEFAULT 'holding'`);
+  }
+}
+
 // Flag "prioridade" por porteiro — mesma ideia do `_priority` dos pontos de
 // pump_station, só que aqui é por EQUIPAMENTO (não por sinal): porteiro cair
 // com essa marcação insiste via Telegram até reconhecer, igual os alarmes
