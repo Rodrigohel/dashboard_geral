@@ -28,15 +28,11 @@ quando se quer atacar algum destes.
   o nome inteiro) — em teoria "rodri" já deveria bater dentro de "rodrigo h". Não reproduzido
   ainda; primeiro passo da próxima vez é confirmar o termo exato digitado e o nome exato salvo
   no equipamento (podem não ser bem o que parecem — maiúsculo/acento/espaço a mais etc.).
-- **Busca de morador consulta equipamentos sem cadastro de pessoas** (ex.: portões
-  Segplace/Axiom Wifi — "Portão Rampa", "Portão Subsolo") e eles sempre aparecem como "não
-  respondeu à busca", quando na verdade nunca poderiam responder (a API deles não tem conceito
-  de usuário/morador, só abrir e ver status — ver `segplaceUnsupported()`). O Rodrigo sugeriu
-  um campo no cadastro do equipamento pra marcar "tem cadastro de pessoas, sim/não", mas isso
-  já dá pra saber sozinho pelo `model` (só `segplace` não suporta; `xpe3200`/`ss3532mf`
-  suportam) — não precisa de campo novo, só fazer `GET /search-users` pular os equipamentos
-  Segplace antes de consultar, em vez de tentar e cair em `errors`. Fix pequeno, não
-  implementado ainda (deixado pra próxima rodada de pendências a pedido do Rodrigo).
+- ~~**Busca de morador consulta equipamentos sem cadastro de pessoas**~~ — corrigido:
+  `GET /search-users` agora pula os equipamentos Segplace/Axiom Wifi (checando `device.model`)
+  antes de consultar, em vez de tentar e cair em `errors`. Testado criando um equipamento
+  Segplace de teste e um porteiro XPE inalcançável de propósito — o Segplace não aparece mais
+  em `errors`, só o porteiro de verdade que falhou aparece.
 - **Bomba 1 não aparece ligada no Portal quando está ligada de verdade** — acionamento manual
   real (levantou a boia do nível médio): no painel físico as duas bombas (1 e 2) acionaram, "bomba
   do dia" bateu certo com o Portal, mas o Portal mostrou só a Bomba 2 como ligada (Bomba 1
@@ -162,3 +158,25 @@ lógica Modbus dos pontos fixos. Aparece de forma genérica (nome + sim/não) nu
 "Pontos customizados" no card de status detalhado (só quem edita config vê, igual o resto
 desse card) — ainda sem desenho gráfico específico nem entrada no histórico/gráfico de
 ativações, isso fica pra fase 2, quando fizer falta.
+
+## Bombas: escrita remota (forçar bomba/modo/reset via Modbus)
+Hoje o Portal só LÊ a casa de bombas — ideia é permitir também ESCREVER em pontos específicos
+(ex.: forçar bomba 1/2 ligada/desligada remotamente, forçar qual é "a bomba do dia", resetar
+falha de boias), não só acompanhar. Explicitamente **pausado por agora** — o Rodrigo não quer
+acionar nada remotamente por enquanto — mas fica documentado porque já tem bastante desenho
+pensado:
+- Opt-in por ponto (desligado por padrão) — nunca ligar a saída "pra todo mundo" sozinho.
+- Nunca permitir escrita nos 4 sensores de nível (não faz sentido forçar um sensor) nem nos 4
+  sinais de segurança — térmico 1/2, emergência, falta de fase (são leitura de um contato de
+  segurança de verdade; forçar esses poderia mascarar uma condição real de perigo). Essa
+  restrição deveria ser reforçada no BACKEND (não só escondida na tela), já que esses são
+  sinais de segurança de verdade.
+- Elegíveis pra escrita (se um dia for ligado): bomba1, bomba2, modoManual, painelDesligado,
+  falhaBoias, bomba1DoDia, bomba2DoDia, além de pontos customizados (aí a decisão de quais são
+  seguros fica com quem cadastrou).
+- Detalhe técnico real do protocolo: registrador tipo "discrete input" (FC2) e "input
+  register" (FC4) são SÓ LEITURA no Modbus — não tem função de escrita correspondente. Só
+  "coil" (FC5/15) e "holding register" (FC6/16) podem ser escritos.
+- Antes de reativar essa ideia: decidir COM o Rodrigo, de propósito (não por uma resposta
+  rápida tipo "sem preferência"), exatamente quais pontos ele quer poder forçar — ação que
+  aciona equipamento físico de verdade merece decisão explícita, não suposição.
