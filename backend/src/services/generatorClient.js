@@ -7,6 +7,19 @@
 import ModbusRTU from 'modbus-serial';
 
 const TIMEOUT_MS = 5000;
+// Pra leitura periódica de status (readGeneratorStatus): numa rede local,
+// um registrador que existe de verdade responde em milissegundos — 1,5s já
+// é generoso. Importa MUITO manter curto aqui porque são várias leituras
+// (ver READ_CONCURRENCY abaixo): com o valor antigo (5s, sequencial, ~14
+// pontos) um gerador com vários endereços errados podia levar mais de um
+// minuto só pra UMA leitura de status, estourando o timeout do proxy na
+// frente do Portal e voltando como "HTTP 502" sem corpo — foi exatamente
+// o que o Rodrigo bateu depois de corrigir a porta.
+const READ_TIMEOUT_MS = 1500;
+// Quantas leituras em paralelo, cada uma com sua PRÓPRIA conexão TCP (ver
+// readOnce) — rápido o bastante sem abrir conexão demais de uma vez num
+// controlador embarcado (alguns suportam só poucas simultâneas).
+const READ_CONCURRENCY = 3;
 
 async function readPoint(client, point) {
   if (point.addr === null || point.addr === undefined) return null;
@@ -78,70 +91,17 @@ function decodeEnum(labels, rawValue) {
   return { code: rawValue, label: labels[rawValue] ?? `Código ${rawValue} (não mapeado)` };
 }
 
-// Alguns controladores derrubam a conexão TCP em vez de responder a um
-// pedido que não entendem (ver diagnoseModbus) — sem reconectar, UMA leitura
-// assim mata a sequência inteira: tudo depois vira "Port Not Open", mascarando
-// o que cada ponto realmente diria. Reconecta uma vez se achar a porta
-// fechada antes do próximo ponto.
-async function ensureOpen(client, host, port, unitId) {
-  if (client.isOpen) return;
-  await client.connectTCP(host, { port: port || 502 });
-  client.setID(unitId || 1);
-}
-
-export async function readGeneratorStatus(config) {
-  if (!config.host) {
-    throw new Error('Endereço (IP) do controlador não configurado.');
-  }
-
+// Abre uma conexão NOVA pra essa leitura e fecha no final — mais caro por
+// leitura, mas isola cada ponto: um que trava/derruba a porta (ver
+// diagnoseModbus) não contamina os outros, e dá pra rodar várias em
+// paralelo (ver READ_CONCURRENCY) sem compartilhar estado nenhum.
+async function readOnce(host, port, unitId, fn) {
   const client = new ModbusRTU();
-  client.setTimeout(TIMEOUT_MS);
+  client.setTimeout(READ_TIMEOUT_MS);
   try {
-    await client.connectTCP(config.host, { port: config.port || 502 });
-    client.setID(config.unitId || 1);
-
-    const result = {};
-    for (const key of POINT_KEYS) {
-      const point = config.points[key];
-      try {
-        await ensureOpen(client, config.host, config.port, config.unitId);
-        result[key] = await readPoint(client, point);
-      } catch (err) {
-        result[key] = { error: err.message };
-      }
-    }
-    for (const key of VALUE_POINT_KEYS) {
-      const point = config.valuePoints[key];
-      try {
-        await ensureOpen(client, config.host, config.port, config.unitId);
-        result[key] = await readValuePoint(client, point);
-      } catch (err) {
-        result[key] = { error: err.message };
-      }
-    }
-    try {
-      await ensureOpen(client, config.host, config.port, config.unitId);
-      result.estadoMotor = decodeEnum(ENGINE_STATE_LABELS, await readValuePoint(client, config.valuePoints.estadoMotor));
-    } catch (err) {
-      result.estadoMotor = { error: err.message };
-    }
-    try {
-      await ensureOpen(client, config.host, config.port, config.unitId);
-      result.modoControlador = decodeEnum(CONTROLLER_MODE_LABELS, await readValuePoint(client, config.valuePoints.modoControlador));
-    } catch (err) {
-      result.modoControlador = { error: err.message };
-    }
-    for (const point of config.customPoints || []) {
-      try {
-        await ensureOpen(client, config.host, config.port, config.unitId);
-        result[`custom_${point.id}`] = await readPoint(client, point);
-      } catch (err) {
-        result[`custom_${point.id}`] = { error: err.message };
-      }
-    }
-    return result;
-  } catch (err) {
-    throw new Error(`Não consegui alcançar o controlador configurado (${err.message}).`);
+    await client.connectTCP(host, { port: port || 502 });
+    client.setID(unitId || 1);
+    return await fn(client);
   } finally {
     try {
       client.close(() => {});
@@ -149,6 +109,60 @@ export async function readGeneratorStatus(config) {
       // socket já pode ter caído sozinho
     }
   }
+}
+
+function readPointViaFreshConn(host, port, unitId, point) {
+  if (point.addr === null || point.addr === undefined) return null;
+  return readOnce(host, port, unitId, (client) => readPoint(client, point));
+}
+
+function readValuePointViaFreshConn(host, port, unitId, point) {
+  if (point.addr === null || point.addr === undefined) return null;
+  return readOnce(host, port, unitId, (client) => readValuePoint(client, point));
+}
+
+export async function readGeneratorStatus(config) {
+  if (!config.host) {
+    throw new Error('Endereço (IP) do controlador não configurado.');
+  }
+  const { host, port, unitId } = config;
+
+  // Monta a lista de tudo que precisa ler (pontos fixos + de valor + os 2
+  // enums + customizados) como [chave, função] — processada abaixo por um
+  // pool de workers com no máximo READ_CONCURRENCY leituras ao mesmo tempo.
+  const tasks = [];
+  for (const key of POINT_KEYS) {
+    tasks.push([key, () => readPointViaFreshConn(host, port, unitId, config.points[key])]);
+  }
+  for (const key of VALUE_POINT_KEYS) {
+    tasks.push([key, () => readValuePointViaFreshConn(host, port, unitId, config.valuePoints[key])]);
+  }
+  tasks.push([
+    'estadoMotor',
+    async () => decodeEnum(ENGINE_STATE_LABELS, await readValuePointViaFreshConn(host, port, unitId, config.valuePoints.estadoMotor)),
+  ]);
+  tasks.push([
+    'modoControlador',
+    async () => decodeEnum(CONTROLLER_MODE_LABELS, await readValuePointViaFreshConn(host, port, unitId, config.valuePoints.modoControlador)),
+  ]);
+  for (const point of config.customPoints || []) {
+    tasks.push([`custom_${point.id}`, () => readPointViaFreshConn(host, port, unitId, point)]);
+  }
+
+  const result = {};
+  let next = 0;
+  async function worker() {
+    while (next < tasks.length) {
+      const [key, fn] = tasks[next++];
+      try {
+        result[key] = await fn();
+      } catch (err) {
+        result[key] = { error: err.message };
+      }
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(READ_CONCURRENCY, tasks.length) }, worker));
+  return result;
 }
 
 // Diagnóstico Modbus (ver IDEIAS.md — o Rodrigo achou "Timed out" seguido
