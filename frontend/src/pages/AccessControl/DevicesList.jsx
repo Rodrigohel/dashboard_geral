@@ -202,6 +202,14 @@ export default function DevicesList({ isOwner, can, onOpenDevice }) {
                   <span className={`badge ${statusMeta.badge}`} title={d.lastError || undefined}>
                     <span className="badge-dot" /> {statusMeta.label}
                   </span>
+                  {d.telegramPriority && (
+                    <span
+                      className="badge badge-warning"
+                      title="Prioridade no alerta via Telegram — insiste (e liga por telefone, se configurado) até alguém reconhecer que caiu"
+                    >
+                      <Icon name="zap" size={11} /> prioridade
+                    </span>
+                  )}
                 </div>
                 {(canEditarEquip || canExcluirEquip) && (
                   <div className="row-actions" onClick={(e) => e.stopPropagation()}>

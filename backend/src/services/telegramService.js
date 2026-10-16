@@ -112,6 +112,17 @@ function acknowledgeAlarm(alarmKey, reason) {
   return info.changes > 0;
 }
 
+// Chamado pelo twilioService (ver handleCallAnswered) quando o Twilio avisa
+// que alguém ATENDEU a ligação — atender já conta como reconhecimento,
+// igual tocar "Visto" no Telegram, sem precisar fazer mais nada por voz.
+export async function acknowledgeAlarmByPhone(alarmKey) {
+  const row = db.prepare('SELECT label FROM telegram_alarm_state WHERE alarm_key = ?').get(alarmKey);
+  const ok = acknowledgeAlarm(alarmKey, 'telefone');
+  if (ok) {
+    await sendTelegramMessage(`📞 "${row?.label || alarmKey}" reconhecido — ligação atendida, parei de insistir nesse.`).catch(() => {});
+  }
+}
+
 // Qualquer MENSAGEM DE TEXTO solta no chat (não um toque de botão) reconhece
 // TODOS os alarmes ativos ainda não reconhecidos — fallback pra quem prefere
 // só digitar "já verifiquei" em vez de tocar num botão.
@@ -133,8 +144,13 @@ export async function handleCallbackQuery(data, callbackQueryId) {
     if (row.bot_token_enc) await callTelegramApi(decryptSecret(row.bot_token_enc), 'answerCallbackQuery', { callback_query_id: callbackQueryId }).catch(() => {});
     return;
   }
+  // Label bonito salvo no momento em que o alarme disparou (ver upsertAlarm)
+  // — funciona pra QUALQUER módulo, não só Bombas (antes só existia
+  // ALARM_LABELS, que só cobria os 7 alarmes de Bombas; qualquer outro
+  // alarme aparecia com a alarm_key crua nessa confirmação).
+  const alarmRow = db.prepare('SELECT label FROM telegram_alarm_state WHERE alarm_key = ?').get(alarmKey);
   const ok = acknowledgeAlarm(alarmKey, action);
-  const label = ALARM_LABELS[alarmKey.replace('bombas.', '')] || alarmKey;
+  const label = alarmRow?.label || alarmKey;
   if (row.bot_token_enc) {
     const token = decryptSecret(row.bot_token_enc);
     await callTelegramApi(token, 'answerCallbackQuery', {
@@ -184,14 +200,18 @@ async function upsertAlarm(alarmKey, label, isActive, isPriority) {
   }
 
   if (!existing) {
-    db.prepare("INSERT INTO telegram_alarm_state (alarm_key, active_since, last_sent_at) VALUES (?, datetime('now'), datetime('now'))").run(alarmKey);
+    // Guarda o label bonito JUNTO com o estado — é o que permite a
+    // confirmação de "Visto"/"Em manutenção" (handleCallbackQuery) e a de
+    // ligação atendida (acknowledgeAlarmByPhone) mostrarem um texto decente
+    // pra QUALQUER alarme, não só os 7 de Bombas.
+    db.prepare("INSERT INTO telegram_alarm_state (alarm_key, label, active_since, last_sent_at) VALUES (?, ?, datetime('now'), datetime('now'))").run(alarmKey, label);
     await sendTelegramMessage(`⚠️ ${label}`, alarmReplyMarkup(alarmKey)).catch(() => {});
     return;
   }
 
   if (!isPriority || existing.acknowledged_at) return;
 
-  maybeEscalateToCall(label, existing.active_since, existing.call_sent_at)
+  maybeEscalateToCall(alarmKey, label, existing.active_since, existing.call_sent_at)
     .then((called) => {
       if (called) db.prepare("UPDATE telegram_alarm_state SET call_sent_at = datetime('now') WHERE alarm_key = ?").run(alarmKey);
     })
@@ -251,6 +271,9 @@ export async function sendForcaBrutaAlert(username, ip, isPriority) {
   const label = `Segurança: trava de força bruta disparada para "${username}" (${ip || 'IP desconhecido'})`;
   await sendTelegramMessage(`⚠️ ${label}`).catch(() => {});
   if (isPriority) {
-    await maybeEscalateToCall(label, new Date().toISOString().replace('T', ' ').slice(0, 19), null).catch(() => {});
+    // Força bruta não tem uma linha persistente em telegram_alarm_state (é
+    // evento, não sinal contínuo — ver comentário acima) — a chamada atendida
+    // não tem o que reconhecer de volta, mas liga do mesmo jeito.
+    await maybeEscalateToCall('seguranca.forca-bruta', label, new Date().toISOString().replace('T', ' ').slice(0, 19), null).catch(() => {});
   }
 }

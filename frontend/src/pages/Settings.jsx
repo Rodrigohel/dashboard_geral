@@ -807,6 +807,7 @@ function TwilioSettingsCard() {
   const [fromNumber, setFromNumber] = useState('');
   const [toNumbersText, setToNumbersText] = useState('');
   const [callAfterSeconds, setCallAfterSeconds] = useState(300);
+  const [publicBaseUrl, setPublicBaseUrl] = useState('');
   const [configured, setConfigured] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -821,6 +822,7 @@ function TwilioSettingsCard() {
       setFromNumber(s.fromNumber);
       setToNumbersText(s.toNumbers.join(', '));
       setCallAfterSeconds(s.callAfterSeconds);
+      setPublicBaseUrl(s.publicBaseUrl);
       setConfigured(s.configured);
       setLoaded(true);
     });
@@ -837,6 +839,7 @@ function TwilioSettingsCard() {
         fromNumber,
         toNumbers: toNumbersText.split(',').map((n) => n.trim()).filter(Boolean),
         callAfterSeconds: Number(callAfterSeconds),
+        publicBaseUrl,
       });
       setAuthToken('');
       toast('Configuração do Twilio salva.');
@@ -926,6 +929,21 @@ function TwilioSettingsCard() {
           placeholder="+5511999990000, +5511888880000"
         />
         <span className="field-hint">Formato internacional, com +55 e DDD.</span>
+      </div>
+
+      <div className="field">
+        <label className="field-label">URL pública do Portal</label>
+        <input
+          className="input"
+          value={publicBaseUrl}
+          onChange={(e) => setPublicBaseUrl(e.target.value)}
+          placeholder="https://portal.seudominio.com.br"
+        />
+        <span className="field-hint">
+          Preenchendo isso, <strong>atender a ligação já conta como reconhecimento</strong> do alarme (igual tocar
+          "Visto" no Telegram) — sem precisar fazer mais nada por voz. Sem preencher, a ligação funciona do mesmo
+          jeito (fala a mensagem duas vezes e desliga), só que atender não conta como reconhecido.
+        </span>
       </div>
 
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
