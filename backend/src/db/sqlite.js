@@ -432,3 +432,32 @@ const usersColumns = db.prepare('PRAGMA table_info(users)').all().map((c) => c.n
 if (!usersColumns.includes('tv_mode')) {
   db.exec('ALTER TABLE users ADD COLUMN tv_mode INTEGER NOT NULL DEFAULT 0');
 }
+
+// Gerador (grupo gerador diesel) — mesmo padrão de pump_station: lido via
+// Modbus TCP direto no controlador (ComAp AMF-9, IP dado pelo Rodrigo,
+// 192.168.1.253), que normalmente não exige login nenhum pro Modbus em si
+// (só pra tela de monitoramento própria do controlador, que o Portal nem
+// usa). Endereço de cada ponto em branco por padrão — só o Rodrigo sabe o
+// endereço certo depois de configurar/consultar o controlador, igual nunca
+// inventamos nada em pump_station.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS generator_station (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    enabled INTEGER NOT NULL DEFAULT 0,
+    name TEXT NOT NULL DEFAULT 'Gerador',
+    host TEXT NOT NULL DEFAULT '',
+    port INTEGER NOT NULL DEFAULT 502,
+    unit_id INTEGER NOT NULL DEFAULT 1,
+    poll_seconds INTEGER NOT NULL DEFAULT 10,
+    pronto_addr INTEGER,
+    pronto_type TEXT NOT NULL DEFAULT 'coil',
+    pronto_invert INTEGER NOT NULL DEFAULT 0,
+    falha_addr INTEGER,
+    falha_type TEXT NOT NULL DEFAULT 'coil',
+    falha_invert INTEGER NOT NULL DEFAULT 0,
+    em_operacao_addr INTEGER,
+    em_operacao_type TEXT NOT NULL DEFAULT 'coil',
+    em_operacao_invert INTEGER NOT NULL DEFAULT 0
+  );
+  INSERT OR IGNORE INTO generator_station (id) VALUES (1);
+`);

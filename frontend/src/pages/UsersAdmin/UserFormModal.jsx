@@ -7,6 +7,7 @@ const MODULES = [
   { key: 'interfone', label: 'Interfone' },
   { key: 'acesso', label: 'Controle de acesso' },
   { key: 'bombas', label: 'Bombas' },
+  { key: 'gerador', label: 'Gerador' },
 ];
 
 // Permissões mais finas dentro de "rede" — visível só quando o módulo
@@ -35,6 +36,7 @@ const ACESSO_MORADORES_FEATURES = [
   { key: 'acesso.moradores.excluir', label: 'Excluir moradores' },
 ];
 const BOMBAS_FEATURES = [{ key: 'bombas.editar', label: 'Editar configuração da casa de bombas' }];
+const GERADOR_FEATURES = [{ key: 'gerador.editar', label: 'Editar configuração do gerador' }];
 
 // Sem módulo pai (a tela Usuários nunca foi um item de menu só-módulo,
 // sempre foi só-dono) — por isso aparece numa seção própria, não dentro de
@@ -277,6 +279,21 @@ export default function UserFormModal({ user, currentUserId, isOwner, can, onClo
                   ))}
                 </div>
                 <span className="field-hint">Sem marcar aqui, o usuário ainda vê o status da casa de bombas — só não edita a configuração.</span>
+              </div>
+            )}
+
+            {form.modules.includes('gerador') && GERADOR_FEATURES.some((f) => allowed(f.key)) && (
+              <div className="field">
+                <label className="field-label">Dentro de Gerador, também libera:</label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4, paddingLeft: 4 }}>
+                  {GERADOR_FEATURES.filter((f) => allowed(f.key)).map((f) => (
+                    <label className="checkbox-row" key={f.key}>
+                      <input type="checkbox" checked={form.modules.includes(f.key)} onChange={() => toggleModule(f.key)} />
+                      {f.label}
+                    </label>
+                  ))}
+                </div>
+                <span className="field-hint">Sem marcar aqui, o usuário ainda vê o status do gerador — só não edita a configuração.</span>
               </div>
             )}
 

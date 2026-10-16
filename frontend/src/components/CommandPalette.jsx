@@ -8,6 +8,7 @@ const PAGES = [
   { key: 'interfone', label: 'Interfone', icon: 'phone', module: 'interfone' },
   { key: 'acesso', label: 'Controle de acesso', icon: 'shieldFace', module: 'acesso' },
   { key: 'bombas', label: 'Bombas', icon: 'droplet', module: 'bombas' },
+  { key: 'gerador', label: 'Gerador', icon: 'zap', module: 'gerador' },
   { key: 'usuarios', label: 'Usuários', icon: 'users', ownerOnly: true },
   { key: 'servidor', label: 'Saúde do servidor', icon: 'server', ownerOnly: true },
   { key: 'auditoria', label: 'Auditoria', icon: 'key', ownerOnly: true },

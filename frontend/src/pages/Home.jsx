@@ -262,6 +262,14 @@ const MODULE_META = {
     colorEnd: 'var(--module-bombas-end)',
     glow: 'var(--module-bombas-glow)',
   },
+  gerador: {
+    title: 'Gerador',
+    icon: 'zap',
+    desc: 'Grupo gerador diesel — pronto, em operação ou falha, lido direto do controlador.',
+    color: 'var(--module-gerador)',
+    colorEnd: 'var(--module-gerador-end)',
+    glow: 'var(--module-gerador-glow)',
+  },
 };
 
 // Converte uma série de números num par de paths SVG (linha + área
@@ -308,6 +316,7 @@ export default function Home({ user, onNavigate, can, tvMode = false, onLogout }
   const [acessoActivity, setAcessoActivity] = useState([]);
   const [bombasStatus, setBombasStatus] = useState(null);
   const [bombasTodayCount, setBombasTodayCount] = useState(null);
+  const [geradorStatus, setGeradorStatus] = useState(null);
   const [cardOverrides, setCardOverrides] = useState({});
   const [editingCard, setEditingCard] = useState(null);
   const isOwner = user.role === 'owner';
@@ -317,6 +326,7 @@ export default function Home({ user, onNavigate, can, tvMode = false, onLogout }
   const hasInterfone = Boolean(user.modules?.includes('interfone'));
   const hasAcesso = Boolean(user.modules?.includes('acesso'));
   const hasBombas = Boolean(user.modules?.includes('bombas'));
+  const hasGerador = Boolean(user.modules?.includes('gerador'));
   const canSeeRedeAnalise = Boolean(can?.('rede.analise'));
 
   useEffect(() => {
@@ -466,6 +476,16 @@ export default function Home({ user, onNavigate, can, tvMode = false, onLogout }
     return () => clearInterval(id);
   }, [hasBombas]);
 
+  useEffect(() => {
+    if (!hasGerador) return;
+    function load() {
+      api.generator.status().then(setGeradorStatus).catch(() => setGeradorStatus(null));
+    }
+    load();
+    const id = setInterval(load, POLL_MS);
+    return () => clearInterval(id);
+  }, [hasGerador]);
+
   // Título/descrição customizados dos cards (botão de lápis, só dono edita)
   // — carregado pra qualquer usuário, porque o card precisa mostrar o texto
   // certo pra todo mundo, não só pra quem pode editar.
@@ -556,6 +576,30 @@ export default function Home({ user, onNavigate, can, tvMode = false, onLogout }
         stat2: bombasTodayCount !== null ? { value: `${bombasTodayCount}x`, label: 'ativações hoje' } : null,
       };
     }
+    if (key === 'gerador') {
+      const s = geradorStatus;
+      const points = s?.points || {};
+      const falha = points.falha === true;
+      const emOperacao = points.emOperacao === true;
+      const pronto = points.pronto === true;
+      return {
+        status: !s
+          ? null
+          : falha
+          ? { color: 'var(--danger-500)', label: 'falha' }
+          : emOperacao
+          ? { color: 'var(--success-500)', label: 'gerando energia' }
+          : pronto
+          ? { color: 'var(--success-500)', label: 'pronto' }
+          : { color: 'var(--text-tertiary)', label: 'não pronto' },
+        trendLabel: null,
+        points: null,
+        online: null,
+        total: null,
+        stat1: null,
+        stat2: null,
+      };
+    }
     // acesso: sem histórico de aberturas guardado no backend, então não
     // fabricamos um gráfico — mas o status/contagem online-offline agora vêm
     // da checagem periódica de saúde (deviceHealthPoller), então é dado real.
@@ -596,6 +640,7 @@ export default function Home({ user, onNavigate, can, tvMode = false, onLogout }
           .filter(([key]) => bombasStatus?.points?.[key] === true)
           .map(([key, text]) => ({ id: `bombas-${key}`, text }))
       : []),
+    ...(hasGerador && geradorStatus?.points?.falha === true ? [{ id: 'gerador-falha', text: 'Gerador — falha ativa' }] : []),
   ];
 
   return (

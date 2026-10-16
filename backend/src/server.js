@@ -7,6 +7,7 @@ import { authRouter } from './routes/auth.js';
 import { usersRouter } from './routes/users.js';
 import { accessDevicesRouter } from './routes/accessDevices.js';
 import { pumpStationRouter } from './routes/pumpStation.js';
+import { generatorRouter } from './routes/generator.js';
 import { brandingRouter } from './routes/branding.js';
 import { manifestRouter } from './routes/manifest.js';
 import { settingsRouter } from './routes/settings.js';
@@ -81,6 +82,7 @@ app.use('/api/modules', requireAuth, modulesRouter);
 app.use('/api/users', requireAuth, usersRouter);
 app.use('/api/access/devices', requireAuth, requireModule('acesso'), accessDevicesRouter);
 app.use('/api/pumpstation', requireAuth, requireModule('bombas'), pumpStationRouter);
+app.use('/api/generator', requireAuth, requireModule('gerador'), generatorRouter);
 // Precisa vir antes do mount geral de '/api/settings' (dono-só) logo abaixo
 // — como os dois prefixos se sobrepõem, o Express usa o primeiro que
 // casar, e aqui o GET precisa ficar aberto a qualquer usuário autenticado

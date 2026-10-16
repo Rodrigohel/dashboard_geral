@@ -115,17 +115,31 @@ reconhecimento facial (não só abrir porta), dava pra mostrar um feed tipo "Ful
 portaria às 14:32" ao vivo no Portal. Precisa descobrir primeiro se o equipamento realmente
 expõe esse evento via API — não é garantido.
 
-## Módulo "Gerador" (grupo gerador de energia)
-Novo módulo nativo, mesmo padrão do módulo Bombas: card na Início + tela própria, endereço de
-comunicação configurável (protocolo ainda não confirmado — provavelmente Modbus TCP via algum
-controlador/IHM do gerador, igual Bombas lê a IHM Weintek em vez do LOGO direto, mas isso
-precisa ser descoberto, não é garantido que seja a mesma coisa). Informações que o Rodrigo
-quer no card: se o gerador está pronto (em condições de entrar em operação) ou não, e se tem
-alguma falha. O Rodrigo mencionou já ter mandado um "modelo"/especificação do gerador numa
-conversa anterior — não está disponível nesta sessão, perguntar/pedir de novo antes de
-começar a implementar. Pedido explícito: **desenhar uma prévia do card primeiro** (mesma
-dinâmica já usada pro card de Bombas via Artifact, aprovada antes de implementar de verdade)
-antes de escrever qualquer código.
+## ~~Módulo "Gerador" (grupo gerador de energia)~~ — fase 1 feita (sem endereços ainda)
+Novo módulo nativo, mesmo padrão do módulo Bombas: card na Início (cor âmbar, ícone de raio),
+tela própria ("Gerador" no menu/busca rápida), permissão própria (`gerador` +
+`gerador.editar`). Prévia aprovada pelo Rodrigo em
+https://claude.ai/artifact/XDbgrhL62ACCH5isBdjLPA antes de implementar — folha de dados
+confirmou o controlador (ComAp AMF-9, Perkins 1103A-33TG2, grupo CE60 47kW/60kVA), IP
+192.168.1.253.
+
+Implementado: leitura via Modbus TCP direto no controlador (sem login — Modbus não tem
+usuário/senha, só a tela própria do controlador teria, que o Portal nem usa — correção de uma
+suposição errada que eu tinha colocado na prévia). Três pontos monitorados: **pronto**
+(standby), **falha** (ativa) e **em operação** (gerando energia), cada um com
+endereço/tipo/inverter configurável em "Gerador → Configuração", igual Bombas — endereço fica
+em branco até confirmar o certo, nunca inventado. Card na Início mostra badge de status
+(pronto/gerando energia/falha/não pronto); Modo TV mostra "Gerador — falha ativa" no painel de
+alarmes quando acontece.
+
+**Ainda falta pra funcionar de verdade**: os ENDEREÇOS Modbus reais dos 3 pontos no ComAp
+AMF-9 — ninguém sabe ainda, precisa descobrir na documentação do controlador ou testando
+contra o equipamento real (mesmo processo usado pra achar os endereços certos de Bombas).
+Também falta confirmar se o módulo de rede/Ethernet (IB-Lite, aparece sem marcar ✓ na folha de
+dados) está de fato instalado no painel — sem ele, não tem Modbus TCP nenhum pra ler.
+**Não implementado ainda** (não pedido, fica pra depois se fizer falta): histórico de
+ativações/falhas, fotos automáticas, pontos customizados, prioridade/Telegram — tudo isso já
+existe em Bombas e pode ser replicado quando fizer sentido pro Gerador também.
 
 ## Alertas insistentes com prioridade, via Telegram (+ ligação telefônica) — fase 1 feita (só Bombas)
 **Fase 1 implementada**, escopo restrito aos 7 alarmes da casa de bombas (térmico 1/2, modo

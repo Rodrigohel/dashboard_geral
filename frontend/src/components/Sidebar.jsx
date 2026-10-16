@@ -11,6 +11,7 @@ const NAV_ITEMS = [
   { key: 'interfone', label: 'Interfone', icon: 'phone', module: 'interfone' },
   { key: 'acesso', label: 'Controle de acesso', icon: 'shieldFace', module: 'acesso' },
   { key: 'bombas', label: 'Bombas', icon: 'droplet', module: 'bombas' },
+  { key: 'gerador', label: 'Gerador', icon: 'zap', module: 'gerador' },
 ];
 
 // Mesma ordem e agrupamento do mockup aprovado: "Administração" leva só
