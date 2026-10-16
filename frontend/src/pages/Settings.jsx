@@ -595,35 +595,73 @@ function PushSettingsCard() {
 // alarme da casa de bombas dispara, insistindo (reenviando) nos marcados
 // como "prioridade" (ver checkbox em Bombas → Configuração) até alguém
 // responder qualquer coisa no chat.
+// Numerinho redondo pra marcar cada passo do assistente — feito o passo,
+// vira um check verde que FICA ali depois de recarregar a página (lê do
+// que já está salvo no banco), em vez de só um toast que passa e não deixa
+// rastro (reclamação de "não aparece nada quando clico").
+function StepBadge({ done }) {
+  return (
+    <span
+      className={`badge ${done ? 'badge-success' : 'badge-neutral'}`}
+      style={{ width: 22, height: 22, borderRadius: '50%', padding: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+    >
+      {done ? <Icon name="check" size={13} /> : null}
+    </span>
+  );
+}
+
 function TelegramSettingsCard() {
   const [enabled, setEnabled] = useState(false);
   const [hasToken, setHasToken] = useState(false);
   const [botToken, setBotToken] = useState('');
   const [chatId, setChatId] = useState('');
+  const [webhookRegisteredUrl, setWebhookRegisteredUrl] = useState('');
   const [resendIntervalSeconds, setResendIntervalSeconds] = useState(1800);
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState('');
   const [registeringWebhook, setRegisteringWebhook] = useState(false);
+  const [waitingChatId, setWaitingChatId] = useState(false);
   const toast = useToast();
 
   function load() {
-    api.settings.getTelegram().then((s) => {
+    return api.settings.getTelegram().then((s) => {
       setEnabled(s.enabled);
       setHasToken(s.hasToken);
       setChatId(s.chatId);
+      setWebhookRegisteredUrl(s.webhookRegisteredUrl);
       setResendIntervalSeconds(s.resendIntervalSeconds);
       setLoaded(true);
+      return s;
     });
   }
   useEffect(load, []);
 
-  async function handleSave() {
+  // Depois de configurar o webhook, se ainda não tiver chat ID, fica
+  // perguntando pro backend de 3 em 3s — assim que a pessoa mandar QUALQUER
+  // mensagem pro bot no Telegram, o chat ID aparece sozinho aqui (ver
+  // captureChatIdIfMissing no backend), sem precisar copiar nada do
+  // getUpdates na mão.
+  useEffect(() => {
+    if (!waitingChatId) return;
+    const id = setInterval(async () => {
+      const s = await load();
+      if (s.chatId) {
+        setWaitingChatId(false);
+        toast('Chat ID detectado automaticamente!');
+      }
+    }, 3000);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [waitingChatId]);
+
+  async function handleSaveToken() {
     setSaving(true);
     try {
-      await api.settings.saveTelegram({ enabled, botToken: botToken || undefined, chatId, resendIntervalSeconds: Number(resendIntervalSeconds) });
+      await api.settings.saveTelegram({ enabled, botToken: botToken || undefined, resendIntervalSeconds: Number(resendIntervalSeconds) });
       setBotToken('');
-      toast('Configuração do Telegram salva.');
+      toast('Token salvo.');
       load();
     } catch (err) {
       toast(err.message, 'error');
@@ -634,11 +672,12 @@ function TelegramSettingsCard() {
 
   async function handleTest() {
     setTesting(true);
+    setTestResult('');
     try {
       const res = await api.settings.testTelegram({ botToken: botToken || undefined });
-      toast(`Token válido — bot @${res.username}.`);
+      setTestResult(`✅ Token válido — bot @${res.username}.`);
     } catch (err) {
-      toast(err.message, 'error');
+      setTestResult(`❌ ${err.message}`);
     } finally {
       setTesting(false);
     }
@@ -649,6 +688,8 @@ function TelegramSettingsCard() {
     try {
       await api.settings.registerTelegramWebhook(window.location.origin);
       toast('Webhook configurado no Telegram.');
+      await load();
+      setWaitingChatId(true);
     } catch (err) {
       toast(err.message, 'error');
     } finally {
@@ -656,104 +697,19 @@ function TelegramSettingsCard() {
     }
   }
 
-  if (!loaded) return <div className="skeleton" style={{ height: 200, borderRadius: 20 }} />;
-
-  return (
-    <div className="surface" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div>
-        <div style={{ fontWeight: 700 }}>Alertas via Telegram</div>
-        <div className="field-hint">
-          Manda mensagem num chat do Telegram quando um alarme da casa de bombas dispara. Pra criar o bot: fale com
-          @BotFather no Telegram, "/newbot", e copie o token que ele te der. Pra achar o chat ID: mande qualquer
-          mensagem pro bot e acesse{' '}
-          <code>https://api.telegram.org/bot&lt;SEU_TOKEN&gt;/getUpdates</code> no navegador — o número em
-          "chat":"id" é o chat ID.
-        </div>
-      </div>
-
-      <label className="checkbox-row">
-        <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
-        Ativar alertas via Telegram
-      </label>
-
-      <div className="grid-2">
-        <div className="field">
-          <label className="field-label">Token do bot</label>
-          <input
-            className="input"
-            type="password"
-            value={botToken}
-            onChange={(e) => setBotToken(e.target.value)}
-            placeholder={hasToken ? 'já salvo — deixe em branco pra manter' : '123456:ABC-...'}
-          />
-        </div>
-        <div className="field">
-          <label className="field-label">Chat ID</label>
-          <input className="input" value={chatId} onChange={(e) => setChatId(e.target.value)} placeholder="ex.: 123456789" />
-        </div>
-      </div>
-
-      <div className="field">
-        <label className="field-label">Insistir (alarmes de prioridade) a cada</label>
-        <select className="select" style={{ maxWidth: 220 }} value={resendIntervalSeconds} onChange={(e) => setResendIntervalSeconds(e.target.value)}>
-          <option value={300}>5 minutos</option>
-          <option value={900}>15 minutos</option>
-          <option value={1800}>30 minutos</option>
-          <option value={3600}>1 hora</option>
-          <option value={7200}>2 horas</option>
-        </select>
-        <span className="field-hint">Só os sinais marcados como "prioridade" em Bombas → Configuração insistem — os demais mandam uma vez só.</span>
-      </div>
-
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
-          {saving ? <span className="spinner" /> : 'Salvar'}
-        </button>
-        <button className="btn btn-secondary" onClick={handleTest} disabled={testing || (!botToken && !hasToken)}>
-          {testing ? <span className="spinner spinner-dark" /> : 'Testar token'}
-        </button>
-        <button className="btn btn-secondary" onClick={handleRegisterWebhook} disabled={registeringWebhook || !hasToken}>
-          {registeringWebhook ? <span className="spinner spinner-dark" /> : 'Configurar resposta no chat'}
-        </button>
-      </div>
-      <span className="field-hint">
-        "Configurar resposta no chat" registra no Telegram que respostas no chat (ex.: "já verifiquei") avisam o
-        Portal pra parar de insistir — só funciona depois de salvar um token e o Portal estar acessível por HTTPS
-        público (ex.: pelo túnel Cloudflare já configurado).
-      </span>
-    </div>
-  );
-}
-
-// Prioridade dos alarmes que NÃO têm um checkbox próprio na tela do módulo:
-// Bombas/Gerador marcam prioridade sinal por sinal (em Configuração), e
-// porteiro marca por equipamento (em Acesso → Equipamentos). Rede/Interfone
-// só dão uma contagem de offline (sem lista estável de equipamentos pra
-// marcar um por um) e força bruta é um evento de segurança — por isso essas
-// três ficam aqui, num lugar só.
-function AlarmPrioritiesCard() {
-  const [redeOffline, setRedeOffline] = useState(false);
-  const [interfoneOffline, setInterfoneOffline] = useState(false);
-  const [forcaBruta, setForcaBruta] = useState(false);
-  const [loaded, setLoaded] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const toast = useToast();
-
-  function load() {
-    api.settings.getTelegramPriorities().then((p) => {
-      setRedeOffline(p.redeOffline);
-      setInterfoneOffline(p.interfoneOffline);
-      setForcaBruta(p.forcaBruta);
-      setLoaded(true);
-    });
+  async function handleTrocarChat() {
+    setChatId('');
+    await api.settings.saveTelegram({ chatId: '' });
+    setWaitingChatId(true);
+    toast('Mande uma mensagem pro bot no Telegram pra capturar o novo chat.');
   }
-  useEffect(load, []);
 
-  async function handleSave() {
+  async function handleSaveAtivacao() {
     setSaving(true);
     try {
-      await api.settings.saveTelegramPriorities({ redeOffline, interfoneOffline, forcaBruta });
-      toast('Prioridades salvas.');
+      await api.settings.saveTelegram({ enabled, resendIntervalSeconds: Number(resendIntervalSeconds) });
+      toast('Configuração salva.');
+      load();
     } catch (err) {
       toast(err.message, 'error');
     } finally {
@@ -761,33 +717,334 @@ function AlarmPrioritiesCard() {
     }
   }
 
-  if (!loaded) return <div className="skeleton" style={{ height: 160, borderRadius: 20 }} />;
+  if (!loaded) return <div className="skeleton" style={{ height: 320, borderRadius: 20 }} />;
 
   return (
-    <div className="surface" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <div className="surface" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
       <div>
-        <div style={{ fontWeight: 700 }}>Prioridade de outros alarmes</div>
+        <div style={{ fontWeight: 700 }}>Alertas via Telegram</div>
         <div className="field-hint">
-          Rede/Interfone (contagem de equipamentos offline) e a trava de força bruta — os demais módulos marcam
-          prioridade na própria tela (Bombas/Gerador → Configuração, Acesso → Equipamentos).
+          Manda mensagem num chat do Telegram quando um alarme dispara. Siga os passos abaixo, na ordem — cada um
+          vira um ✅ depois de feito (fica salvo, não desaparece ao recarregar a página).
         </div>
       </div>
-      <label className="checkbox-row">
-        <input type="checkbox" checked={redeOffline} onChange={(e) => setRedeOffline(e.target.checked)} />
-        Rede — insistir enquanto houver equipamento(s) offline
-      </label>
-      <label className="checkbox-row">
-        <input type="checkbox" checked={interfoneOffline} onChange={(e) => setInterfoneOffline(e.target.checked)} />
-        Interfone — insistir enquanto houver ramal(is) offline
-      </label>
-      <label className="checkbox-row">
-        <input type="checkbox" checked={forcaBruta} onChange={(e) => setForcaBruta(e.target.checked)} />
-        Segurança — também ligar por telefone quando a trava de força bruta disparar
-      </label>
+
+      {/* Passo 1 — token do bot */}
+      <div style={{ display: 'flex', gap: 12 }}>
+        <StepBadge done={hasToken} />
+        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ fontWeight: 600 }}>1. Criar o bot e salvar o token</div>
+          <div className="field-hint">
+            No Telegram, fale com <strong>@BotFather</strong>, mande <code>/newbot</code> e copie o token que ele der.
+          </div>
+          <div className="grid-2">
+            <input
+              className="input"
+              type="password"
+              value={botToken}
+              onChange={(e) => setBotToken(e.target.value)}
+              placeholder={hasToken ? 'já salvo — deixe em branco pra manter' : '123456:ABC-...'}
+            />
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn btn-primary" onClick={handleSaveToken} disabled={saving || (!botToken && hasToken)}>
+                {saving ? <span className="spinner" /> : 'Salvar token'}
+              </button>
+              <button className="btn btn-secondary" onClick={handleTest} disabled={testing || (!botToken && !hasToken)}>
+                {testing ? <span className="spinner spinner-dark" /> : 'Testar'}
+              </button>
+            </div>
+          </div>
+          {testResult && <span className="field-hint">{testResult}</span>}
+        </div>
+      </div>
+
+      {/* Passo 2 — webhook */}
+      <div style={{ display: 'flex', gap: 12, opacity: hasToken ? 1 : 0.5 }}>
+        <StepBadge done={Boolean(webhookRegisteredUrl)} />
+        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ fontWeight: 600 }}>2. Ligar o bot ao Portal</div>
+          <div className="field-hint">Deixa o Telegram avisar o Portal quando alguém responder uma mensagem.</div>
+          <div>
+            <button className="btn btn-secondary" onClick={handleRegisterWebhook} disabled={!hasToken || registeringWebhook}>
+              {registeringWebhook ? <span className="spinner spinner-dark" /> : webhookRegisteredUrl ? 'Reconfigurar' : 'Configurar'}
+            </button>
+          </div>
+          {webhookRegisteredUrl && <span className="field-hint">✅ Configurado em {webhookRegisteredUrl}</span>}
+        </div>
+      </div>
+
+      {/* Passo 3 — chat ID (automático) */}
+      <div style={{ display: 'flex', gap: 12, opacity: webhookRegisteredUrl ? 1 : 0.5 }}>
+        <StepBadge done={Boolean(chatId)} />
+        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ fontWeight: 600 }}>3. Achar o chat pra onde mandar os alertas</div>
+          {chatId ? (
+            <>
+              <span className="field-hint">✅ Chat configurado (ID: {chatId}).</span>
+              <div>
+                <button className="btn btn-ghost btn-sm" onClick={handleTrocarChat}>
+                  Trocar de chat/grupo
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="field-hint">
+                Abra uma conversa com o bot (ou adicione ele num grupo) e mande <strong>qualquer mensagem</strong> —
+                o chat ID é detectado sozinho, sem precisar copiar nada.
+              </div>
+              {webhookRegisteredUrl && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  {waitingChatId ? (
+                    <>
+                      <span className="spinner spinner-dark" />
+                      <span className="field-hint">Esperando sua mensagem no Telegram...</span>
+                    </>
+                  ) : (
+                    <button className="btn btn-secondary btn-sm" onClick={() => setWaitingChatId(true)}>
+                      Já mandei, verificar agora
+                    </button>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Passo 4 — ativar */}
+      <div style={{ display: 'flex', gap: 12, opacity: chatId ? 1 : 0.5, borderTop: '1px solid var(--border-subtle)', paddingTop: 16 }}>
+        <StepBadge done={enabled} />
+        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ fontWeight: 600 }}>4. Ativar</div>
+          <label className="checkbox-row">
+            <input type="checkbox" checked={enabled} disabled={!chatId} onChange={(e) => setEnabled(e.target.checked)} />
+            Ativar alertas via Telegram
+          </label>
+          <div className="field">
+            <label className="field-label">Insistir (alarmes de prioridade) a cada</label>
+            <select className="select" style={{ maxWidth: 220 }} value={resendIntervalSeconds} onChange={(e) => setResendIntervalSeconds(e.target.value)}>
+              <option value={300}>5 minutos</option>
+              <option value={900}>15 minutos</option>
+              <option value={1800}>30 minutos</option>
+              <option value={3600}>1 hora</option>
+              <option value={7200}>2 horas</option>
+            </select>
+          </div>
+          <div>
+            <button className="btn btn-primary" onClick={handleSaveAtivacao} disabled={saving || !chatId}>
+              {saving ? <span className="spinner" /> : 'Salvar'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Mesmos textos usados no backend (ALARM_LABELS em telegramService.js) —
+// só pra não inventar uma segunda redação diferente pro mesmo alarme.
+const BOMBAS_ALARM_LABELS = {
+  termico1: 'Térmico da bomba 1 desarmado',
+  termico2: 'Térmico da bomba 2 desarmado',
+  modoManual: 'Modo manual (não automático)',
+  emergencia: 'Emergência acionada',
+  faltaFase: 'Falta de fase na rede elétrica',
+  painelDesligado: 'Painel de bombas desligado',
+  falhaBoias: 'Falha nas boias de nível',
+};
+
+// Antes, marcar prioridade era espalhado em 4 lugares (Bombas →
+// Configuração, Gerador → Configuração, Acesso → cada equipamento,
+// Configurações → outra seção) — pedido do Rodrigo pra juntar tudo numa
+// lista só, com checkbox direto, sem precisar abrir mais nada. Cada
+// checkbox salva na hora (não tem botão "Salvar" geral) — assim um erro
+// num módulo não perde a marcação que já deu certo nos outros.
+function PrioritiesCard() {
+  const [pumpConfig, setPumpConfig] = useState(null);
+  const [generatorConfig, setGeneratorConfig] = useState(null);
+  const [devices, setDevices] = useState(null);
+  const [moduleFlags, setModuleFlags] = useState(null);
+  const [loaded, setLoaded] = useState(false);
+  const [error, setError] = useState('');
+  const [savingKey, setSavingKey] = useState(null);
+  const toast = useToast();
+
+  function load() {
+    setError('');
+    return Promise.all([
+      api.pumpStation.getConfig(),
+      api.generator.getConfig(),
+      api.accessDevices.list(),
+      api.settings.getTelegramPriorities(),
+    ])
+      .then(([pump, gen, devs, flags]) => {
+        setPumpConfig(pump);
+        setGeneratorConfig(gen);
+        setDevices(devs);
+        setModuleFlags(flags);
+        setLoaded(true);
+      })
+      .catch((err) => {
+        setError(err.message);
+        setLoaded(true);
+      });
+  }
+  useEffect(load, []);
+
+  async function toggleBomba(key, value) {
+    setSavingKey(`bomba-${key}`);
+    const points = { ...pumpConfig.points, [key]: { ...pumpConfig.points[key], priority: value } };
+    try {
+      await api.pumpStation.saveConfig({ ...pumpConfig, points });
+      setPumpConfig((c) => ({ ...c, points }));
+    } catch (err) {
+      toast(err.message, 'error');
+    } finally {
+      setSavingKey(null);
+    }
+  }
+
+  async function toggleGerador(value) {
+    setSavingKey('gerador-falha');
+    const points = { ...generatorConfig.points, falha: { ...generatorConfig.points.falha, priority: value } };
+    try {
+      await api.generator.saveConfig({ ...generatorConfig, points });
+      setGeneratorConfig((c) => ({ ...c, points }));
+    } catch (err) {
+      toast(err.message, 'error');
+    } finally {
+      setSavingKey(null);
+    }
+  }
+
+  async function toggleDevice(device, value) {
+    setSavingKey(`device-${device.id}`);
+    try {
+      await api.accessDevices.update(device.id, { telegramPriority: value });
+      setDevices((list) => list.map((d) => (d.id === device.id ? { ...d, telegramPriority: value } : d)));
+    } catch (err) {
+      toast(err.message, 'error');
+    } finally {
+      setSavingKey(null);
+    }
+  }
+
+  async function toggleModuleFlag(key, value) {
+    setSavingKey(`modulo-${key}`);
+    const next = { ...moduleFlags, [key]: value };
+    try {
+      await api.settings.saveTelegramPriorities(next);
+      setModuleFlags(next);
+    } catch (err) {
+      toast(err.message, 'error');
+    } finally {
+      setSavingKey(null);
+    }
+  }
+
+  if (!loaded) return <div className="skeleton" style={{ height: 360, borderRadius: 20 }} />;
+  if (error) {
+    return (
+      <div className="surface" style={{ padding: 24, borderLeft: '3px solid var(--warning-500)' }}>
+        <div style={{ fontWeight: 700, marginBottom: 6 }}>Prioridade dos alarmes</div>
+        <p className="field-hint">Não consegui carregar: {error}</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="surface" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
       <div>
-        <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
-          {saving ? <span className="spinner" /> : 'Salvar'}
-        </button>
+        <div style={{ fontWeight: 700 }}>Prioridade dos alarmes</div>
+        <div className="field-hint">
+          Marcado aqui, o alarme <strong>insiste via Telegram</strong> (e liga por telefone, se o Twilio estiver
+          configurado) até alguém reconhecer — os demais mandam uma mensagem só. Tudo num lugar só.
+        </div>
+      </div>
+
+      <div>
+        <div style={{ fontWeight: 600, marginBottom: 8 }}>Bombas</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {Object.entries(BOMBAS_ALARM_LABELS).map(([key, label]) => (
+            <label key={key} className="checkbox-row">
+              <input
+                type="checkbox"
+                checked={Boolean(pumpConfig.points[key]?.priority)}
+                disabled={savingKey === `bomba-${key}`}
+                onChange={(e) => toggleBomba(key, e.target.checked)}
+              />
+              {label}
+            </label>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <div style={{ fontWeight: 600, marginBottom: 8 }}>Gerador</div>
+        <label className="checkbox-row">
+          <input
+            type="checkbox"
+            checked={Boolean(generatorConfig.points.falha?.priority)}
+            disabled={savingKey === 'gerador-falha'}
+            onChange={(e) => toggleGerador(e.target.checked)}
+          />
+          Falha ativa
+        </label>
+      </div>
+
+      <div>
+        <div style={{ fontWeight: 600, marginBottom: 8 }}>Acesso (porteiros/portões)</div>
+        {devices.length === 0 ? (
+          <span className="field-hint">Nenhum equipamento cadastrado ainda.</span>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {devices.map((d) => (
+              <label key={d.id} className="checkbox-row">
+                <input
+                  type="checkbox"
+                  checked={Boolean(d.telegramPriority)}
+                  disabled={savingKey === `device-${d.id}`}
+                  onChange={(e) => toggleDevice(d, e.target.checked)}
+                />
+                {d.name}
+              </label>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div>
+        <div style={{ fontWeight: 600, marginBottom: 8 }}>Rede / Interfone / Segurança</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <label className="checkbox-row">
+            <input
+              type="checkbox"
+              checked={moduleFlags.redeOffline}
+              disabled={savingKey === 'modulo-redeOffline'}
+              onChange={(e) => toggleModuleFlag('redeOffline', e.target.checked)}
+            />
+            Rede — equipamento(s) offline
+          </label>
+          <label className="checkbox-row">
+            <input
+              type="checkbox"
+              checked={moduleFlags.interfoneOffline}
+              disabled={savingKey === 'modulo-interfoneOffline'}
+              onChange={(e) => toggleModuleFlag('interfoneOffline', e.target.checked)}
+            />
+            Interfone — ramal(is) offline
+          </label>
+          <label className="checkbox-row">
+            <input
+              type="checkbox"
+              checked={moduleFlags.forcaBruta}
+              disabled={savingKey === 'modulo-forcaBruta'}
+              onChange={(e) => toggleModuleFlag('forcaBruta', e.target.checked)}
+            />
+            Trava de força bruta (login)
+          </label>
+        </div>
       </div>
     </div>
   );
@@ -963,13 +1220,27 @@ function TwilioSettingsCard() {
   );
 }
 
+// Antes era um empilhado de 9 cards numa rolagem só — confuso de achar
+// onde estava cada coisa. Agrupado em abas por assunto; cada aba só monta
+// (e só busca dados) quando é a ativa, então abrir "Geral" não dispara as
+// chamadas de Bombas/Gerador/Acesso usadas pela aba de Alertas.
+const SETTINGS_TABS = {
+  geral: { label: 'Geral' },
+  seguranca: { label: 'Segurança' },
+  alertas: { label: 'Alertas' },
+  integracoes: { label: 'Integrações' },
+};
+
 export default function Settings() {
+  const [tab, setTab] = useState('geral');
   const [gateways, setGateways] = useState(null);
 
   function reload() {
     api.settings.getGateways().then(setGateways);
   }
-  useEffect(reload, []);
+  useEffect(() => {
+    if (tab === 'integracoes') reload();
+  }, [tab]);
 
   async function handleSaveGateway(key, payload) {
     await api.settings.saveGateway(key, payload);
@@ -985,43 +1256,58 @@ export default function Settings() {
         </div>
       </div>
 
-      <BrandingCard />
-
-      <SecurityCard />
-
-      <AnomalyCard />
-
-      <RetentionCard />
-
-      <PushSettingsCard />
-
-      <TelegramSettingsCard />
-
-      <AlarmPrioritiesCard />
-
-      <TwilioSettingsCard />
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-        {gateways === null ? (
-          <div className="skeleton" style={{ height: 220, borderRadius: 20 }} />
-        ) : (
-          GATEWAYS.map((g) => <GatewayCard key={g.key} meta={g} value={gateways[g.key]} onSave={handleSaveGateway} />)
-        )}
+      <div className="tabs">
+        {Object.entries(SETTINGS_TABS).map(([key, meta]) => (
+          <button key={key} className={`tab ${tab === key ? 'active' : ''}`} onClick={() => setTab(key)}>
+            {meta.label}
+          </button>
+        ))}
       </div>
 
-      <div className="surface" style={{ padding: 24, display: 'flex', gap: 16, alignItems: 'flex-start' }}>
-        <Icon name="key" size={20} style={{ color: 'var(--accent-400)', flexShrink: 0, marginTop: 2 }} />
-        <div style={{ fontSize: 13.5, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-          <strong style={{ color: 'var(--text-primary)' }}>O que cada campo faz hoje:</strong> o <strong>Rede</strong>{' '}
-          já é nativo do Portal — assim que <strong>endereço interno da API</strong> e{' '}
-          <strong>conta de serviço</strong> estiverem configurados e testados, o botão "Abrir painel" mostra as telas
-          de monitoramento direto aqui dentro, com o visual do Portal (sem link público nem build separado). Já o{' '}
-          <strong>Interfone</strong> ainda funciona como painel embutido: com o servidor tendo o build embutido
-          configurado (<code>GATEWAY_*_FRONTEND_DIST</code> no <code>.env</code>) ele abre dentro do Portal; sem isso,
-          abre o painel original numa aba nova usando a <strong>URL pública</strong>. Em ambos, "Testar conexão"
-          confirma que a conta de serviço realmente consegue logar no painel.
-        </div>
-      </div>
+      {tab === 'geral' && <BrandingCard />}
+
+      {tab === 'seguranca' && (
+        <>
+          <SecurityCard />
+          <AnomalyCard />
+          <RetentionCard />
+        </>
+      )}
+
+      {tab === 'alertas' && (
+        <>
+          <PushSettingsCard />
+          <TelegramSettingsCard />
+          <PrioritiesCard />
+          <TwilioSettingsCard />
+        </>
+      )}
+
+      {tab === 'integracoes' && (
+        <>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {gateways === null ? (
+              <div className="skeleton" style={{ height: 220, borderRadius: 20 }} />
+            ) : (
+              GATEWAYS.map((g) => <GatewayCard key={g.key} meta={g} value={gateways[g.key]} onSave={handleSaveGateway} />)
+            )}
+          </div>
+
+          <div className="surface" style={{ padding: 24, display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+            <Icon name="key" size={20} style={{ color: 'var(--accent-400)', flexShrink: 0, marginTop: 2 }} />
+            <div style={{ fontSize: 13.5, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+              <strong style={{ color: 'var(--text-primary)' }}>O que cada campo faz hoje:</strong> o <strong>Rede</strong>{' '}
+              já é nativo do Portal — assim que <strong>endereço interno da API</strong> e{' '}
+              <strong>conta de serviço</strong> estiverem configurados e testados, o botão "Abrir painel" mostra as telas
+              de monitoramento direto aqui dentro, com o visual do Portal (sem link público nem build separado). Já o{' '}
+              <strong>Interfone</strong> ainda funciona como painel embutido: com o servidor tendo o build embutido
+              configurado (<code>GATEWAY_*_FRONTEND_DIST</code> no <code>.env</code>) ele abre dentro do Portal; sem isso,
+              abre o painel original numa aba nova usando a <strong>URL pública</strong>. Em ambos, "Testar conexão"
+              confirma que a conta de serviço realmente consegue logar no painel.
+            </div>
+          </div>
+        </>
+      )}
     </>
   );
 }

@@ -147,15 +147,22 @@ outro caminho (ex.: tela web própria do ComAp).
 ## ~~Alertas insistentes com prioridade, via Telegram (+ ligação telefônica)~~ — feito pra todos os módulos
 Generalizado pra cobrir rede, interfone, acesso (porteiro offline + força bruta) e gerador
 (falha), além de bombas (que já tinha desde a fase 1). O que foi implementado:
-- Bot do Telegram de verdade: token + chat ID configuráveis em Configurações → "Alertas via
-  Telegram" (token guardado criptografado, igual outras senhas do Portal). Botão "Testar
-  token" (chama `getMe`) e botão "Configurar resposta no chat" (chama `setWebhook` do
-  Telegram apontando pro Portal).
-- Checkbox **"Prioridade"**, um por módulo/sinal: Bombas → Configuração (7 alarmes, já
-  existia), Gerador → Configuração (falha ativa), Acesso → Equipamentos (um por porteiro
-  cadastrado — porteiro caiu insiste só se marcado) e Configurações → "Prioridade de outros
-  alarmes" (Rede/Interfone offline e a trava de força bruta, que não têm um equipamento
-  cadastrado pra marcar individualmente).
+- Bot do Telegram de verdade, configurado em Configurações → aba **Alertas** como um
+  assistente de 4 passos, cada um virando um ✅ persistente (sobrevive a recarregar a página —
+  antes só tinha toast, que passa e não deixa rastro, gerando a reclamação "não aparece nada
+  quando eu clico"): 1) salvar/testar o token; 2) ligar o webhook ao Portal (mostra a URL
+  configurada); 3) achar o chat — **automático**: manda qualquer mensagem pro bot no Telegram e
+  o Portal captura o chat ID sozinho (webhook já ativo detecta e confirma de volta no próprio
+  chat), sem precisar mais copiar nada do `getUpdates` na mão; 4) ativar + intervalo de
+  insistência.
+- Checkbox **"Prioridade"** de TODOS os módulos (Bombas, Gerador, cada porteiro/portão de
+  Acesso, Rede/Interfone/força bruta) juntos numa lista só, em Configurações → Alertas →
+  "Prioridade dos alarmes" — pedido do Rodrigo pra não precisar abrir a tela de cada módulo;
+  cada checkbox salva na hora, sem botão "Salvar" geral (um erro num módulo não derruba o que
+  já salvou nos outros).
+- A própria tela de Configurações foi dividida em **abas** (Geral / Segurança / Alertas /
+  Integrações) — era um empilhado de 9 cards numa rolagem só, confuso de achar onde estava
+  cada coisa.
 - Mensagem é mandada uma vez quando o alarme dispara (sempre, prioridade ou não); se for
   prioridade, **reenvia a cada X tempo** (configurável: 5min/15min/30min/1h/2h) até resolver
   ou ser reconhecido. Rede/Interfone usam a mesma contagem de offline já mostrada na Início;

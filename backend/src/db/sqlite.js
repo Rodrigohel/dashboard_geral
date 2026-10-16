@@ -551,3 +551,12 @@ if (!twilioSettingsColumns.includes('webhook_secret')) {
 if (!twilioSettingsColumns.includes('public_base_url')) {
   db.exec("ALTER TABLE twilio_settings ADD COLUMN public_base_url TEXT NOT NULL DEFAULT ''");
 }
+
+// Guarda a última URL registrada no Telegram via setWebhook — só pra tela
+// mostrar "✅ já configurado" de forma persistente (sobrevive a recarregar a
+// página), em vez de só um toast que passa e não deixa rastro de que aquele
+// passo já foi feito.
+const telegramSettingsColumnsForStatus = db.prepare('PRAGMA table_info(telegram_settings)').all().map((c) => c.name);
+if (!telegramSettingsColumnsForStatus.includes('webhook_registered_url')) {
+  db.exec("ALTER TABLE telegram_settings ADD COLUMN webhook_registered_url TEXT NOT NULL DEFAULT ''");
+}
