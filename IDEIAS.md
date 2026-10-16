@@ -165,25 +165,33 @@ Generalizado pra cobrir rede, interfone, acesso (porteiro offline + força bruta
   manutenção") — tocar um deles reconhece SÓ aquele alarme específico (via `callback_data`),
   parando de insistir nesse sem mexer nos outros alarmes ativos. Digitar qualquer mensagem
   solta no chat (sem tocar botão) continua reconhecendo todos os alarmes ativos de uma vez,
-  como fallback.
+  como fallback. A confirmação de "reconhecido" mostra o nome bonito do alarme (ex.: "Gerador:
+  falha ativa", "Acesso: porteiro 'Garagem' offline") pra QUALQUER módulo — o nome é guardado
+  junto com o estado no momento em que o alarme dispara, não reconstruído só pros 7 de Bombas
+  como na primeira versão.
 - Endpoint do webhook (`POST /api/telegram/webhook/<secret>`) é público (o Telegram chama,
   não um usuário logado) mas protegido por um segredo aleatório na própria URL, não por JWT.
 - **Ligação telefônica (Twilio)**: infraestrutura completa pronta em Configurações → "Ligação
-  telefônica (Twilio)" — Account SID, Auth Token, número de origem, números de destino e
-  "ligar depois de X sem reconhecer" (escalonamento, só pros alarmes de prioridade). Liga pros
-  números cadastrados automaticamente quando um alarme de prioridade passa do tempo
-  configurado sem ninguém reconhecer no Telegram — uma vez só por episódio do alarme (não fica
-  ligando repetido enquanto insiste por mensagem). **Mas não dá pra testar nem funcionar de
-  verdade sem uma conta Twilio real**: ninguém criou a conta ainda, e eu não posso inventar
-  Account SID/Auth Token/número — são credenciais de um serviço pago de terceiro, diferente do
-  Modbus (que não precisa de nada). Falta: criar a conta em twilio.com (ou escolher outro
-  provedor — cotar preço antes), comprar um número, e preencher os campos; o botão "Testar
-  conta" confere as credenciais sem custo (sem ligar), antes de confiar que vai funcionar de
-  verdade.
+  telefônica (Twilio)" — Account SID, Auth Token, número de origem, números de destino,
+  "ligar depois de X sem reconhecer" (escalonamento, só pros alarmes de prioridade) e URL
+  pública do Portal. Liga pros números cadastrados automaticamente quando um alarme de
+  prioridade passa do tempo configurado sem ninguém reconhecer no Telegram — uma vez só por
+  episódio do alarme. **Atender a ligação já conta como reconhecimento** (preenchendo a URL
+  pública): o Twilio avisa o Portal via `POST /api/twilio/status/<secret>` quando a chamada é
+  atendida, e isso reconhece o alarme igual tocar "Visto" no Telegram, sem precisar fazer mais
+  nada por voz — mesmo esquema de segredo na URL do webhook do Telegram. **Mas não dá pra
+  testar nem funcionar de verdade sem uma conta Twilio real**: ninguém criou a conta ainda, e eu
+  não posso inventar Account SID/Auth Token/número — são credenciais de um serviço pago de
+  terceiro, diferente do Modbus (que não precisa de nada). Falta: criar a conta em twilio.com
+  (ou escolher outro provedor — cotar preço antes), comprar um número, e preencher os campos; o
+  botão "Testar conta" confere as credenciais sem custo (sem ligar), antes de confiar que vai
+  funcionar de verdade.
+- Lista de equipamentos (Acesso → Equipamentos) mostra um badge "prioridade" no card de quem
+  está marcado, pra não precisar abrir o formulário de editar pra saber quem tem a opção
+  ligada.
 
-**Ainda não implementado** (não pedido, fica pra depois se fizer falta): desligar a ligação
-automático ao atender (hoje ela só fala a mensagem e desliga, não espera confirmação por voz);
-sinalização visual de "equipamento crítico" na tela (fora do alerta em si).
+**Ainda não implementado** (não pedido, fica pra depois se fizer falta): sinalização visual de
+"equipamento crítico" fora do card de equipamento (ex.: na própria Início).
 
 ## ~~Bombas: permitir adicionar pontos customizados~~ — fase 1 feita
 Fase 1 implementada: em "Bombas → Configuração" agora dá pra adicionar um sinal novo sozinho

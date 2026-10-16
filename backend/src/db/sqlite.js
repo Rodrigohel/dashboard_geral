@@ -526,3 +526,28 @@ const telegramAlarmStateColumnsForCall = db.prepare('PRAGMA table_info(telegram_
 if (!telegramAlarmStateColumnsForCall.includes('call_sent_at')) {
   db.exec('ALTER TABLE telegram_alarm_state ADD COLUMN call_sent_at TEXT');
 }
+
+// Guarda o texto bonito ("Gerador: falha ativa") no momento em que o alarme
+// dispara — sem isso, a confirmação de "Visto"/"Em manutenção" (ver
+// handleCallbackQuery) só sabia reconstruir esse texto pros 7 alarmes de
+// Bombas (via ALARM_LABELS), e mostrava a alarm_key crua ("acesso.device-3",
+// "rede.offline") pra qualquer alarme dos outros módulos.
+if (!telegramAlarmStateColumnsForCall.includes('label')) {
+  db.exec("ALTER TABLE telegram_alarm_state ADD COLUMN label TEXT NOT NULL DEFAULT ''");
+}
+
+// Segredo pra validar o StatusCallback que o Twilio chama quando a ligação é
+// atendida (mesma ideia do webhook_secret do Telegram: só quem conhece esse
+// valor na URL é aceito, sem precisar de JWT) + URL pública do Portal, usada
+// pra montar essa URL de callback a cada ligação — o Portal não sabe sozinho
+// qual é (atrás do túnel Cloudflare), diferente do Telegram, que recebe essa
+// URL só uma vez (registerWebhook) vinda do navegador; aqui cada ligação é
+// disparada pelo próprio backend, sem navegador envolvido, por isso precisa
+// ficar salva.
+const twilioSettingsColumns = db.prepare('PRAGMA table_info(twilio_settings)').all().map((c) => c.name);
+if (!twilioSettingsColumns.includes('webhook_secret')) {
+  db.exec("ALTER TABLE twilio_settings ADD COLUMN webhook_secret TEXT NOT NULL DEFAULT ''");
+}
+if (!twilioSettingsColumns.includes('public_base_url')) {
+  db.exec("ALTER TABLE twilio_settings ADD COLUMN public_base_url TEXT NOT NULL DEFAULT ''");
+}

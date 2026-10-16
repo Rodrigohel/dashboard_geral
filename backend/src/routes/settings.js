@@ -154,8 +154,8 @@ settingsRouter.get('/twilio', (req, res) => {
 });
 
 settingsRouter.put('/twilio', (req, res) => {
-  const { enabled, accountSid, authToken, fromNumber, toNumbers, callAfterSeconds } = req.body || {};
-  res.json(saveTwilioSettings({ enabled, accountSid, authToken, fromNumber, toNumbers, callAfterSeconds }));
+  const { enabled, accountSid, authToken, fromNumber, toNumbers, callAfterSeconds, publicBaseUrl } = req.body || {};
+  res.json(saveTwilioSettings({ enabled, accountSid, authToken, fromNumber, toNumbers, callAfterSeconds, publicBaseUrl }));
 });
 
 settingsRouter.post('/twilio/test-connection', async (req, res) => {

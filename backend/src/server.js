@@ -25,6 +25,7 @@ import { startPumpStationHistoryPoller } from './services/pumpStationHistoryPoll
 import { startGeneratorPoller } from './services/generatorPoller.js';
 import { startNetworkAlarmPoller } from './services/networkAlarmPoller.js';
 import { isValidWebhookSecret, acknowledgeAllActiveAlarms, sendTelegramMessage, handleCallbackQuery } from './services/telegramService.js';
+import { isValidTwilioWebhookSecret, handleCallAnswered } from './services/twilioService.js';
 import './db/sqlite.js';
 
 const app = express();
@@ -74,6 +75,18 @@ app.post('/api/telegram/webhook/:secret', async (req, res) => {
     // webhook do Telegram não tem pra quem devolver erro depois do 200 já
     // mandado — só não derruba o processo.
   }
+});
+
+// Também público (o Twilio chama, não um usuário logado) — avisa que uma
+// ligação de escalonamento foi ATENDIDA (ver StatusCallback em
+// twilioService.js/placeCall), o que já conta como reconhecimento do
+// alarme, igual tocar "Visto" no Telegram. Protegido pelo `secret` na URL
+// (gerado junto com as outras configurações do Twilio), não por JWT — mesmo
+// esquema do webhook do Telegram acima.
+app.post('/api/twilio/status/:secret', (req, res) => {
+  if (!isValidTwilioWebhookSecret(req.params.secret)) return res.status(404).end();
+  res.status(204).end(); // responde rápido — o Twilio não espera processamento
+  handleCallAnswered(req.query.alarmKey).catch(() => {});
 });
 
 app.use('/api/auth', authRouter);
