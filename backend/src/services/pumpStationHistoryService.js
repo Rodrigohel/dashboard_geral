@@ -16,9 +16,11 @@ export function recordPumpActivationSnapshot(points) {
 }
 
 export function getPumpActivationSnapshots(limit = 10) {
-  return db
-    .prepare('SELECT id, points_json, created_at FROM pump_activation_snapshots ORDER BY id DESC LIMIT ?')
-    .all(limit)
+  const validSince = getHistoryValidSince();
+  const rows = validSince
+    ? db.prepare('SELECT id, points_json, created_at FROM pump_activation_snapshots WHERE created_at >= ? ORDER BY id DESC LIMIT ?').all(validSince, limit)
+    : db.prepare('SELECT id, points_json, created_at FROM pump_activation_snapshots ORDER BY id DESC LIMIT ?').all(limit);
+  return rows
     // `created_at` vem do SQLite em UTC sem indicar o fuso ("YYYY-MM-DD
     // HH:MM:SS") — sem o "Z", o front interpreta como hora local e mostra
     // 3h adiantado (fuso de Brasília é UTC-3). Mesmo tratamento já usado
@@ -28,6 +30,25 @@ export function getPumpActivationSnapshots(limit = 10) {
 
 const LEVEL_KEYS = ['nivelMinimo', 'nivelMedio', 'nivelMaximo', 'nivelSeguranca'];
 const PUMP_KEYS = ['bomba1', 'bomba2'];
+
+export function getHistoryValidSince() {
+  return db.prepare('SELECT history_valid_since FROM pump_station WHERE id = 1').get()?.history_valid_since || null;
+}
+
+// Zera a validade do histórico de tempo a partir de agora (ver coluna
+// `history_valid_since` em sqlite.js) — pump_events não é apagado, só passa
+// a ser ignorado pelas médias/estatística antes do corte. Se uma bomba
+// estiver ligada NESTE instante, o corte fica no início do ciclo dela em
+// andamento (ele continua válido, só o que já tinha fechado antes some).
+export function resetPumpHistoryValidity() {
+  let cutoff = new Date().toISOString().slice(0, 19).replace('T', ' ');
+  for (const key of PUMP_KEYS) {
+    const last = db.prepare('SELECT state, created_at FROM pump_events WHERE point_key = ? ORDER BY id DESC LIMIT 1').get(key);
+    if (last && last.state === 1 && last.created_at < cutoff) cutoff = last.created_at;
+  }
+  db.prepare('UPDATE pump_station SET history_valid_since = ? WHERE id = 1').run(cutoff);
+  return cutoff;
+}
 
 // Processa TODO o histórico de borda em ordem cronológica — não só a janela
 // pedida — porque pra saber "quais níveis estavam ativos quando a bomba 1
@@ -71,7 +92,14 @@ export function getPumpStationHistory({ days = 30 } = {}) {
     activations.push({ ...open, endedAt: null, durationSeconds: Math.round((new Date(nowIso) - new Date(open.startedAt)) / 1000) });
   }
 
-  const inRange = activations.filter((a) => a.startedAt >= sinceIso).sort((a, b) => (a.startedAt < b.startedAt ? 1 : -1));
+  // Descarta ciclos que começaram antes do corte de validade (ver
+  // resetPumpHistoryValidity) — mesmo processando o histórico todo acima
+  // (necessário pra "levelsAtStart" ficar certo), o ciclo em si só entra na
+  // conta se começou depois do corte (ou é o ciclo em andamento NO corte,
+  // que foi exatamente o ponto escolhido como início válido).
+  const validSince = getHistoryValidSince();
+  const afterCutoff = validSince ? activations.filter((a) => a.startedAt.slice(0, 19).replace('T', ' ') >= validSince) : activations;
+  const inRange = afterCutoff.filter((a) => a.startedAt >= sinceIso).sort((a, b) => (a.startedAt < b.startedAt ? 1 : -1));
 
   const stats = {};
   for (const key of PUMP_KEYS) {
@@ -81,7 +109,13 @@ export function getPumpStationHistory({ days = 30 } = {}) {
       totalSeconds: forPump.reduce((sum, a) => sum + a.durationSeconds, 0),
     };
   }
-  return { days, activations: inRange, stats, levelTransitions: getLevelTransitionStats() };
+  return {
+    days,
+    activations: inRange,
+    stats,
+    levelTransitions: getLevelTransitionStats(),
+    historyValidSince: validSince ? validSince.replace(' ', 'T') + 'Z' : null,
+  };
 }
 
 // Quanto tempo leva pra cruzar cada fronteira entre boias consecutivas,
@@ -98,9 +132,19 @@ const BOUNDARIES = [
 ];
 
 export function getLevelTransitionStats() {
-  const rows = db
-    .prepare(`SELECT point_key, state, created_at FROM pump_events WHERE point_key IN (?, ?, ?, ?) ORDER BY created_at ASC, id ASC`)
-    .all(...LEVEL_KEYS);
+  const validSince = getHistoryValidSince();
+  // Com corte, já filtra na consulta: diferente de getPumpStationHistory,
+  // aqui cada amostra (subida/descida de uma fronteira) só depende dos
+  // eventos entre as duas bordas dela mesma — não precisa de contexto de
+  // antes do corte, então simplesmente não existir linha antiga já garante
+  // que nenhuma amostra "cruza" o corte.
+  const rows = validSince
+    ? db
+        .prepare(`SELECT point_key, state, created_at FROM pump_events WHERE point_key IN (?, ?, ?, ?) AND created_at >= ? ORDER BY created_at ASC, id ASC`)
+        .all(...LEVEL_KEYS, validSince)
+    : db
+        .prepare(`SELECT point_key, state, created_at FROM pump_events WHERE point_key IN (?, ?, ?, ?) ORDER BY created_at ASC, id ASC`)
+        .all(...LEVEL_KEYS);
 
   // BUG corrigido aqui (relatado pelo Rodrigo: "máximo → médio" aparecia com
   // duração enorme e dezenas de ciclos mesmo o nível nunca tendo chegado no
@@ -189,9 +233,12 @@ export function getLevelTransitionStats() {
 const MIN_SAMPLES_FOR_ESTIMATE = 3;
 
 function lastEventAt(pointKey, state) {
-  const row = db
-    .prepare('SELECT created_at FROM pump_events WHERE point_key = ? AND state = ? ORDER BY id DESC LIMIT 1')
-    .get(pointKey, state ? 1 : 0);
+  const validSince = getHistoryValidSince();
+  const row = validSince
+    ? db
+        .prepare('SELECT created_at FROM pump_events WHERE point_key = ? AND state = ? AND created_at >= ? ORDER BY id DESC LIMIT 1')
+        .get(pointKey, state ? 1 : 0, validSince)
+    : db.prepare('SELECT created_at FROM pump_events WHERE point_key = ? AND state = ? ORDER BY id DESC LIMIT 1').get(pointKey, state ? 1 : 0);
   return row ? new Date(row.created_at.replace(' ', 'T') + 'Z').getTime() : null;
 }
 

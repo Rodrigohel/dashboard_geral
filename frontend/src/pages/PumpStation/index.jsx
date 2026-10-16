@@ -866,15 +866,38 @@ function HistoryCard({ canEditConfig }) {
   const [history, setHistory] = useState(null);
   const [error, setError] = useState('');
   const [snapshots, setSnapshots] = useState(null);
+  const [resetting, setResetting] = useState(false);
+  const toast = useToast();
 
-  useEffect(() => {
+  function load() {
     setHistory(null);
     setError('');
     api.pumpStation
       .history(days)
       .then(setHistory)
       .catch((err) => setError(err.message));
-  }, [days]);
+  }
+  useEffect(load, [days]);
+
+  // Pra quando uma falha FÍSICA no local (ex.: contatores jumpeados, uma
+  // bomba ligando a outra junto) é descoberta e corrigida depois do fato —
+  // todo tempo medido ANTES disso ficou errado, mas não dá pra saber desde
+  // quando sem o Rodrigo confirmar. Não apaga nada do banco, só passa a
+  // ignorar tudo antes de agora nas médias/estatística (ver
+  // pumpStationHistoryService.js).
+  async function handleResetHistory() {
+    if (!window.confirm('Isso vai zerar todas as médias e estatísticas de tempo das bombas, usando só o que acontecer a partir de agora. Os dados antigos continuam no sistema, só deixam de contar. Confirma?')) return;
+    setResetting(true);
+    try {
+      await api.pumpStation.resetHistory();
+      toast('Histórico de tempo zerado — só conta a partir de agora.');
+      load();
+    } catch (err) {
+      toast(err.message, 'error');
+    } finally {
+      setResetting(false);
+    }
+  }
 
   // Fotos automáticas tiradas no instante em que uma bomba liga — só pra
   // quem edita config (mesmo público de /config), pra comparar com o
@@ -891,14 +914,26 @@ function HistoryCard({ canEditConfig }) {
           <Icon name="activity" size={17} />
           Histórico de ativações
         </div>
-        <div style={{ display: 'flex', gap: 6 }}>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           {DAY_RANGES.map((d) => (
             <button key={d} className={`btn btn-sm ${days === d ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setDays(d)}>
               {d} dias
             </button>
           ))}
+          {canEditConfig && (
+            <button className="btn btn-sm btn-secondary" onClick={handleResetHistory} disabled={resetting} title="Usar só quando uma falha física (não do CLP) tiver contaminado as medições de tempo">
+              {resetting ? <span className="spinner" /> : 'Zerar histórico de tempo'}
+            </button>
+          )}
         </div>
       </div>
+
+      {history?.historyValidSince && (
+        <div className="surface" style={{ padding: '10px 14px', marginBottom: 16, borderLeft: '3px solid var(--warning-500)', fontSize: 13 }}>
+          Médias e estatísticas abaixo consideram só a partir de {formatDateTime(history.historyValidSince)} — tempo
+          medido antes disso foi descartado (falha física encontrada no local).
+        </div>
+      )}
 
       {error && <p style={{ color: 'var(--text-secondary)', fontSize: 13.5 }}>{error}</p>}
       {!error && !history && <div className="skeleton" style={{ height: 300, borderRadius: 12 }} />}

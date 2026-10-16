@@ -2,7 +2,8 @@ import { Router } from 'express';
 import { db } from '../db/sqlite.js';
 import { requirePermission } from '../middleware/auth.js';
 import { readPumpStationStatus, testPumpStationConnection } from '../services/pumpStationClient.js';
-import { getPumpStationHistory, getFillEstimate, getPumpActivationSnapshots } from '../services/pumpStationHistoryService.js';
+import { getPumpStationHistory, getFillEstimate, getPumpActivationSnapshots, resetPumpHistoryValidity } from '../services/pumpStationHistoryService.js';
+import { logSystemEvent } from '../services/systemEventsService.js';
 
 export const pumpStationRouter = Router();
 
@@ -63,6 +64,7 @@ function serializeConfig(row) {
     pollSeconds: row.poll_seconds,
     points,
     customPoints: getCustomPointRows().map(serializeCustomPoint),
+    historyValidSince: row.history_valid_since ? row.history_valid_since.replace(' ', 'T') + 'Z' : null,
   };
 }
 
@@ -199,4 +201,15 @@ pumpStationRouter.get('/history', (req, res) => {
 // usuário comum.
 pumpStationRouter.get('/activation-snapshots', requirePermission('bombas.editar'), (req, res) => {
   res.json(getPumpActivationSnapshots());
+});
+
+// Descarta todo o histórico de TEMPO (ciclos, médias de nível) anterior a
+// agora — usado uma vez quando se descobre uma falha FÍSICA no local (não
+// no CLP) que contaminou as medições (ver IDEIAS.md/changelog: contatores
+// das bombas 1 e 2 jumpeados, fazendo uma ligar a outra junto o tempo
+// todo). Não apaga pump_events, só marca a partir de quando confiar.
+pumpStationRouter.post('/history-reset', requirePermission('bombas.editar'), (req, res) => {
+  const cutoff = resetPumpHistoryValidity();
+  logSystemEvent('bombas.history-reset', `Histórico de tempo das bombas zerado — válido a partir de ${cutoff} UTC (falha física encontrada no local).`);
+  res.json({ ok: true, historyValidSince: cutoff.replace(' ', 'T') + 'Z' });
 });

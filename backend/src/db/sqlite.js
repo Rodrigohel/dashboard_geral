@@ -421,6 +421,17 @@ for (const point of ['termico1', 'termico2', 'modo_manual', 'emergencia', 'falta
   }
 }
 
+// Corte de validade do histórico de TEMPO (ciclos de bomba, médias de
+// transição de nível) — NULL = usa tudo, como sempre. Existe porque o
+// Rodrigo achou uma falha física no local (contatores das bombas 1 e 2
+// jumpeados, fazendo uma ligar a outra junto) que invalidou toda medição
+// de tempo feita até ser corrigida; ver resetPumpHistoryValidity() em
+// pumpStationHistoryService.js. Não apaga pump_events — só marca a partir
+// de quando confiar neles pra médias/estatística.
+if (!pumpStationColumnsForPriority.includes('history_valid_since')) {
+  db.exec('ALTER TABLE pump_station ADD COLUMN history_valid_since TEXT');
+}
+
 // "Modo TV / painel de portaria" — conta especial marcada na criação do
 // usuário (não é um 'role' novo, é um flag à parte) que faz o front mostrar
 // só os cards de módulo + alarmes ativos, sem menu nenhum — pensada pra
