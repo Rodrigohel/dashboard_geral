@@ -24,7 +24,13 @@ import { startAuditRetentionPruner } from './services/auditRetentionPruner.js';
 import { startPumpStationHistoryPoller } from './services/pumpStationHistoryPoller.js';
 import { startGeneratorPoller } from './services/generatorPoller.js';
 import { startNetworkAlarmPoller } from './services/networkAlarmPoller.js';
-import { isValidWebhookSecret, acknowledgeAllActiveAlarms, sendTelegramMessage, handleCallbackQuery } from './services/telegramService.js';
+import {
+  isValidWebhookSecret,
+  acknowledgeAllActiveAlarms,
+  sendTelegramMessage,
+  handleCallbackQuery,
+  captureChatIdIfMissing,
+} from './services/telegramService.js';
 import { isValidTwilioWebhookSecret, handleCallAnswered } from './services/twilioService.js';
 import './db/sqlite.js';
 
@@ -63,6 +69,13 @@ app.post('/api/telegram/webhook/:secret', async (req, res) => {
       await handleCallbackQuery(callback.data, callback.id);
       return;
     }
+    // Primeira mensagem solta, antes de ter um chat ID salvo: é a própria
+    // configuração (ver captureChatIdIfMissing) — sem isso, descobrir o
+    // chat ID exigia copiar à mão do getUpdates. Depois de capturado uma
+    // vez, mensagem solta volta a significar "reconhecer alarmes" abaixo.
+    const chatId = req.body?.message?.chat?.id;
+    if (chatId && (await captureChatIdIfMissing(chatId))) return;
+
     // Mensagem de texto solta — reconhece todos os alarmes ativos (fallback
     // pra quem prefere digitar em vez de tocar num botão).
     const text = req.body?.message?.text;

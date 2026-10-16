@@ -23,6 +23,10 @@ export function getTelegramSettings() {
     chatId: row.chat_id,
     resendIntervalSeconds: row.resend_interval_seconds,
     webhookSecret: row.webhook_secret,
+    // Guardados pra tela mostrar status PERSISTENTE ("já configurado") em
+    // vez de só um toast que passa e não deixa rastro — ver IDEIAS.md
+    // (reclamação de "não aparece nada quando clico").
+    webhookRegisteredUrl: row.webhook_registered_url || '',
   };
 }
 
@@ -34,9 +38,14 @@ export function saveTelegramSettings({ enabled, botToken, chatId, resendInterval
   const webhookSecret = row.webhook_secret || crypto.randomBytes(24).toString('hex');
   const tokenEnc = botToken ? encryptSecret(botToken) : row.bot_token_enc;
   const interval = Math.min(24 * 3600, Math.max(60, Number(resendIntervalSeconds) || row.resend_interval_seconds));
+  // `enabled` tratado como os outros campos opcionais: se não vier no corpo
+  // (ex.: a tela salvando só o token, ou só trocando de chat), mantém o
+  // valor atual em vez de desligar sozinho — mesmo cuidado já aplicado em
+  // Bombas/Gerador pra esse tipo de update parcial.
+  const enabledValue = enabled === undefined ? row.enabled : enabled ? 1 : 0;
   db.prepare(
     'UPDATE telegram_settings SET enabled = ?, bot_token_enc = ?, chat_id = ?, webhook_secret = ?, resend_interval_seconds = ? WHERE id = 1'
-  ).run(enabled ? 1 : 0, tokenEnc, chatId ?? row.chat_id, webhookSecret, interval);
+  ).run(enabledValue, tokenEnc, chatId ?? row.chat_id, webhookSecret, interval);
   return getTelegramSettings();
 }
 
@@ -76,7 +85,25 @@ export async function registerWebhook(baseUrl) {
   const token = decryptSecret(row.bot_token_enc);
   const url = `${baseUrl.replace(/\/$/, '')}/api/telegram/webhook/${row.webhook_secret}`;
   await callTelegramApi(token, 'setWebhook', { url });
+  db.prepare('UPDATE telegram_settings SET webhook_registered_url = ? WHERE id = 1').run(url);
   return url;
+}
+
+// Chamado pelo webhook (ver server.js) toda vez que chega uma mensagem de
+// texto — se ainda não tem chat ID salvo, essa é a configuração: captura o
+// chat de quem mandou e confirma de volta, sem precisar copiar nada de
+// getUpdates na mão. Depois de capturado uma vez, mensagens soltas voltam a
+// significar "reconhecer alarmes" (ver acknowledgeAllActiveAlarms).
+export async function captureChatIdIfMissing(chatId) {
+  const row = getRow();
+  if (row.chat_id || !row.bot_token_enc) return false;
+  db.prepare('UPDATE telegram_settings SET chat_id = ? WHERE id = 1').run(String(chatId));
+  const token = decryptSecret(row.bot_token_enc);
+  await callTelegramApi(token, 'sendMessage', {
+    chat_id: String(chatId),
+    text: '✅ Chat configurado! Pode voltar pro Portal — o chat ID já foi preenchido sozinho.',
+  }).catch(() => {});
+  return true;
 }
 
 export async function sendTelegramMessage(text, replyMarkup) {
