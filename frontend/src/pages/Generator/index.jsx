@@ -14,8 +14,20 @@ const REG_TYPES = [
 
 const POINT_META = [
   { key: 'pronto', label: 'Pronto (standby)' },
-  { key: 'falha', label: 'Falha ativa' },
+  { key: 'falha', label: 'Falha ativa (nível 2/shutdown)' },
   { key: 'emOperacao', label: 'Em operação (gerando energia)' },
+  { key: 'avisoAtivo', label: 'Aviso ativo (nível 1)' },
+];
+
+// Tensão fase-neutro — gerador (saída) e rede, 3 fases cada (ver mapa real
+// do ComAp InteliLite4 mandado pelo Rodrigo).
+const VOLTAGE_META = [
+  { key: 'tensaoGeradorL1N', label: 'Gerador L1-N' },
+  { key: 'tensaoGeradorL2N', label: 'Gerador L2-N' },
+  { key: 'tensaoGeradorL3N', label: 'Gerador L3-N' },
+  { key: 'tensaoRedeL1N', label: 'Rede L1-N' },
+  { key: 'tensaoRedeL2N', label: 'Rede L2-N' },
+  { key: 'tensaoRedeL3N', label: 'Rede L3-N' },
 ];
 
 function usePumpStyleStatus() {
@@ -66,11 +78,14 @@ function StatusCard({ status, error, loaded, canEditConfig, onGoToConfig }) {
 
   const points = status?.points || {};
   const falha = points.falha === true;
+  const avisoAtivo = points.avisoAtivo === true;
   const emOperacao = points.emOperacao === true;
   const pronto = points.pronto === true;
 
   const badge = falha
-    ? { cls: 'badge-danger', label: 'falha ativa' }
+    ? { cls: 'badge-danger', label: 'falha ativa (nível 2)' }
+    : avisoAtivo
+    ? { cls: 'badge-warning', label: 'aviso ativo (nível 1)' }
     : emOperacao
     ? { cls: 'badge-success', label: 'gerando energia' }
     : pronto
@@ -116,6 +131,26 @@ function StatusCard({ status, error, loaded, canEditConfig, onGoToConfig }) {
             </span>
           </div>
         ))}
+      </div>
+
+      <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', marginTop: 20, borderTop: '1px solid var(--border-subtle)', paddingTop: 16 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <span className="field-hint">Estado do motor</span>
+          <span style={{ fontWeight: 600 }}>{points.estadoMotor?.label || '—'}</span>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <span className="field-hint">Modo do controlador</span>
+          <span style={{ fontWeight: 600 }}>{points.modoControlador?.label || '—'}</span>
+        </div>
+        {VOLTAGE_META.map((v) => {
+          const value = points[v.key];
+          return (
+            <div key={v.key} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <span className="field-hint">Tensão {v.label}</span>
+              <span style={{ fontWeight: 600 }}>{typeof value === 'number' ? `${value} V` : '—'}</span>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -226,6 +261,63 @@ function PointField({ label, point, showAdvanced, onChange }) {
 }
 
 const EMPTY_POINT = { addr: null, type: 'coil', invert: false };
+const EMPTY_VALUE_POINT = { addr: null, type: 'holding' };
+
+// Igual a PointField, mas sem "inverter" — tensão/estado/modo não são
+// booleanos (ver VALUE_POINTS em routes/generator.js), inverter não faz
+// sentido pra eles.
+function ValuePointField({ label, point, showAdvanced, onChange }) {
+  if (!showAdvanced) {
+    return (
+      <div className="field">
+        <label className="field-label">{label} — endereço</label>
+        <input
+          className="input"
+          type="number"
+          value={point.addr ?? ''}
+          placeholder="ex.: 303"
+          onChange={(e) => onChange({ ...point, addr: e.target.value === '' ? null : Number(e.target.value) })}
+        />
+      </div>
+    );
+  }
+  return (
+    <div className="field">
+      <div className="grid-2">
+        <div className="field">
+          <label className="field-label">{label} — endereço</label>
+          <input
+            className="input"
+            type="number"
+            value={point.addr ?? ''}
+            placeholder="ex.: 303"
+            onChange={(e) => onChange({ ...point, addr: e.target.value === '' ? null : Number(e.target.value) })}
+          />
+        </div>
+        <div className="field">
+          <label className="field-label">{label} — tipo de registrador</label>
+          <select className="select" value={point.type} onChange={(e) => onChange({ ...point, type: e.target.value })}>
+            <option value="holding">Registrador de retenção (FC3 — Holding Register)</option>
+            <option value="input">Registrador de entrada (FC4 — Input Register)</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Mapa real do ComAp InteliLite4 (cfgmodbus.txt mandado pelo Rodrigo) — ver
+// VALUE_POINTS em routes/generator.js pra endereço default de cada um.
+const VALUE_POINT_META = [
+  { key: 'estadoMotor', label: 'Estado do motor' },
+  { key: 'modoControlador', label: 'Modo do controlador' },
+  { key: 'tensaoGeradorL1N', label: 'Tensão gerador L1-N' },
+  { key: 'tensaoGeradorL2N', label: 'Tensão gerador L2-N' },
+  { key: 'tensaoGeradorL3N', label: 'Tensão gerador L3-N' },
+  { key: 'tensaoRedeL1N', label: 'Tensão rede L1-N' },
+  { key: 'tensaoRedeL2N', label: 'Tensão rede L2-N' },
+  { key: 'tensaoRedeL3N', label: 'Tensão rede L3-N' },
+];
 
 function ConfigCard({ configId }) {
   const [enabled, setEnabled] = useState(false);
@@ -235,6 +327,7 @@ function ConfigCard({ configId }) {
   const [unitId, setUnitId] = useState(1);
   const [pollSeconds, setPollSeconds] = useState(10);
   const [points, setPoints] = useState({});
+  const [valuePoints, setValuePoints] = useState({});
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [hasPassword, setHasPassword] = useState(false);
@@ -257,6 +350,7 @@ function ConfigCard({ configId }) {
       setUnitId(c.unitId);
       setPollSeconds(c.pollSeconds);
       setPoints(c.points);
+      setValuePoints(c.valuePoints || {});
       setUsername(c.username || '');
       setHasPassword(c.hasPassword);
       setCustomPoints(c.customPoints || []);
@@ -303,6 +397,10 @@ function ConfigCard({ configId }) {
     setPoints((p) => ({ ...p, [key]: value }));
   }
 
+  function setValuePoint(key, value) {
+    setValuePoints((p) => ({ ...p, [key]: value }));
+  }
+
   function buildPayload() {
     return {
       enabled,
@@ -312,6 +410,7 @@ function ConfigCard({ configId }) {
       unitId: Number(unitId),
       pollSeconds: Number(pollSeconds),
       points,
+      valuePoints,
       username,
       // Senha nunca é obrigatória nem exigida de novo a cada "Salvar" — só
       // manda quando a pessoa digitou algo novo, igual senha de porteiro.
@@ -462,12 +561,12 @@ function ConfigCard({ configId }) {
                 showAdvanced={showAdvanced}
                 onChange={(v) => setPoint(meta.key, v)}
               />
-              {meta.key === 'falha' && (
+              {(meta.key === 'falha' || meta.key === 'avisoAtivo') && (
                 <label className="checkbox-row" style={{ marginTop: 4 }}>
                   <input
                     type="checkbox"
-                    checked={Boolean(points.falha?.priority)}
-                    onChange={(e) => setPoint('falha', { ...(points.falha || EMPTY_POINT), priority: e.target.checked })}
+                    checked={Boolean(points[meta.key]?.priority)}
+                    onChange={(e) => setPoint(meta.key, { ...(points[meta.key] || EMPTY_POINT), priority: e.target.checked })}
                   />
                   <span className="field-hint">
                     Prioridade — insiste via Telegram (e liga por telefone, se configurado) até alguém reconhecer.
@@ -475,6 +574,26 @@ function ConfigCard({ configId }) {
                 </label>
               )}
             </div>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: 16, marginTop: 4 }}>
+        <div style={{ fontWeight: 700, marginBottom: 4 }}>Estado, modo e tensões</div>
+        <div className="field-hint" style={{ marginBottom: 12 }}>
+          Endereços já vêm preenchidos com o mapa real do ComAp InteliLite4 (mandado pelo Rodrigo) — ajuste aqui se
+          alguma leitura vier errada. "Estado do motor" e "Modo do controlador" mostram o texto certo mesmo se o
+          código lido não estiver na lista conhecida (mostra o número cru nesse caso).
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {VALUE_POINT_META.map((meta) => (
+            <ValuePointField
+              key={meta.key}
+              label={meta.label}
+              point={valuePoints[meta.key] || EMPTY_VALUE_POINT}
+              showAdvanced={showAdvanced}
+              onChange={(v) => setValuePoint(meta.key, v)}
+            />
           ))}
         </div>
       </div>

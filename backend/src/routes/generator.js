@@ -11,9 +11,27 @@ const POINTS = [
   ['pronto', 'pronto'],
   ['falha', 'falha'],
   ['emOperacao', 'em_operacao'],
+  ['avisoAtivo', 'aviso_ativo'],
+];
+
+// Mesmo endereço/tipo configurável dos POINTS acima, mas o VALOR em si não é
+// booleano (não tem invert/priority) — tensões em Volts, e os dois códigos
+// de estado/modo decodificados em texto (ver generatorClient.js). Endereços
+// reais do ComAp InteliLite4 (mandados pelo Rodrigo) já vêm pré-preenchidos
+// na migração de sqlite.js; o Rodrigo pode ajustar aqui se algum vier errado.
+const VALUE_POINTS = [
+  ['estadoMotor', 'estado_motor'],
+  ['modoControlador', 'modo_controlador'],
+  ['tensaoGeradorL1N', 'tensao_gerador_l1n'],
+  ['tensaoGeradorL2N', 'tensao_gerador_l2n'],
+  ['tensaoGeradorL3N', 'tensao_gerador_l3n'],
+  ['tensaoRedeL1N', 'tensao_rede_l1n'],
+  ['tensaoRedeL2N', 'tensao_rede_l2n'],
+  ['tensaoRedeL3N', 'tensao_rede_l3n'],
 ];
 
 const VALID_TYPES = new Set(['coil', 'discrete', 'holding', 'input']);
+const PRIORITY_KEYS = new Set(['falha', 'avisoAtivo']);
 
 function getRow() {
   return db.prepare('SELECT * FROM generator_station WHERE id = 1').get();
@@ -34,10 +52,15 @@ function serializeConfig(row) {
       addr: row[`${column}_addr`],
       type: row[`${column}_type`],
       invert: Boolean(row[`${column}_invert`]),
-      // Só "falha" faz sentido como alarme de prioridade (ver
+      // "falha" e "avisoAtivo" (nível 2/shutdown e nível 1/warning do
+      // controlador) fazem sentido como alarme de prioridade (ver
       // telegramService.js) — pronto/emOperacao são estado normal.
-      priority: key === 'falha' ? Boolean(row.falha_priority) : false,
+      priority: PRIORITY_KEYS.has(key) ? Boolean(row[`${column}_priority`]) : false,
     };
+  }
+  const valuePoints = {};
+  for (const [key, column] of VALUE_POINTS) {
+    valuePoints[key] = { addr: row[`${column}_addr`], type: row[`${column}_type`] };
   }
   return {
     enabled: Boolean(row.enabled),
@@ -47,6 +70,7 @@ function serializeConfig(row) {
     unitId: row.unit_id,
     pollSeconds: row.poll_seconds,
     points,
+    valuePoints,
     // Modbus TCP em si não pede login (ver sqlite.js) — campos pedidos pelo
     // Rodrigo mesmo assim, pra já estarem prontos quando ele descobrir se
     // precisa deles por algum outro caminho (ex.: tela web do controlador).
@@ -93,14 +117,26 @@ generatorRouter.put('/config', requirePermission('gerador.editar'), (req, res) =
     const invert = incoming && incoming.invert !== undefined ? (incoming.invert ? 1 : 0) : existingInvert;
     assignments.push(`${column}_addr = ?`, `${column}_type = ?`, `${column}_invert = ?`);
     values.push(incoming ? addr : existingAddr, type, invert);
-    // Prioridade (ver telegramService.js) só existe pra "falha" — mesmo
-    // cuidado do PUT de Bombas: não desmonta UPDATE de coluna que não existe
-    // pros outros pontos.
-    if (key === 'falha') {
-      const priority = incoming && incoming.priority !== undefined ? (incoming.priority ? 1 : 0) : row.falha_priority;
-      assignments.push('falha_priority = ?');
+    // Prioridade (ver telegramService.js) só existe pra "falha"/"avisoAtivo"
+    // — mesmo cuidado do PUT de Bombas: não desmonta UPDATE de coluna que
+    // não existe pros outros pontos.
+    if (PRIORITY_KEYS.has(key)) {
+      const existingPriority = row[`${column}_priority`];
+      const priority = incoming && incoming.priority !== undefined ? (incoming.priority ? 1 : 0) : existingPriority;
+      assignments.push(`${column}_priority = ?`);
       values.push(priority);
     }
+  }
+
+  for (const [key, column] of VALUE_POINTS) {
+    const incoming = body.valuePoints?.[key];
+    const existingAddr = row[`${column}_addr`];
+    const existingType = row[`${column}_type`];
+    const addrRaw = incoming?.addr;
+    const addr = addrRaw === '' || addrRaw === null || addrRaw === undefined ? null : Number(addrRaw);
+    const type = incoming?.type && VALID_TYPES.has(incoming.type) ? incoming.type : existingType;
+    assignments.push(`${column}_addr = ?`, `${column}_type = ?`);
+    values.push(incoming ? addr : existingAddr, type);
   }
 
   db.prepare(`UPDATE generator_station SET ${assignments.join(', ')} WHERE id = 1`).run(...values);

@@ -145,16 +145,33 @@ Rodrigo quem vai descobrir (documentação do controlador ou testando contra o e
 mesmo processo usado nas Bombas) e preencher sozinho em "Gerador → Configuração"; o código já
 está pronto pra ler assim que os endereços certos forem preenchidos.
 
-### Em andamento: dados extras do gerador (falhas, estado, tensões)
+### ~~Dados extras do gerador (falhas, estado, tensões)~~ — feito
 Pedido do Rodrigo: além dos 3 pontos Modbus (502) já lidos, trazer pro Portal (card do
-administrador) falhas ativas, histórico de ~10 falhas, estado (Stand-by/Auto/Manual/Teste/
-Falha) e tensão de saída/rede.
+administrador) falhas ativas, estado (Stand-by/Auto/Manual/Teste/Falha) e tensão de saída/
+rede. Sondar a porta 23/Telnet às cegas não deu resultado útil — o Rodrigo mandou o mapa
+real de registradores do ComAp InteliLite4 (cfgmodbus.txt + CSV de valores ao vivo), e a
+leitura foi implementada endereço por endereço a partir dele (igual já foi feito nas Bombas),
+sem adivinhar nada. Testado contra um servidor Modbus simulado com os valores exatos do CSV
+(220/218/221V em ambos os lados, Estado=Pronto, Modo=AUTO) — bateu certo.
 
-Primeira tentativa (sondar a porta 23/Telnet do controlador às cegas) não deu resultado
-útil. Caminho atual: o Rodrigo vai mandar fotos da tabela de comunicação Modbus da ComAp
-(endereços, se é bit/coil ou palavra/registrador, códigos de estado, escala das tensões) +
-o manual da IHM — o Claude lê e implementa a leitura certa a partir disso (endereço por
-endereço, igual já foi feito nos 3 pontos atuais e nas Bombas), em vez de adivinhar.
+Pontos novos (endereços já pré-preenchidos, ajustáveis em Gerador → Configuração se alguma
+leitura vier errada):
+- **Estado do motor** (Pronto/Em Funcionamento/Parada/Shutdown/etc., 18 estados — List#8) e
+  **Modo do controlador** (Off/Manual/Automático/Teste — List#15), decodificados em texto.
+- **Aviso ativo** (nível 1 — warning) separado de **Falha** (nível 2 — shutdown; já existia,
+  agora com endereço real), cada um com prioridade própria pro Telegram.
+- **Tensão** fase-neutro (L1/L2/L3) do **gerador** e da **rede**, 6 valores em Volts.
+- `pronto`/`em operação`/`falha` (os 3 pontos que já existiam) ganharam o endereço real
+  também (coils 39/43/66), preenchido só porque ainda estavam em branco.
+
+**Histórico de falhas com data/hora**: o controlador NÃO expõe isso via Modbus (só o estado
+ATUAL dos ~130 bits de proteção, tabela "Estados Proteções Fixas") — não tem como puxar
+retroativamente. A partir de agora, toda transição de "Falha"/"Aviso ativo" já fica
+registrada em Auditoria → Sistema e no histórico do Gerador (mesmo log de borda que já existe
+pra pronto/em operação), então o histórico vai se formando dali pra frente. Se o Rodrigo quiser
+acompanhar algum bit de falha ESPECÍFICO por nome (ex.: "Sd Falha de Partida", "Parada
+Emergência"), pode cadastrar como "ponto customizado" (Gerador → Configuração) — são coils
+individuais, endereço = número na coluna "Addresses" da tabela "Binaries" do cfgmodbus.txt.
 
 A ferramenta de sondagem de rede virou genérica (pedido do Rodrigo: "colocar em outro lugar
 pra escanear o IP que eu quiser, só pra mim, administrador") — agora em
