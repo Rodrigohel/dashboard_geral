@@ -4,6 +4,7 @@ import { requirePermission } from '../middleware/auth.js';
 import { readGeneratorStatus, testGeneratorConnection } from '../services/generatorClient.js';
 import { encryptSecret } from '../services/cryptoService.js';
 import { getGeneratorHistory, getGeneratorActivationSnapshots } from '../services/generatorHistoryService.js';
+import { probeGeneratorTelnet } from '../services/generatorTelnetService.js';
 
 export const generatorRouter = Router();
 
@@ -157,6 +158,24 @@ generatorRouter.post('/test-connection', requirePermission('gerador.editar'), as
   try {
     await testGeneratorConnection(host, Number(port) || 502, Number(unitId) || 1);
     res.json({ ok: true });
+  } catch (err) {
+    res.status(502).json({ error: err.message });
+  }
+});
+
+// Diagnóstico — porta 23 (Telnet) do controlador, diferente da 502/Modbus
+// já usada acima. Não é um protocolo documentado aqui ainda (ver
+// generatorTelnetService.js): só abre, manda o texto digitado (se algum) e
+// devolve tudo que chegou, puro, pra descobrir o que tem antes de
+// implementar leitura de verdade. Usa SEMPRE o host já configurado (nunca
+// um host vindo do corpo da requisição) pra não virar um "conecta em
+// qualquer IP" a partir do front.
+generatorRouter.post('/telnet-probe', requirePermission('gerador.editar'), async (req, res) => {
+  const row = getRow();
+  const send = String(req.body?.send || '').slice(0, 200);
+  try {
+    const result = await probeGeneratorTelnet({ host: row.host, send });
+    res.json(result);
   } catch (err) {
     res.status(502).json({ error: err.message });
   }

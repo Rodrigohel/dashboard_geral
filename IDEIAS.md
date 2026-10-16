@@ -145,6 +145,24 @@ Rodrigo quem vai descobrir (documentação do controlador ou testando contra o e
 mesmo processo usado nas Bombas) e preencher sozinho em "Gerador → Configuração"; o código já
 está pronto pra ler assim que os endereços certos forem preenchidos.
 
+### Em andamento: dados extras via porta 23 (Telnet)
+Pedido do Rodrigo: além dos 3 pontos Modbus (502) acima, trazer pro Portal (card do
+administrador) o que estiver disponível na **porta 23** do mesmo IP (192.168.1.253) —
+protocolo diferente, não documentado ainda: falhas ativas, histórico de ~10 falhas, estado
+Pronto/Auto/Manual/Teste, tensão de saída e da rede.
+
+Bloqueio real: essa sessão do Claude roda num container na nuvem, sem rota pra IP de rede
+local (192.168.1.x) — não dá pra conectar e sondar direto de aqui. Em vez de adivinhar o
+protocolo, foi adicionada uma ferramenta de diagnóstico DENTRO do Portal (que já roda na
+mesma rede do controlador): Gerador → Configuração → "Diagnóstico — porta 23 (Telnet)", um
+botão que abre a conexão, manda um texto opcional e mostra tudo que voltou (texto e hex, pra
+dar pra ler mesmo se vier binário).
+
+**Próximo passo é do Rodrigo**: depois do `install.sh`, abrir essa seção, clicar em "Sondar
+porta 23" (testar com e sem digitar algo, ex.: "STATUS", "?", só Enter) e mandar pro Claude o
+que aparecer — com isso dá pra implementar a leitura de verdade (parsing dos campos pedidos)
+na próxima sessão.
+
 ## ~~Alertas insistentes com prioridade, via Telegram (+ ligação telefônica)~~ — feito pra todos os módulos
 Generalizado pra cobrir rede, interfone, acesso (porteiro offline + força bruta) e gerador
 (falha), além de bombas (que já tinha desde a fase 1). O que foi implementado:
