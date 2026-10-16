@@ -128,7 +128,7 @@ export default function App() {
       case 'servidor':
         return isOwner ? <ServerHealth /> : <NoAccess />;
       case 'auditoria':
-        return isOwner ? <AuditLog /> : <NoAccess />;
+        return isOwner || can('auditoria.ver') ? <AuditLog /> : <NoAccess />;
       case 'configuracoes':
         return isOwner ? <Settings /> : <NoAccess />;
       default:

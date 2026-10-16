@@ -39,11 +39,15 @@ export function setExternalDevicePriority(moduleKey, deviceId, priority) {
 // Lê a lista COMPLETA (não só o resumo de contagem) do painel, filtra só os
 // equipamentos já marcados como favorito LÁ, e junta com a flag de
 // prioridade salva aqui — é essa lista que a tela de Prioridades mostra.
+// `totalDevices`/`favoriteCount` vão junto pra diagnosticar sem adivinhar:
+// se `totalDevices` vier 0, o gateway não está devolvendo nada (configuração/
+// token); se vier >0 e `favoriteCount` 0, é que nenhum está favoritado do
+// jeito que o Portal reconhece.
 export async function listFavoritedExternalDevices(moduleKey) {
   const path = FAVORITE_LIST_PATH[moduleKey];
-  if (!path) return [];
+  if (!path) return { devices: [], totalDevices: 0, favoriteCount: 0 };
   const gw = getGatewayConfig(moduleKey);
-  if (!gw.configured) return [];
+  if (!gw.configured) return { devices: [], totalDevices: 0, favoriteCount: 0 };
 
   const token = await getServiceToken(moduleKey);
   const res = await fetch(`${gw.baseUrl}${path}`, {
@@ -52,19 +56,21 @@ export async function listFavoritedExternalDevices(moduleKey) {
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const body = await res.json();
-  const devices = Array.isArray(body) ? body : body.data || [];
+  const all = Array.isArray(body) ? body : body.data || [];
   const priorities = getPrioritiesMap(moduleKey);
   const now = Date.now();
 
-  return devices
-    .filter((d) => d.favorite === true)
-    .map((d) => ({
-      id: String(d.id),
-      name: d.name,
-      // "Em manutenção" lá no painel de Rede também silencia por aqui —
-      // sem isso, o Portal continuaria insistindo num equipamento que o
-      // Rodrigo já marcou como "sei que caiu, tô resolvendo" no outro painel.
-      offline: d.status === 'offline' && !(d.maintenanceUntil && new Date(d.maintenanceUntil).getTime() > now),
-      priority: Boolean(priorities[String(d.id)]),
-    }));
+  // `Boolean(...)` em vez de `=== true`: se o painel mandar favorito como
+  // 1/0 (em vez de true/false) isso não pode fazer a lista vir vazia.
+  const favorited = all.filter((d) => Boolean(d.favorite));
+  const devices = favorited.map((d) => ({
+    id: String(d.id),
+    name: d.name,
+    // "Em manutenção" lá no painel de Rede também silencia por aqui — sem
+    // isso, o Portal continuaria insistindo num equipamento que o Rodrigo
+    // já marcou como "sei que caiu, tô resolvendo" no outro painel.
+    offline: d.status === 'offline' && !(d.maintenanceUntil && new Date(d.maintenanceUntil).getTime() > now),
+    priority: Boolean(priorities[String(d.id)]),
+  }));
+  return { devices, totalDevices: all.length, favoriteCount: devices.length };
 }

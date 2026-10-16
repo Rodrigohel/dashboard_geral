@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { db } from '../db/sqlite.js';
+import { listSystemEvents } from '../services/systemEventsService.js';
 
 export const auditRouter = Router();
 
@@ -10,6 +11,13 @@ auditRouter.get('/logins', (req, res) => {
     .prepare('SELECT id, username, success, ip, user_agent, created_at FROM login_events ORDER BY id DESC LIMIT 500')
     .all();
   res.json(rows.map((r) => ({ ...r, success: Boolean(r.success) })));
+});
+
+// "Relatório de tudo" (ver IDEIAS.md) — por período, sem limite de 500
+// (é pra baixar e guardar, não só olhar na tela). `from`/`to` são datas
+// "YYYY-MM-DD"; sem nenhum dos dois, usa os últimos 30 dias.
+auditRouter.get('/system-events', (req, res) => {
+  res.json(listSystemEvents({ from: req.query.from, to: req.query.to }));
 });
 
 auditRouter.get('/door-opens', (req, res) => {

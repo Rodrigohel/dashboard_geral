@@ -1,17 +1,19 @@
 // Alertas via Telegram (ver IDEIAS.md) — manda mensagem quando um alarme
-// dispara, com três botões embutidos na própria mensagem: "Visto" e "Em
-// manutenção" RECONHECEM o alarme (para de insistir até ele resolver e
-// disparar de novo); "Já estou indo" só ADIA (snooze) — não reconhece,
-// só empurra a próxima insistência pra mais tarde, pra quem está indo
-// resolver mas ainda não chegou. Tocar um botão manda um callback_data
-// ("ack:<key>" / "maint:<key>" / "snooze:<key>"); digitar qualquer
-// mensagem solta no chat reconhece TODOS os alarmes ativos de uma vez
-// (fallback pra quem prefere digitar). Alarmes marcados como "prioridade"
-// insistem (reenviam) a cada X segundos até alguém reconhecer ou adiar.
+// dispara, com três botões embutidos: "✅ Resolvido" RECONHECE de vez (só
+// dispara de novo numa transição nova); "🔧 Em manutenção" e "🚗 Já estou
+// indo" só ADIAM (snooze, cada um com sua própria duração configurável —
+// manutenção mais longa, "já estou indo" mais curta) — não reconhecem, se
+// não resolver até o tempo passar a insistência volta sozinha. Tocar um
+// botão manda um callback_data ("ack:<key>" / "maint:<key>" /
+// "snooze:<key>"); digitar qualquer mensagem solta no chat reconhece TODOS
+// os alarmes ativos de uma vez (fallback pra quem prefere digitar).
+// Alarmes marcados como "prioridade" insistem (reenviam) a cada X segundos
+// até alguém reconhecer ou adiar.
 import crypto from 'node:crypto';
 import { db } from '../db/sqlite.js';
 import { encryptSecret, decryptSecret } from './cryptoService.js';
 import { maybeEscalateToCall } from './twilioService.js';
+import { logSystemEvent } from './systemEventsService.js';
 
 function getRow() {
   return db.prepare('SELECT * FROM telegram_settings WHERE id = 1').get();
@@ -25,6 +27,7 @@ export function getTelegramSettings() {
     chatId: row.chat_id,
     resendIntervalSeconds: row.resend_interval_seconds,
     snoozeMinutes: row.snooze_minutes,
+    maintenanceMinutes: row.maintenance_minutes,
     webhookSecret: row.webhook_secret,
     // Guardados pra tela mostrar status PERSISTENTE ("já configurado") em
     // vez de só um toast que passa e não deixa rastro — ver IDEIAS.md
@@ -36,20 +39,22 @@ export function getTelegramSettings() {
 // Token nunca volta pro front depois de salvo (igual senha de equipamento)
 // — só `hasToken: true/false`, pra tela saber se já tem um configurado sem
 // expor o valor de novo.
-export function saveTelegramSettings({ enabled, botToken, chatId, resendIntervalSeconds, snoozeMinutes }) {
+export function saveTelegramSettings({ enabled, botToken, chatId, resendIntervalSeconds, snoozeMinutes, maintenanceMinutes }) {
   const row = getRow();
   const webhookSecret = row.webhook_secret || crypto.randomBytes(24).toString('hex');
   const tokenEnc = botToken ? encryptSecret(botToken) : row.bot_token_enc;
   const interval = Math.min(24 * 3600, Math.max(60, Number(resendIntervalSeconds) || row.resend_interval_seconds));
   const snooze = Math.min(180, Math.max(1, Number(snoozeMinutes) || row.snooze_minutes));
+  const maintenance = Math.min(1440, Math.max(5, Number(maintenanceMinutes) || row.maintenance_minutes));
   // `enabled` tratado como os outros campos opcionais: se não vier no corpo
   // (ex.: a tela salvando só o token, ou só trocando de chat), mantém o
   // valor atual em vez de desligar sozinho — mesmo cuidado já aplicado em
   // Bombas/Gerador pra esse tipo de update parcial.
   const enabledValue = enabled === undefined ? row.enabled : enabled ? 1 : 0;
   db.prepare(
-    'UPDATE telegram_settings SET enabled = ?, bot_token_enc = ?, chat_id = ?, webhook_secret = ?, resend_interval_seconds = ?, snooze_minutes = ? WHERE id = 1'
-  ).run(enabledValue, tokenEnc, chatId ?? row.chat_id, webhookSecret, interval, snooze);
+    `UPDATE telegram_settings SET enabled = ?, bot_token_enc = ?, chat_id = ?, webhook_secret = ?,
+      resend_interval_seconds = ?, snooze_minutes = ?, maintenance_minutes = ? WHERE id = 1`
+  ).run(enabledValue, tokenEnc, chatId ?? row.chat_id, webhookSecret, interval, snooze, maintenance);
   return getTelegramSettings();
 }
 
@@ -123,16 +128,17 @@ export async function sendTelegramMessage(text, replyMarkup) {
 function alarmReplyMarkup(alarmKey) {
   return {
     inline_keyboard: [
+      [{ text: '✅ Resolvido', callback_data: `ack:${alarmKey}` }],
       [
-        { text: '✅ Visto', callback_data: `ack:${alarmKey}` },
         { text: '🔧 Em manutenção', callback_data: `maint:${alarmKey}` },
+        { text: '🚗 Já estou indo', callback_data: `snooze:${alarmKey}` },
       ],
-      [{ text: '🚗 Já estou indo', callback_data: `snooze:${alarmKey}` }],
     ],
   };
 }
 
-const ACK_REASON_LABEL = { ack: 'visto', maint: 'em manutenção', texto: 'reconhecido pelo chat', telefone: 'atendido por telefone' };
+const ACK_REASON_LABEL = { ack: 'resolvido', texto: 'reconhecido pelo chat', telefone: 'atendido por telefone' };
+const SNOOZE_LABEL = { maint: 'em manutenção', snooze: 'aguardando' };
 
 // Reconhece UM alarme específico — usado quando a pessoa toca um dos
 // botões da mensagem (ver handleCallbackQuery). `reason` é só pra confirmar
@@ -163,6 +169,7 @@ export async function acknowledgeAlarmByPhone(alarmKey) {
   const row = db.prepare('SELECT label FROM telegram_alarm_state WHERE alarm_key = ?').get(alarmKey);
   const ok = acknowledgeAlarm(alarmKey, 'telefone');
   if (ok) {
+    logSystemEvent('alarme.reconhecido', `Resolvido por telefone: ${row?.label || alarmKey}`);
     await sendTelegramMessage(`📞 "${row?.label || alarmKey}" reconhecido — ligação atendida, parei de insistir nesse.`).catch(() => {});
   }
 }
@@ -174,6 +181,7 @@ export async function acknowledgeAllActiveAlarms() {
   const pending = db.prepare('SELECT alarm_key FROM telegram_alarm_state WHERE acknowledged_at IS NULL').all();
   if (pending.length === 0) return [];
   db.prepare("UPDATE telegram_alarm_state SET acknowledged_at = datetime('now'), ack_reason = 'texto' WHERE acknowledged_at IS NULL").run();
+  logSystemEvent('alarme.reconhecido', `${pending.length} alarme(s) reconhecido(s) pelo chat`);
   return pending.map((r) => r.alarm_key);
 }
 
@@ -195,23 +203,28 @@ export async function handleCallbackQuery(data, callbackQueryId) {
   const alarmRow = db.prepare('SELECT label FROM telegram_alarm_state WHERE alarm_key = ?').get(alarmKey);
   const label = alarmRow?.label || alarmKey;
 
-  if (action === 'snooze') {
-    const minutes = row.snooze_minutes;
+  if (action === 'snooze' || action === 'maint') {
+    const minutes = action === 'maint' ? row.maintenance_minutes : row.snooze_minutes;
+    const emoji = action === 'maint' ? '🔧' : '🚗';
     const ok = snoozeAlarm(alarmKey, minutes);
     if (row.bot_token_enc) {
       const token = decryptSecret(row.bot_token_enc);
       await callTelegramApi(token, 'answerCallbackQuery', {
         callback_query_id: callbackQueryId,
-        text: ok ? `Ok, aguardando ${minutes} min.` : 'Esse alarme já não estava mais ativo.',
+        text: ok ? `Ok, ${SNOOZE_LABEL[action]} por ${minutes} min.` : 'Esse alarme já não estava mais ativo.',
       }).catch(() => {});
     }
     if (ok) {
-      await sendTelegramMessage(`🚗 "${label}" — ok, paro de insistir por ${minutes} minuto(s). Se não resolver até lá, volto a avisar.`).catch(() => {});
+      logSystemEvent('alarme.adiado', `${SNOOZE_LABEL[action]} por ${minutes}min: ${label}`);
+      await sendTelegramMessage(
+        `${emoji} "${label}" — ok, paro de insistir por ${minutes} minuto(s) (${SNOOZE_LABEL[action]}). Se não resolver até lá, volto a avisar.`
+      ).catch(() => {});
     }
     return;
   }
 
   const ok = acknowledgeAlarm(alarmKey, action);
+  if (ok) logSystemEvent('alarme.reconhecido', `Resolvido pelo botão: ${label}`);
   if (row.bot_token_enc) {
     const token = decryptSecret(row.bot_token_enc);
     await callTelegramApi(token, 'answerCallbackQuery', {
@@ -256,16 +269,20 @@ async function upsertAlarm(alarmKey, label, isActive, isPriority) {
   const existing = db.prepare('SELECT * FROM telegram_alarm_state WHERE alarm_key = ?').get(alarmKey);
 
   if (!isActive) {
-    if (existing) db.prepare('DELETE FROM telegram_alarm_state WHERE alarm_key = ?').run(alarmKey);
+    if (existing) {
+      db.prepare('DELETE FROM telegram_alarm_state WHERE alarm_key = ?').run(alarmKey);
+      logSystemEvent('alarme.resolvido', `Resolvido: ${label}`);
+    }
     return;
   }
 
   if (!existing) {
     // Guarda o label bonito JUNTO com o estado — é o que permite a
-    // confirmação de "Visto"/"Em manutenção" (handleCallbackQuery) e a de
-    // ligação atendida (acknowledgeAlarmByPhone) mostrarem um texto decente
-    // pra QUALQUER alarme, não só os 7 de Bombas.
+    // confirmação de "Resolvido"/"Em manutenção" (handleCallbackQuery) e a
+    // de ligação atendida (acknowledgeAlarmByPhone) mostrarem um texto
+    // decente pra QUALQUER alarme, não só os 7 de Bombas.
     db.prepare("INSERT INTO telegram_alarm_state (alarm_key, label, active_since, last_sent_at) VALUES (?, ?, datetime('now'), datetime('now'))").run(alarmKey, label);
+    logSystemEvent('alarme.disparado', `Disparou: ${label}`);
     await sendTelegramMessage(`⚠️ ${label}`, alarmReplyMarkup(alarmKey)).catch(() => {});
     return;
   }
@@ -355,6 +372,7 @@ export async function checkExternalDeviceAlarms(moduleKey, moduleLabel, devices)
 // (sem esperar `callAfterSeconds`, que só vale pros alarmes contínuos).
 export async function sendForcaBrutaAlert(username, ip, isPriority) {
   const label = `Segurança: trava de força bruta disparada para "${username}" (${ip || 'IP desconhecido'})`;
+  logSystemEvent('seguranca.forca-bruta', label);
   await sendTelegramMessage(`⚠️ ${label}`).catch(() => {});
   if (isPriority) {
     // Força bruta não tem uma linha persistente em telegram_alarm_state (é

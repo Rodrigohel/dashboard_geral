@@ -26,7 +26,7 @@ function getInterfonePriority() {
 async function pollRede() {
   const gw = getGatewayConfig('rede');
   if (!gw.configured) return;
-  const devices = await listFavoritedExternalDevices('rede');
+  const { devices } = await listFavoritedExternalDevices('rede');
   await checkExternalDeviceAlarms('rede', 'Rede', devices);
 }
 

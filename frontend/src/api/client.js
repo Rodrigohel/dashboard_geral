@@ -159,6 +159,7 @@ export const api = {
   audit: {
     logins: () => request('/api/audit/logins'),
     doorOpens: () => request('/api/audit/door-opens'),
+    systemEvents: ({ from, to } = {}) => request(`/api/audit/system-events?from=${from || ''}&to=${to || ''}`),
   },
 
   // Painel de Interfone consumido nativamente pelo Portal, igual o de Rede —

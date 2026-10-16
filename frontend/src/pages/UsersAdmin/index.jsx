@@ -27,6 +27,7 @@ const MODULE_LABELS = {
   'usuarios.incluir': 'Usuários: incluir',
   'usuarios.editar': 'Usuários: editar',
   'usuarios.excluir': 'Usuários: excluir',
+  'auditoria.ver': 'Auditoria: ver/baixar logs',
 };
 // Lista fixa (não vem da API) só pra mostrar o "Tudo" do dono como uma
 // lista explícita de badges, igual a um usuário comum totalmente liberado
@@ -53,6 +54,7 @@ const ALL_PERMISSIONS = [
   'usuarios.incluir',
   'usuarios.editar',
   'usuarios.excluir',
+  'auditoria.ver',
 ];
 
 export default function UsersAdmin({ currentUserId, isOwner, can }) {

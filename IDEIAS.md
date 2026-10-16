@@ -205,23 +205,36 @@ Generalizado pra cobrir rede, interfone, acesso (porteiro offline + força bruta
 - Lista de equipamentos (Acesso → Equipamentos) mostra um badge "prioridade" no card de quem
   está marcado, pra não precisar abrir o formulário de editar pra saber quem tem a opção
   ligada.
-- Terceiro botão **"🚗 Já estou indo"** em toda mensagem de alarme de prioridade — diferente de
-  "Visto"/"Em manutenção" (que reconhecem de vez), esse só ADIA a insistência por um tempo
-  configurável (Configurações → Alertas, padrão 10min): se não resolver até lá, volta a
-  insistir sozinho, sem precisar de nenhuma ação extra pra "destravar".
+- Três botões em toda mensagem de alarme de prioridade: **"✅ Resolvido"** reconhece de vez (só
+  dispara de novo numa falha nova); **"🔧 Em manutenção"** e **"🚗 Já estou indo"** só ADIAM —
+  cada um com sua própria duração configurável (Configurações → Alertas: manutenção até 24h,
+  "já estou indo" até 1h) — se não resolver até lá, a insistência volta sozinha, sem precisar
+  de ação extra pra "destravar".
 - **Rede por equipamento, não o módulo inteiro**: lendo o código do painel de Rede
   (Debian_dashboard), achei que ele já tem um campo "favorito" por equipamento (usado hoje só
-  como estrela na listagem de lá) — a tela de Prioridades do Portal agora lista só os
-  equipamentos JÁ favoritados no painel de Rede, e deixa marcar quais desses também insistem
-  via Telegram aqui. Resolve o medo do Rodrigo de "500 avisos" se vários equipamentos caírem
-  junto: só os que ele escolheu (favoritar lá + marcar prioridade aqui) geram alarme. O alarme
-  agregado antigo ("Rede — N offline") foi removido. **Interfone continua agregado** — esse
-  painel (FreePBX_Asterisk) ainda não tem campo de favorito; o Rodrigo disse que vai adicionar,
-  e aí o Portal pode ser estendido do mesmo jeito (`externalDeviceService.js` já está pronto
-  pra isso, só falta o campo existir lá e mapear o endpoint certo).
+  como estrela na listagem de lá) — a tela de Prioridades do Portal lista só os equipamentos JÁ
+  favoritados no painel de Rede, e deixa marcar quais desses também insistem via Telegram aqui.
+  Resolve o medo do Rodrigo de "500 avisos" se vários equipamentos caírem junto: só os que ele
+  escolheu (favoritar lá + marcar prioridade aqui) geram alarme. O alarme agregado antigo
+  ("Rede — N offline") foi removido. **Interfone continua agregado** — esse painel
+  (FreePBX_Asterisk) ainda não tem campo de favorito; o Rodrigo disse que vai adicionar, e aí o
+  Portal pode ser estendido do mesmo jeito (`externalDeviceService.js` já está pronto pra isso).
+  A tela agora também mostra quantos equipamentos o painel devolveu e quantos estão favoritados
+  (diagnóstico, pra não ficar adivinhando se a lista vazia é "gateway não respondeu" ou
+  "nenhum favoritado").
 
-**Ainda não implementado** (não pedido, fica pra depois se fizer falta): sinalização visual de
-"equipamento crítico" fora do card de equipamento (ex.: na própria Início).
+## ~~Logs/auditoria de tudo~~ — feito
+Pedido do Rodrigo: "relatório de tudo" (bomba ligou/desligou, gerador em falha, alarme
+disparado/reconhecido, força bruta), baixável por período, só pra quem o dono liberar. Nova
+aba "Sistema" em Auditoria, com seletor de data (de/até, padrão últimos 30 dias) e "Exportar
+CSV" igual as outras abas. Nova permissão **`auditoria.ver`** (Usuários → permissões) — igual
+`usuarios.*`, dá pro dono liberar alguém específico sem virar dono. Cobre hoje: todo o ciclo de
+vida de QUALQUER alarme (disparou/insistiu/foi adiado/foi resolvido — Bombas, Gerador, Acesso,
+Rede, Interfone, força bruta, pelo botão, pelo chat ou por telefone), liga/desliga de cada sinal
+de Bombas, entrada/saída de falha do Gerador, login e abertura de porteiro (que já tinham tabela
+própria, só foram unidos na mesma tela). **Não cobre ainda** (não pedido com esse nível de
+detalhe, fica pra depois se fizer falta): cadastro/edição/exclusão de usuário, equipamento ou
+morador — essas ações continuam só no banco, sem linha na Auditoria.
 
 ## ~~Bombas: permitir adicionar pontos customizados~~ — fase 1 feita
 Fase 1 implementada: em "Bombas → Configuração" agora dá pra adicionar um sinal novo sozinho

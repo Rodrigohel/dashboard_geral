@@ -570,6 +570,26 @@ if (!telegramSettingsColumnsForStatus.includes('snooze_minutes')) {
 if (!telegramAlarmStateColumnsForCall.includes('snoozed_until')) {
   db.exec('ALTER TABLE telegram_alarm_state ADD COLUMN snoozed_until TEXT');
 }
+// "Em manutenção" virou soneca mais longa (não reconhece de vez — ver
+// telegramService.js) — duração própria, separada de "já estou indo".
+if (!telegramSettingsColumnsForStatus.includes('maintenance_minutes')) {
+  db.exec('ALTER TABLE telegram_settings ADD COLUMN maintenance_minutes INTEGER NOT NULL DEFAULT 60');
+}
+
+// Log central de eventos do sistema (ver systemEventsService.js) — liga/
+// desliga bomba, gerador em falha, alarme disparado/reconhecido, etc.
+// Login e abertura de porteiro continuam nas tabelas próprias (já existiam);
+// essa aqui é pra tudo que não tinha lugar nenhum ainda.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS system_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    type TEXT NOT NULL,
+    message TEXT NOT NULL,
+    meta TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_system_events_created_at ON system_events(created_at);
+`);
 
 // Prioridade por equipamento de Rede/Interfone — diferente de Acesso (cujos
 // equipamentos são cadastrados NESTE banco, com um id local estável), Rede e

@@ -2,6 +2,23 @@ import { db } from '../db/sqlite.js';
 import { readPumpStationStatus } from './pumpStationClient.js';
 import { recordPumpStationEvent, recordPumpActivationSnapshot } from './pumpStationHistoryService.js';
 import { checkBombasAlarms } from './telegramService.js';
+import { logSystemEvent } from './systemEventsService.js';
+
+const POINT_LABEL = {
+  nivelMinimo: 'Nível mínimo',
+  nivelMedio: 'Nível médio',
+  nivelMaximo: 'Nível máximo',
+  nivelSeguranca: 'Nível de segurança',
+  bomba1: 'Bomba 1',
+  bomba2: 'Bomba 2',
+  termico1: 'Térmico 1',
+  termico2: 'Térmico 2',
+  modoManual: 'Modo manual',
+  emergencia: 'Emergência',
+  faltaFase: 'Falta de fase',
+  painelDesligado: 'Painel desligado',
+  falhaBoias: 'Falha nas boias',
+};
 
 // Mesma lista de PRIORITY_KEYS de routes/pumpStation.js — centralizada aqui
 // de novo (igual os POINTS acima) pra não importar o router inteiro só por
@@ -75,6 +92,8 @@ async function pollOnce() {
     const boolValue = Boolean(value);
     if (hasBaseline && lastKnown[key] !== boolValue) {
       recordPumpStationEvent(key, boolValue);
+      const label = POINT_LABEL[key] || key;
+      logSystemEvent('bombas.' + key, `${label}: ${boolValue ? 'ligou/ativou' : 'desligou/desativou'}`);
       // Bomba acabou de ligar: tira uma foto de TODOS os pontos nesse exato
       // instante, pra comparar depois com o painel físico sem precisar
       // estar lá esperando ligar (pedido do Rodrigo após a discrepância da
