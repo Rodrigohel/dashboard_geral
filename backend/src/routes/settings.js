@@ -12,6 +12,7 @@ import { getPushSettings, setPushEnabled } from '../services/pushService.js';
 import { getTelegramSettings, saveTelegramSettings, testTelegramToken, getSavedBotToken, registerWebhook } from '../services/telegramService.js';
 import { getTwilioSettings, saveTwilioSettings, testTwilioConnection } from '../services/twilioService.js';
 import { listCriticalExternalDevices, setExternalDevicePriority, supportsCriticalPriority } from '../services/externalDeviceService.js';
+import { probeTcp } from '../services/networkProbeService.js';
 
 export const settingsRouter = Router();
 const GATEWAY_MODULES = MODULE_KEYS.filter((k) => k !== 'acesso'); // 'rede' | 'interfone'
@@ -200,4 +201,18 @@ settingsRouter.put('/external-devices/:moduleKey/:deviceId', (req, res) => {
   if (!['rede', 'interfone'].includes(moduleKey)) return res.status(400).json({ error: 'Módulo inválido.' });
   setExternalDevicePriority(moduleKey, deviceId, Boolean(req.body?.priority));
   res.json({ ok: true });
+});
+
+// Sonda de rede genérica — IP e porta QUALQUER (ver networkProbeService.js).
+// Já é dono-só (ver requireOwner em server.js na montagem de /api/settings)
+// — não precisa de trava extra aqui. Nasceu presa ao gerador (porta 23 do
+// ComAp) mas o Rodrigo pediu pra generalizar pra qualquer equipamento.
+settingsRouter.post('/network-probe', async (req, res) => {
+  const { host, port, send } = req.body || {};
+  try {
+    const result = await probeTcp({ host, port: Number(port), send: String(send || '').slice(0, 200) });
+    res.json(result);
+  } catch (err) {
+    res.status(502).json({ error: err.message });
+  }
 });

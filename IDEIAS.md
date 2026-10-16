@@ -145,23 +145,22 @@ Rodrigo quem vai descobrir (documentação do controlador ou testando contra o e
 mesmo processo usado nas Bombas) e preencher sozinho em "Gerador → Configuração"; o código já
 está pronto pra ler assim que os endereços certos forem preenchidos.
 
-### Em andamento: dados extras via porta 23 (Telnet)
-Pedido do Rodrigo: além dos 3 pontos Modbus (502) acima, trazer pro Portal (card do
-administrador) o que estiver disponível na **porta 23** do mesmo IP (192.168.1.253) —
-protocolo diferente, não documentado ainda: falhas ativas, histórico de ~10 falhas, estado
-Pronto/Auto/Manual/Teste, tensão de saída e da rede.
+### Em andamento: dados extras do gerador (falhas, estado, tensões)
+Pedido do Rodrigo: além dos 3 pontos Modbus (502) já lidos, trazer pro Portal (card do
+administrador) falhas ativas, histórico de ~10 falhas, estado (Stand-by/Auto/Manual/Teste/
+Falha) e tensão de saída/rede.
 
-Bloqueio real: essa sessão do Claude roda num container na nuvem, sem rota pra IP de rede
-local (192.168.1.x) — não dá pra conectar e sondar direto de aqui. Em vez de adivinhar o
-protocolo, foi adicionada uma ferramenta de diagnóstico DENTRO do Portal (que já roda na
-mesma rede do controlador): Gerador → Configuração → "Diagnóstico — porta 23 (Telnet)", um
-botão que abre a conexão, manda um texto opcional e mostra tudo que voltou (texto e hex, pra
-dar pra ler mesmo se vier binário).
+Primeira tentativa (sondar a porta 23/Telnet do controlador às cegas) não deu resultado
+útil. Caminho atual: o Rodrigo vai mandar fotos da tabela de comunicação Modbus da ComAp
+(endereços, se é bit/coil ou palavra/registrador, códigos de estado, escala das tensões) +
+o manual da IHM — o Claude lê e implementa a leitura certa a partir disso (endereço por
+endereço, igual já foi feito nos 3 pontos atuais e nas Bombas), em vez de adivinhar.
 
-**Próximo passo é do Rodrigo**: depois do `install.sh`, abrir essa seção, clicar em "Sondar
-porta 23" (testar com e sem digitar algo, ex.: "STATUS", "?", só Enter) e mandar pro Claude o
-que aparecer — com isso dá pra implementar a leitura de verdade (parsing dos campos pedidos)
-na próxima sessão.
+A ferramenta de sondagem de rede virou genérica (pedido do Rodrigo: "colocar em outro lugar
+pra escanear o IP que eu quiser, só pra mim, administrador") — agora em
+**Configurações → Integrações → "Sonda de rede (diagnóstico)"**: IP/porta à escolha, texto
+opcional pra mandar, mostra o que voltou em texto e hex. Só dono, continua útil pra qualquer
+equipamento sem documentação, não só o gerador.
 
 ## ~~Alertas insistentes com prioridade, via Telegram (+ ligação telefônica)~~ — feito pra todos os módulos
 Generalizado pra cobrir rede, interfone, acesso (porteiro offline + força bruta) e gerador
