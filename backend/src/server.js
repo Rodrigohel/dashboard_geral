@@ -33,7 +33,10 @@ import {
   captureChatIdIfMissing,
 } from './services/telegramService.js';
 import { isValidTwilioWebhookSecret, handleCallAnswered } from './services/twilioService.js';
-import './db/sqlite.js';
+import { logSystemEvent } from './services/systemEventsService.js';
+import { decryptSecret } from './services/cryptoService.js';
+import * as deviceApi from './services/accessControlClient.js';
+import { db } from './db/sqlite.js';
 
 const app = express();
 // Necessário pra req.ip pegar o IP real do cliente (não o do túnel/proxy
@@ -110,6 +113,41 @@ app.post('/api/twilio/status/:secret', (req, res) => {
   if (!isValidTwilioWebhookSecret(req.params.secret)) return res.status(404).end();
   res.status(204).end(); // responde rápido — o Twilio não espera processamento
   handleCallAnswered(req.query.alarmKey).catch(() => {});
+});
+
+// Abrir porteiro/porta por voz (Siri/Atalhos, Google/IFTTT — ver IDEIAS.md):
+// também público, sem JWT (um atalho/webhook não loga) — o token em si (ver
+// voice_open_tokens/accessDevices.js) já é o segredo, um por
+// equipamento+usuário. GET de propósito: é o jeito mais simples de chamar
+// tanto do app Atalhos quanto do Webhooks do IFTTT. Revalida a permissão de
+// abrir NA HORA (não só na criação do token) — revogar o acesso de abrir
+// desliga o link de voz sozinho.
+app.get('/api/voice/open/:token', async (req, res) => {
+  const row = db.prepare('SELECT device_id, user_id FROM voice_open_tokens WHERE token = ?').get(req.params.token);
+  if (!row) return res.status(404).json({ error: 'Link inválido ou revogado.' });
+
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(row.user_id);
+  const device = db.prepare('SELECT * FROM access_devices WHERE id = ?').get(row.device_id);
+  if (!user || !device) return res.status(404).json({ error: 'Link inválido ou revogado.' });
+
+  const canOpen =
+    user.role === 'owner' ||
+    db.prepare('SELECT 1 FROM device_open_permissions WHERE user_id = ? AND device_id = ?').get(user.id, device.id);
+  if (!canOpen) return res.status(403).json({ error: 'Esse usuário não tem mais permissão pra abrir esse equipamento.' });
+
+  try {
+    await deviceApi.openDoor(device, decryptSecret(device.device_password_enc));
+    db.prepare(
+      `INSERT INTO door_open_events (device_id, device_name, user_id, username, success) VALUES (?, ?, ?, ?, 1)`
+    ).run(device.id, device.name, user.id, `${user.display_name} (voz)`);
+    logSystemEvent('acesso.abertura.voz', `"${user.display_name}" abriu "${device.name}" por voz`);
+    res.json({ ok: true });
+  } catch (err) {
+    db.prepare(
+      `INSERT INTO door_open_events (device_id, device_name, user_id, username, success, error_message) VALUES (?, ?, ?, ?, 0, ?)`
+    ).run(device.id, device.name, user.id, `${user.display_name} (voz)`, err.message || '');
+    res.status(502).json({ error: err.message });
+  }
 });
 
 app.use('/api/auth', authRouter);

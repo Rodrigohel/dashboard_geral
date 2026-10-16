@@ -3,6 +3,7 @@ import Icon from '../../components/Icon.jsx';
 import EmptyState from '../../components/EmptyState.jsx';
 import ConfirmDialog from '../../components/ConfirmDialog.jsx';
 import DeviceFormModal from './DeviceFormModal.jsx';
+import VoiceOpenModal from './VoiceOpenModal.jsx';
 import MultiDeviceUserFormModal from './MultiDeviceUserFormModal.jsx';
 import UserSearch from './UserSearch.jsx';
 import Ring, { healthPercent } from '../../components/Ring.jsx';
@@ -72,6 +73,7 @@ export default function DevicesList({ isOwner, can, onOpenDevice }) {
   const [testing, setTesting] = useState(null);
   const [opening, setOpening] = useState(null);
   const [showMultiUserForm, setShowMultiUserForm] = useState(false);
+  const [voiceDevice, setVoiceDevice] = useState(null);
   const toast = useToast();
 
   function reload() {
@@ -253,10 +255,10 @@ export default function DevicesList({ isOwner, can, onOpenDevice }) {
               )}
               {d.hasCamera && d.canOpen && <CameraThumbnail device={d} />}
               {d.canOpen && (
-                <div className="module-card-footer">
+                <div className="module-card-footer" style={{ display: 'flex', gap: 8 }}>
                   <button
                     className="btn btn-primary btn-sm"
-                    style={{ width: '100%', justifyContent: 'center' }}
+                    style={{ flex: 1, justifyContent: 'center' }}
                     onClick={(e) => {
                       e.stopPropagation();
                       handleOpenDoor(d);
@@ -264,6 +266,16 @@ export default function DevicesList({ isOwner, can, onOpenDevice }) {
                     disabled={opening === d.id}
                   >
                     {opening === d.id ? <span className="spinner" /> : <Icon name="key" size={15} />} Abrir
+                  </button>
+                  <button
+                    className="btn btn-secondary btn-icon btn-sm"
+                    title="Abrir por voz (Siri/Google)"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setVoiceDevice(d);
+                    }}
+                  >
+                    🎙️
                   </button>
                 </div>
               )}
@@ -288,6 +300,8 @@ export default function DevicesList({ isOwner, can, onOpenDevice }) {
           onDone={() => toast('Usuário cadastrado.')}
         />
       )}
+
+      {voiceDevice && <VoiceOpenModal device={voiceDevice} onClose={() => setVoiceDevice(null)} />}
 
       {deleting && (
         <ConfirmDialog

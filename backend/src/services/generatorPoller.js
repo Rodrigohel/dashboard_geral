@@ -7,6 +7,7 @@ import { db } from '../db/sqlite.js';
 import { readGeneratorStatus } from './generatorClient.js';
 import { checkGeneratorAlarms } from './telegramService.js';
 import { logSystemEvent } from './systemEventsService.js';
+import { recordGeneratorEvent, recordGeneratorActivationSnapshot } from './generatorHistoryService.js';
 
 const POINT_LABEL = { pronto: 'Pronto (standby)', falha: 'Falha', emOperacao: 'Em operação (gerando energia)' };
 
@@ -30,7 +31,12 @@ function getConfig() {
       falha: { addr: row.falha_addr, type: row.falha_type, invert: Boolean(row.falha_invert) },
       emOperacao: { addr: row.em_operacao_addr, type: row.em_operacao_type, invert: Boolean(row.em_operacao_invert) },
     },
+    customPoints: getCustomPointRows(),
   };
+}
+
+function getCustomPointRows() {
+  return db.prepare('SELECT id, name, addr, type, invert FROM generator_custom_points ORDER BY id ASC').all();
 }
 
 async function pollOnce() {
@@ -50,6 +56,12 @@ async function pollOnce() {
     const boolValue = Boolean(value);
     if (hasBaseline && lastKnown[key] !== boolValue) {
       logSystemEvent('gerador.' + key, `${POINT_LABEL[key]}: ${boolValue ? 'entrou' : 'saiu'}`);
+      recordGeneratorEvent(key, boolValue);
+      // Gerador acabou de entrar em operação: tira uma foto de TODOS os
+      // pontos nesse instante, mesma ideia das fotos de ativação de bomba.
+      if (key === 'emOperacao' && boolValue === true) {
+        recordGeneratorActivationSnapshot(points);
+      }
     }
     lastKnown[key] = boolValue;
   }

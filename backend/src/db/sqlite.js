@@ -596,7 +596,7 @@ db.exec(`
 // Interfone são painéis à parte (ver gatewayService.js): cada equipamento
 // tem um id que só existe LÁ. Guardamos aqui só a flag de prioridade, por
 // módulo+id externo — pedido do Rodrigo pra escolher, entre os equipamentos
-// já marcados como "favorito" no painel de Rede, quais ele quer que também
+// já marcados como CRÍTICO no painel de Rede, quais ele quer que também
 // insistam via Telegram (em vez de um alarme só pra "N offline" do módulo
 // inteiro, que vira ruído conforme mais equipamento cai).
 db.exec(`
@@ -605,5 +605,50 @@ db.exec(`
     device_id TEXT NOT NULL,
     priority INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (module_key, device_id)
+  );
+`);
+
+// Abrir porteiro/portão por voz (Siri/Atalhos, Google/IFTTT — ver IDEIAS.md)
+// — um token por equipamento+usuário, sem JWT (quem chama é um atalho/
+// webhook, não um login). Reaproveita device_open_permissions pra validar
+// NA HORA de abrir (não só na criação do token), então revogar o acesso de
+// abrir desliga o link de voz sozinho, sem precisar apagar o token também.
+// Histórico/fotos/pontos customizados do Gerador — mesmo padrão de
+// pump_events/pump_activation_snapshots/pump_custom_points (ver acima),
+// só que pro Gerador: evento por transição de pronto/falha/emOperacao,
+// foto de todos os pontos quando emOperacao liga, e pontos extras que o
+// Rodrigo cadastrar sozinho.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS generator_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    point_key TEXT NOT NULL,
+    state INTEGER NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_generator_events_created_at ON generator_events(created_at);
+
+  CREATE TABLE IF NOT EXISTS generator_activation_snapshots (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    points_json TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS generator_custom_points (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    addr INTEGER,
+    type TEXT NOT NULL DEFAULT 'coil',
+    invert INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+`);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS voice_open_tokens (
+    token TEXT PRIMARY KEY,
+    device_id INTEGER NOT NULL REFERENCES access_devices(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    label TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
 `);

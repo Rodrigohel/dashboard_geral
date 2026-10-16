@@ -1,25 +1,26 @@
 // Prioridade por equipamento de Rede/Interfone (ver IDEIAS.md) — diferente
 // de Acesso (equipamentos cadastrados NESTE banco, id local estável), Rede e
 // Interfone são painéis à parte (ver gatewayService.js): cada equipamento só
-// existe com um id lá. Em vez de reinventar um cadastro de equipamento
-// aqui, aproveitamos o que o painel de Rede já tem — um campo "favorito"
-// (confirmado no código do painel: backend/src/services/devicesService.js
-// do Debian_dashboard, coluna `favorite`) — como o PRÉ-FILTRO de quais
-// equipamentos nem aparecem como candidato na tela de Prioridades do
-// Portal. Entre esses, o Rodrigo escolhe explicitamente (checkbox) quais
-// também insistem via Telegram, guardado aqui em `external_device_priority`.
-// Interfone ainda não tem campo equivalente (o Rodrigo disse que vai
-// adicionar) — por isso só Rede está coberto; Interfone continua com o
-// alarme agregado antigo até lá (ver networkAlarmPoller.js).
+// existe com um id lá. Em vez de reinventar um cadastro de equipamento aqui,
+// aproveitamos o que o painel de Rede já tem — um campo `critical` (coluna
+// `critical` em backend/src/db/sqlite.js do Debian_dashboard; NÃO é o
+// `favorite`/estrela, que é outro campo — confirmado lendo a branch de
+// verdade do painel, que tinha commits novos não vistos numa leitura
+// anterior) — como o PRÉ-FILTRO de quais equipamentos aparecem como
+// candidato na tela de Prioridades do Portal. Entre esses, o Rodrigo escolhe
+// explicitamente (checkbox) quais também insistem via Telegram, guardado
+// aqui em `external_device_priority`. Interfone não tem esse campo — por
+// decisão do Rodrigo, não vai ganhar (fica só com o alarme agregado, ver
+// networkAlarmPoller.js).
 import { db } from '../db/sqlite.js';
 import { getGatewayConfig, getServiceToken } from './gatewayService.js';
 
-const FAVORITE_LIST_PATH = {
+const CRITICAL_LIST_PATH = {
   rede: '/api/devices',
 };
 
-export function supportsFavoritePriority(moduleKey) {
-  return Boolean(FAVORITE_LIST_PATH[moduleKey]);
+export function supportsCriticalPriority(moduleKey) {
+  return Boolean(CRITICAL_LIST_PATH[moduleKey]);
 }
 
 function getPrioritiesMap(moduleKey) {
@@ -37,17 +38,17 @@ export function setExternalDevicePriority(moduleKey, deviceId, priority) {
 }
 
 // Lê a lista COMPLETA (não só o resumo de contagem) do painel, filtra só os
-// equipamentos já marcados como favorito LÁ, e junta com a flag de
+// equipamentos já marcados como CRÍTICO lá, e junta com a flag de
 // prioridade salva aqui — é essa lista que a tela de Prioridades mostra.
-// `totalDevices`/`favoriteCount` vão junto pra diagnosticar sem adivinhar:
+// `totalDevices`/`criticalCount` vão junto pra diagnosticar sem adivinhar:
 // se `totalDevices` vier 0, o gateway não está devolvendo nada (configuração/
-// token); se vier >0 e `favoriteCount` 0, é que nenhum está favoritado do
-// jeito que o Portal reconhece.
-export async function listFavoritedExternalDevices(moduleKey) {
-  const path = FAVORITE_LIST_PATH[moduleKey];
-  if (!path) return { devices: [], totalDevices: 0, favoriteCount: 0 };
+// token); se vier >0 e `criticalCount` 0, é que nenhum está marcado como
+// crítico do jeito que o Portal reconhece.
+export async function listCriticalExternalDevices(moduleKey) {
+  const path = CRITICAL_LIST_PATH[moduleKey];
+  if (!path) return { devices: [], totalDevices: 0, criticalCount: 0 };
   const gw = getGatewayConfig(moduleKey);
-  if (!gw.configured) return { devices: [], totalDevices: 0, favoriteCount: 0 };
+  if (!gw.configured) return { devices: [], totalDevices: 0, criticalCount: 0 };
 
   const token = await getServiceToken(moduleKey);
   const res = await fetch(`${gw.baseUrl}${path}`, {
@@ -60,10 +61,10 @@ export async function listFavoritedExternalDevices(moduleKey) {
   const priorities = getPrioritiesMap(moduleKey);
   const now = Date.now();
 
-  // `Boolean(...)` em vez de `=== true`: se o painel mandar favorito como
+  // `Boolean(...)` em vez de `=== true`: se o painel mandar o campo como
   // 1/0 (em vez de true/false) isso não pode fazer a lista vir vazia.
-  const favorited = all.filter((d) => Boolean(d.favorite));
-  const devices = favorited.map((d) => ({
+  const critical = all.filter((d) => Boolean(d.critical));
+  const devices = critical.map((d) => ({
     id: String(d.id),
     name: d.name,
     // "Em manutenção" lá no painel de Rede também silencia por aqui — sem
@@ -72,5 +73,5 @@ export async function listFavoritedExternalDevices(moduleKey) {
     offline: d.status === 'offline' && !(d.maintenanceUntil && new Date(d.maintenanceUntil).getTime() > now),
     priority: Boolean(priorities[String(d.id)]),
   }));
-  return { devices, totalDevices: all.length, favoriteCount: devices.length };
+  return { devices, totalDevices: all.length, criticalCount: devices.length };
 }

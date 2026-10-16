@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import crypto from 'node:crypto';
 import multer from 'multer';
 import { db } from '../db/sqlite.js';
 import { encryptSecret, decryptSecret } from '../services/cryptoService.js';
@@ -294,6 +295,35 @@ accessDevicesRouter.post('/:id/open', requireDeviceAccess, requireDeviceOpenAcce
     logDoorOpen({ device, req, success: false, errorMessage: err.message });
     res.status(502).json({ ok: false, error: err.message });
   }
+});
+
+// Abrir por voz (Siri/Atalhos, Google/IFTTT — ver IDEIAS.md): tokens do
+// PRÓPRIO usuário logado pra ESTE equipamento — mesma permissão de quem já
+// pode abrir pelo botão (requireDeviceOpenAccess). O token em si (ver rota
+// pública GET /api/voice/open/:token em server.js) não usa JWT nenhum.
+accessDevicesRouter.get('/:id/voice-tokens', requireDeviceAccess, requireDeviceOpenAccess, (req, res) => {
+  const rows = db
+    .prepare('SELECT token, label, created_at AS createdAt FROM voice_open_tokens WHERE device_id = ? AND user_id = ? ORDER BY created_at DESC')
+    .all(req.params.id, req.user.sub);
+  res.json(rows);
+});
+
+accessDevicesRouter.post('/:id/voice-tokens', requireDeviceAccess, requireDeviceOpenAccess, (req, res) => {
+  const device = getDeviceOr404(req, res);
+  if (!device) return;
+  const token = crypto.randomBytes(20).toString('hex');
+  db.prepare('INSERT INTO voice_open_tokens (token, device_id, user_id, label) VALUES (?, ?, ?, ?)').run(
+    token,
+    device.id,
+    req.user.sub,
+    String(req.body?.label || '').trim()
+  );
+  res.status(201).json({ token, label: req.body?.label || '' });
+});
+
+accessDevicesRouter.delete('/voice-tokens/:token', (req, res) => {
+  db.prepare('DELETE FROM voice_open_tokens WHERE token = ? AND user_id = ?').run(req.params.token, req.user.sub);
+  res.status(204).end();
 });
 
 // Foto (não vídeo — navegador não toca RTSP nativo) de uma câmera IP

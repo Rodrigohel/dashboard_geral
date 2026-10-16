@@ -61,6 +61,11 @@ export const api = {
     searchUsers: (q) => request(`/api/access/devices/search-users?q=${encodeURIComponent(q)}`),
     openDoor: (id) => request(`/api/access/devices/${id}/open`, { method: 'POST' }),
     discoverSegplace: (payload) => request('/api/access/devices/segplace/discover', { method: 'POST', body: payload }),
+    voiceTokens: {
+      list: (deviceId) => request(`/api/access/devices/${deviceId}/voice-tokens`),
+      create: (deviceId, label) => request(`/api/access/devices/${deviceId}/voice-tokens`, { method: 'POST', body: { label } }),
+      remove: (token) => request(`/api/access/devices/voice-tokens/${token}`, { method: 'DELETE' }),
+    },
     // Mesmo motivo do getPhotoBlobUrl abaixo: resposta é binária (JPEG), e
     // <img src="..."> puro não manda Authorization.
     getCameraSnapshotBlobUrl: async (id) => {
@@ -253,6 +258,11 @@ export const api = {
     saveConfig: (payload) => request('/api/generator/config', { method: 'PUT', body: payload }),
     testConnection: (payload) => request('/api/generator/test-connection', { method: 'POST', body: payload }),
     status: () => request('/api/generator/status'),
+    history: (days = 30) => request(`/api/generator/history?days=${days}`),
+    activationSnapshots: () => request('/api/generator/activation-snapshots'),
+    addCustomPoint: (payload) => request('/api/generator/custom-points', { method: 'POST', body: payload }),
+    saveCustomPoint: (id, payload) => request(`/api/generator/custom-points/${id}`, { method: 'PUT', body: payload }),
+    deleteCustomPoint: (id) => request(`/api/generator/custom-points/${id}`, { method: 'DELETE' }),
   },
 
   settings: {

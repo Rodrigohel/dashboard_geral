@@ -60,6 +60,13 @@ export async function readGeneratorStatus(config) {
         result[key] = { error: err.message };
       }
     }
+    for (const point of config.customPoints || []) {
+      try {
+        result[`custom_${point.id}`] = await readPoint(client, point);
+      } catch (err) {
+        result[`custom_${point.id}`] = { error: err.message };
+      }
+    }
     return result;
   } catch (err) {
     throw new Error(`Não consegui alcançar o controlador configurado (${err.message}).`);

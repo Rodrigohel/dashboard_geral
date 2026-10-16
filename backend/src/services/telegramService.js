@@ -341,14 +341,14 @@ export async function checkAccessDeviceAlarms(devices) {
 // Fallback pra módulo que ainda não tem como marcar prioridade por
 // equipamento (ver checkExternalDeviceAlarms abaixo) — só dá uma CONTAGEM de
 // offline, não uma lista estável de equipamentos com id local. Usado hoje só
-// por Interfone (Rede já tem favorito/prioridade por equipamento).
+// por Interfone (Rede já tem crítico/prioridade por equipamento).
 export async function checkNetworkAlarm(moduleKey, moduleLabel, offlineCount, isPriority) {
   const label = `${moduleLabel}: ${offlineCount} equipamento(s)/ramal(is) offline`;
   await upsertAlarm(`${moduleKey}.offline`, label, offlineCount > 0, isPriority);
 }
 
 // Chamado pelo networkAlarmPoller.js com os equipamentos de Rede/Interfone
-// JÁ FILTRADOS pra só os marcados como favorito no próprio painel de
+// JÁ FILTRADOS pra só os marcados como crítico no próprio painel de
 // origem (ver externalDeviceService.js) — um alarme por equipamento, igual
 // Acesso, em vez de um só "N offline" pro módulo inteiro (que ficaria cada
 // vez mais ruidoso conforme mais equipamento favoritado cai junto).

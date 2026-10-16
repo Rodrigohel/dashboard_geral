@@ -13,7 +13,7 @@
 import { db } from '../db/sqlite.js';
 import { getGatewayConfig, getServiceToken } from './gatewayService.js';
 import { checkNetworkAlarm, checkExternalDeviceAlarms } from './telegramService.js';
-import { listFavoritedExternalDevices } from './externalDeviceService.js';
+import { listCriticalExternalDevices } from './externalDeviceService.js';
 
 const POLL_MS = 2 * 60 * 1000;
 const INITIAL_DELAY_MS = 20 * 1000;
@@ -26,7 +26,7 @@ function getInterfonePriority() {
 async function pollRede() {
   const gw = getGatewayConfig('rede');
   if (!gw.configured) return;
-  const { devices } = await listFavoritedExternalDevices('rede');
+  const { devices } = await listCriticalExternalDevices('rede');
   await checkExternalDeviceAlarms('rede', 'Rede', devices);
 }
 
