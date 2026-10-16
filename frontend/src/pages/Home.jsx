@@ -645,6 +645,13 @@ export default function Home({ user, onNavigate, can, tvMode = false, onLogout }
 
   return (
     <>
+      <style>{`
+        .bombas-flow-badge { animation: bombas-flow-bob 1.8s ease-in-out infinite; }
+        @keyframes bombas-flow-bob {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(var(--bob-distance, -2px)); }
+        }
+      `}</style>
       {tvMode && (
         <div className="surface" style={{ padding: '16px 20px', marginBottom: 20, borderLeft: `3px solid ${activeAlarms.length > 0 ? 'var(--danger-500)' : 'var(--success-500)'}` }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: activeAlarms.length > 0 ? 10 : 0 }}>
@@ -707,6 +714,15 @@ export default function Home({ user, onNavigate, can, tvMode = false, onLogout }
               key === 'bombas' && bombasStatus
                 ? bombasStatus.fillEstimate?.percent ?? fillPercentFor(bombasStatus.points || {})
                 : null;
+            // Direção (enchendo/esvaziando) pro selo com seta no card — usa a
+            // estimativa quando já tem histórico suficiente; sem isso, cai
+            // pro mesmo critério simples da tela de Bombas: bomba ligada =
+            // esvaziando, senão enchendo (nunca fica sem mostrar nada).
+            const bombasDirection =
+              key === 'bombas' && bombasStatus
+                ? bombasStatus.fillEstimate?.direction ??
+                  (['bomba1', 'bomba2'].some((k) => bombasStatus.points?.[k] === true) ? 'esvaziando' : 'enchendo')
+                : null;
             const override = cardOverrides[key];
             const cardTitle = override?.title || meta.title;
             const cardDesc = override?.description || meta.desc;
@@ -730,7 +746,32 @@ export default function Home({ user, onNavigate, can, tvMode = false, onLogout }
 
                 <div className="module-card-top">
                   {bombasFillPercent !== null ? (
-                    <Ring percent={bombasFillPercent} color={meta.color} value={`${bombasFillPercent}%`} size={52} />
+                    <div style={{ position: 'relative', width: 52, height: 52 }}>
+                      <Ring percent={bombasFillPercent} color={meta.color} value={`${bombasFillPercent}%`} size={52} />
+                      {bombasDirection && (
+                        <div
+                          className="bombas-flow-badge"
+                          title={bombasDirection === 'enchendo' ? 'Nível subindo' : 'Bombas esvaziando o poço'}
+                          style={{
+                            '--bob-distance': bombasDirection === 'enchendo' ? '-2px' : '2px',
+                            position: 'absolute',
+                            bottom: -4,
+                            right: -4,
+                            width: 20,
+                            height: 20,
+                            borderRadius: '50%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            background: bombasDirection === 'enchendo' ? 'var(--success-500)' : 'var(--module-bombas)',
+                            border: '2px solid var(--surface)',
+                            color: '#fff',
+                          }}
+                        >
+                          <Icon name={bombasDirection === 'enchendo' ? 'chevronUp' : 'chevronDown'} size={11} strokeWidth={3} />
+                        </div>
+                      )}
+                    </div>
                   ) : data.total > 0 ? (
                     <Ring percent={healthPercent(data.online, data.total)} color={meta.color} value={`${healthPercent(data.online, data.total)}%`} size={52} />
                   ) : (
