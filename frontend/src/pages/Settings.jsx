@@ -1365,12 +1365,23 @@ function ManualsCard() {
   );
 }
 
+// Nome dos mais comuns, só pra tela ficar legível ("80 (HTTP)" em vez de só
+// "80") — não é uma lista completa, é cosmético.
+const PORT_NAMES = {
+  21: 'FTP', 22: 'SSH', 23: 'Telnet', 25: 'SMTP', 53: 'DNS', 80: 'HTTP', 110: 'POP3', 123: 'NTP',
+  143: 'IMAP', 443: 'HTTPS', 502: 'Modbus', 554: 'RTSP', 993: 'IMAPS', 995: 'POP3S', 3389: 'RDP',
+  5900: 'VNC', 8080: 'HTTP-alt', 8443: 'HTTPS-alt', 8000: 'HTTP-alt', 9100: 'Impressora (JetDirect)',
+};
+
 function NetworkProbeCard() {
   const [host, setHost] = useState('');
   const [port, setPort] = useState(23);
   const [send, setSend] = useState('');
   const [result, setResult] = useState(null);
   const [probing, setProbing] = useState(false);
+  const [scanSpec, setScanSpec] = useState('');
+  const [scanResult, setScanResult] = useState(null);
+  const [scanning, setScanning] = useState(false);
   const toast = useToast();
 
   async function handleProbe() {
@@ -1383,6 +1394,19 @@ function NetworkProbeCard() {
       toast(err.message, 'error');
     } finally {
       setProbing(false);
+    }
+  }
+
+  async function handleScan() {
+    setScanning(true);
+    setScanResult(null);
+    try {
+      const res = await api.settings.portScan({ host, ports: scanSpec || undefined });
+      setScanResult(res);
+    } catch (err) {
+      toast(err.message, 'error');
+    } finally {
+      setScanning(false);
     }
   }
 
@@ -1425,6 +1449,47 @@ function NetworkProbeCard() {
           </pre>
         </div>
       )}
+
+      <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: 16, marginTop: 4 }}>
+        <div style={{ fontWeight: 700, marginBottom: 4 }}>Varredura de portas</div>
+        <div className="field-hint" style={{ marginBottom: 12 }}>
+          Só o IP — testa uma lista de portas comuns (ou a que você der) e mostra quais estão abertas, sem precisar
+          adivinhar a porta antes. Usa o IP preenchido acima.
+        </div>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          <div className="field" style={{ flex: 2, minWidth: 200 }}>
+            <label className="field-label">Portas (opcional)</label>
+            <input
+              className="input"
+              value={scanSpec}
+              onChange={(e) => setScanSpec(e.target.value)}
+              placeholder="em branco = portas comuns (1-1024 + algumas outras); ex.: 1-65535, 8000-8100"
+            />
+          </div>
+          <button type="button" className="btn btn-secondary" onClick={handleScan} disabled={scanning || !host} style={{ alignSelf: 'end' }}>
+            {scanning ? <span className="spinner spinner-dark" /> : 'Varrer portas'}
+          </button>
+        </div>
+        {scanResult && (
+          <div style={{ marginTop: 12 }}>
+            <div className="field-hint" style={{ marginBottom: 6 }}>
+              {scanResult.open.length} porta(s) aberta(s), de {scanResult.scanned} testada(s), em {scanResult.host}.
+            </div>
+            {scanResult.open.length === 0 ? (
+              <span className="field-hint">Nenhuma porta aberta nessa lista.</span>
+            ) : (
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {scanResult.open.map((p) => (
+                  <span key={p} className="badge badge-success">
+                    <span className="badge-dot" /> {p}
+                    {PORT_NAMES[p] ? ` (${PORT_NAMES[p]})` : ''}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
