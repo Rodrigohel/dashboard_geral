@@ -316,7 +316,12 @@ accessDevicesRouter.get('/:id/camera-snapshot', requireDeviceAccess, requireDevi
 accessDevicesRouter.get('/search-users', async (req, res) => {
   const q = String(req.query.q || '').trim().toLowerCase();
   if (!q) return res.json({ results: [], errors: [] });
-  const devices = visibleDevices(req);
+  // Segplace/Axiom Wifi (portão) não tem cadastro de pessoas — a API deles só
+  // abre/vê status (ver segplaceUnsupported em accessControlClient.js).
+  // Pular esses ANTES de consultar, em vez de tentar e cair em "errors": eles
+  // nunca vão responder de verdade, então aparecer ali como "não respondeu à
+  // busca" é só ruído (pendência relatada pelo Rodrigo — ver IDEIAS.md).
+  const devices = visibleDevices(req).filter((d) => d.model !== 'segplace');
   const results = [];
   const errors = [];
   await Promise.all(
