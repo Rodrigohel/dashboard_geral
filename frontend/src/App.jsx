@@ -15,6 +15,7 @@ import RedeDashboard from './pages/RedeDashboard.jsx';
 import InterfoneDashboard from './pages/InterfoneDashboard.jsx';
 import AccessControl from './pages/AccessControl/index.jsx';
 import PumpStation from './pages/PumpStation/index.jsx';
+import Generator from './pages/Generator/index.jsx';
 import UsersAdmin from './pages/UsersAdmin/index.jsx';
 import Settings from './pages/Settings.jsx';
 import ServerHealth from './pages/ServerHealth.jsx';
@@ -120,6 +121,8 @@ export default function App() {
         );
       case 'bombas':
         return can('bombas') ? <PumpStation isOwner={isOwner} can={can} /> : <NoAccess />;
+      case 'gerador':
+        return can('gerador') ? <Generator isOwner={isOwner} can={can} /> : <NoAccess />;
       case 'usuarios':
         return isOwner || can('usuarios.ver') ? <UsersAdmin currentUserId={user.id} isOwner={isOwner} can={can} /> : <NoAccess />;
       case 'servidor':

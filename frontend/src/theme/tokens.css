@@ -42,6 +42,8 @@
   --module-acesso-glow: rgba(236, 72, 153, 0.32);
   --module-bombas: #6366f1;
   --module-bombas-glow: rgba(99, 102, 241, 0.32);
+  --module-gerador: #f59e0b;
+  --module-gerador-glow: rgba(245, 158, 11, 0.32);
 
   /* Segunda parada de cor pra gradiente dos gráficos de cada módulo — só
      decorativo (sparkline, linha de tendência), nunca usado sozinho pra
@@ -50,6 +52,7 @@
   --module-interfone-end: #4c8dff;
   --module-acesso-end: #f59e0b;
   --module-bombas-end: #22d3ee;
+  --module-gerador-end: #fbbf24;
 
   /* Rampa de severidade das 4 boias da casa de bombas (mínimo -> segurança)
      — verde/normal até vermelho/crítico, mesma lógica de "status" (bom/

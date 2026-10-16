@@ -37,7 +37,7 @@ export const config = {
 // Chaves válidas de módulo — usadas para validar permissões e rotas.
 // 'acesso' (controle de acesso facial) e 'bombas' (casa de bombas, lida via
 // Modbus TCP na IHM) são nativos do Portal, não um gateway.
-export const MODULE_KEYS = ['rede', 'interfone', 'acesso', 'bombas'];
+export const MODULE_KEYS = ['rede', 'interfone', 'acesso', 'bombas', 'gerador'];
 
 // Permissões "de funcionalidade", mais finas que um módulo inteiro — hoje só
 // dentro de "rede", pra dar de liberar o monitoramento geral sem liberar
@@ -74,6 +74,7 @@ export const FEATURE_KEYS = [
   'acesso.moradores.editar',
   'acesso.moradores.excluir',
   'bombas.editar',
+  'gerador.editar',
   'usuarios.ver',
   'usuarios.incluir',
   'usuarios.editar',
