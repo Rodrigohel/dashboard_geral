@@ -1,15 +1,16 @@
 import Icon from './Icon.jsx';
 
 // Barra fixa embaixo, só no celular (ver .bottom-nav em layout.css) — igual
-// o mockup aprovado. Só os módulos cabem aqui; "Mais" abre o menu lateral
-// de sempre, onde ficam Usuários/Auditoria/Saúde do servidor/Configurações
-// (dono) — nada que já existia foi removido, só ganhou esse atalho.
+// o mockup aprovado. Só os módulos cabem aqui (sem "Início": ver IDEIAS.md)
+// — "Mais" abre o menu lateral de sempre, onde ficam Início/Usuários/
+// Auditoria/Saúde do servidor/Configurações (dono) — nada que já existia
+// foi removido, só ganhou esse atalho.
 const ITEMS = [
-  { key: 'home', label: 'Início', icon: 'home', module: null },
   { key: 'rede', label: 'Rede', icon: 'network', module: 'rede' },
   { key: 'interfone', label: 'Interfone', icon: 'phone', module: 'interfone' },
   { key: 'acesso', label: 'Acesso', icon: 'shieldFace', module: 'acesso' },
   { key: 'bombas', label: 'Bombas', icon: 'droplet', module: 'bombas' },
+  { key: 'gerador', label: 'Gerador', icon: 'zap', module: 'gerador' },
 ];
 
 export default function BottomNav({ view, onNavigate, can, onMoreClick }) {

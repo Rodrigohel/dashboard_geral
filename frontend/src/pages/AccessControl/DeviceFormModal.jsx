@@ -27,6 +27,7 @@ export default function DeviceFormModal({ device, onClose, onSave }) {
     cameraChannel: device?.cameraChannel || 1,
     cameraUsername: device?.cameraUsername || '',
     cameraPassword: '',
+    telegramPriority: device ? Boolean(device.telegramPriority) : false,
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -248,6 +249,11 @@ export default function DeviceFormModal({ device, onClose, onSave }) {
           <label className="field-label">Notas</label>
           <input className="input" value={form.notes} onChange={(e) => set('notes', e.target.value)} placeholder="Opcional" />
         </div>
+
+        <label className="checkbox-row">
+          <input type="checkbox" checked={form.telegramPriority} onChange={(e) => set('telegramPriority', e.target.checked)} />
+          Prioridade no alerta via Telegram (insiste — e liga por telefone, se configurado — até alguém reconhecer que este equipamento caiu)
+        </label>
 
         <div className="field" style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: 16, marginTop: 4 }}>
           <label className="field-label">Câmera apontada pro portão (opcional)</label>

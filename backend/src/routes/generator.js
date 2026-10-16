@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { db } from '../db/sqlite.js';
 import { requirePermission } from '../middleware/auth.js';
 import { readGeneratorStatus, testGeneratorConnection } from '../services/generatorClient.js';
+import { encryptSecret } from '../services/cryptoService.js';
 
 export const generatorRouter = Router();
 
@@ -20,7 +21,14 @@ function getRow() {
 function serializeConfig(row) {
   const points = {};
   for (const [key, column] of POINTS) {
-    points[key] = { addr: row[`${column}_addr`], type: row[`${column}_type`], invert: Boolean(row[`${column}_invert`]) };
+    points[key] = {
+      addr: row[`${column}_addr`],
+      type: row[`${column}_type`],
+      invert: Boolean(row[`${column}_invert`]),
+      // Só "falha" faz sentido como alarme de prioridade (ver
+      // telegramService.js) — pronto/emOperacao são estado normal.
+      priority: key === 'falha' ? Boolean(row.falha_priority) : false,
+    };
   }
   return {
     enabled: Boolean(row.enabled),
@@ -30,6 +38,12 @@ function serializeConfig(row) {
     unitId: row.unit_id,
     pollSeconds: row.poll_seconds,
     points,
+    // Modbus TCP em si não pede login (ver sqlite.js) — campos pedidos pelo
+    // Rodrigo mesmo assim, pra já estarem prontos quando ele descobrir se
+    // precisa deles por algum outro caminho (ex.: tela web do controlador).
+    // Senha nunca volta decifrada, só se já tem uma salva.
+    username: row.username || '',
+    hasPassword: Boolean(row.password_enc),
   };
 }
 
@@ -53,8 +67,10 @@ generatorRouter.put('/config', requirePermission('gerador.editar'), (req, res) =
     : Number(body.pollSeconds);
   const pollSeconds = Math.min(3600, Math.max(1, Number.isFinite(pollSecondsInput) ? pollSecondsInput : row.poll_seconds));
 
-  const assignments = ['name = ?', 'host = ?', 'port = ?', 'unit_id = ?', 'enabled = ?', 'poll_seconds = ?'];
-  const values = [name, host, port, unitId, enabled ? 1 : 0, pollSeconds];
+  const username = body.username ?? row.username;
+
+  const assignments = ['name = ?', 'host = ?', 'port = ?', 'unit_id = ?', 'enabled = ?', 'poll_seconds = ?', 'username = ?'];
+  const values = [name, host, port, unitId, enabled ? 1 : 0, pollSeconds, username];
 
   for (const [key, column] of POINTS) {
     const incoming = body.points?.[key];
@@ -67,9 +83,22 @@ generatorRouter.put('/config', requirePermission('gerador.editar'), (req, res) =
     const invert = incoming && incoming.invert !== undefined ? (incoming.invert ? 1 : 0) : existingInvert;
     assignments.push(`${column}_addr = ?`, `${column}_type = ?`, `${column}_invert = ?`);
     values.push(incoming ? addr : existingAddr, type, invert);
+    // Prioridade (ver telegramService.js) só existe pra "falha" — mesmo
+    // cuidado do PUT de Bombas: não desmonta UPDATE de coluna que não existe
+    // pros outros pontos.
+    if (key === 'falha') {
+      const priority = incoming && incoming.priority !== undefined ? (incoming.priority ? 1 : 0) : row.falha_priority;
+      assignments.push('falha_priority = ?');
+      values.push(priority);
+    }
   }
 
   db.prepare(`UPDATE generator_station SET ${assignments.join(', ')} WHERE id = 1`).run(...values);
+  // Senha nunca é obrigatória nem exigida de novo a cada salvamento — só
+  // grava quando vier um valor novo, igual device_password_enc.
+  if (body.password) {
+    db.prepare('UPDATE generator_station SET password_enc = ? WHERE id = 1').run(encryptSecret(body.password));
+  }
   res.json(serializeConfig(getRow()));
 });
 

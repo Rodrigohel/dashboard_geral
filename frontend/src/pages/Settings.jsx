@@ -725,6 +725,226 @@ function TelegramSettingsCard() {
   );
 }
 
+// Prioridade dos alarmes que NÃO têm um checkbox próprio na tela do módulo:
+// Bombas/Gerador marcam prioridade sinal por sinal (em Configuração), e
+// porteiro marca por equipamento (em Acesso → Equipamentos). Rede/Interfone
+// só dão uma contagem de offline (sem lista estável de equipamentos pra
+// marcar um por um) e força bruta é um evento de segurança — por isso essas
+// três ficam aqui, num lugar só.
+function AlarmPrioritiesCard() {
+  const [redeOffline, setRedeOffline] = useState(false);
+  const [interfoneOffline, setInterfoneOffline] = useState(false);
+  const [forcaBruta, setForcaBruta] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const toast = useToast();
+
+  function load() {
+    api.settings.getTelegramPriorities().then((p) => {
+      setRedeOffline(p.redeOffline);
+      setInterfoneOffline(p.interfoneOffline);
+      setForcaBruta(p.forcaBruta);
+      setLoaded(true);
+    });
+  }
+  useEffect(load, []);
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      await api.settings.saveTelegramPriorities({ redeOffline, interfoneOffline, forcaBruta });
+      toast('Prioridades salvas.');
+    } catch (err) {
+      toast(err.message, 'error');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (!loaded) return <div className="skeleton" style={{ height: 160, borderRadius: 20 }} />;
+
+  return (
+    <div className="surface" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div>
+        <div style={{ fontWeight: 700 }}>Prioridade de outros alarmes</div>
+        <div className="field-hint">
+          Rede/Interfone (contagem de equipamentos offline) e a trava de força bruta — os demais módulos marcam
+          prioridade na própria tela (Bombas/Gerador → Configuração, Acesso → Equipamentos).
+        </div>
+      </div>
+      <label className="checkbox-row">
+        <input type="checkbox" checked={redeOffline} onChange={(e) => setRedeOffline(e.target.checked)} />
+        Rede — insistir enquanto houver equipamento(s) offline
+      </label>
+      <label className="checkbox-row">
+        <input type="checkbox" checked={interfoneOffline} onChange={(e) => setInterfoneOffline(e.target.checked)} />
+        Interfone — insistir enquanto houver ramal(is) offline
+      </label>
+      <label className="checkbox-row">
+        <input type="checkbox" checked={forcaBruta} onChange={(e) => setForcaBruta(e.target.checked)} />
+        Segurança — também ligar por telefone quando a trava de força bruta disparar
+      </label>
+      <div>
+        <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
+          {saving ? <span className="spinner" /> : 'Salvar'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// Escalonamento por ligação telefônica (ver IDEIAS.md) — quando um alarme
+// marcado como prioridade fica ativo e sem ninguém reconhecer no Telegram
+// por tempo demais, liga pros números cadastrados além de insistir por
+// mensagem. Preço/provedor ainda não decididos — os campos ficam prontos
+// pra quando o Rodrigo criar a conta Twilio (ou escolher outra) e preencher;
+// sem uma conta de verdade configurada aqui, nunca chega a ligar.
+function TwilioSettingsCard() {
+  const [enabled, setEnabled] = useState(false);
+  const [hasAuthToken, setHasAuthToken] = useState(false);
+  const [accountSid, setAccountSid] = useState('');
+  const [authToken, setAuthToken] = useState('');
+  const [fromNumber, setFromNumber] = useState('');
+  const [toNumbersText, setToNumbersText] = useState('');
+  const [callAfterSeconds, setCallAfterSeconds] = useState(300);
+  const [configured, setConfigured] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const toast = useToast();
+
+  function load() {
+    api.settings.getTwilio().then((s) => {
+      setEnabled(s.enabled);
+      setHasAuthToken(s.hasAuthToken);
+      setAccountSid(s.accountSid);
+      setFromNumber(s.fromNumber);
+      setToNumbersText(s.toNumbers.join(', '));
+      setCallAfterSeconds(s.callAfterSeconds);
+      setConfigured(s.configured);
+      setLoaded(true);
+    });
+  }
+  useEffect(load, []);
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      await api.settings.saveTwilio({
+        enabled,
+        accountSid,
+        authToken: authToken || undefined,
+        fromNumber,
+        toNumbers: toNumbersText.split(',').map((n) => n.trim()).filter(Boolean),
+        callAfterSeconds: Number(callAfterSeconds),
+      });
+      setAuthToken('');
+      toast('Configuração do Twilio salva.');
+      load();
+    } catch (err) {
+      toast(err.message, 'error');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleTest() {
+    setTesting(true);
+    try {
+      const res = await api.settings.testTwilio({ accountSid, authToken: authToken || undefined });
+      toast(`Conta válida — ${res.friendlyName || accountSid} (${res.status}).`);
+    } catch (err) {
+      toast(err.message, 'error');
+    } finally {
+      setTesting(false);
+    }
+  }
+
+  if (!loaded) return <div className="skeleton" style={{ height: 240, borderRadius: 20 }} />;
+
+  return (
+    <div className="surface" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div>
+        <div style={{ fontWeight: 700 }}>Ligação telefônica (Twilio)</div>
+        <div className="field-hint">
+          Escalonamento de um alarme de prioridade que ninguém reconheceu no Telegram — liga pros números abaixo
+          depois do tempo configurado. Precisa de uma conta Twilio (ou similar) de verdade: crie em{' '}
+          <code>twilio.com</code>, compre um número e copie Account SID/Auth Token. Ainda não decidimos o provedor
+          — cote preço antes (ver IDEIAS.md); sem isso preenchido, esta função fica pronta mas nunca chega a ligar.
+        </div>
+      </div>
+
+      <label className="checkbox-row">
+        <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
+        Ativar ligação telefônica
+      </label>
+
+      <div className="grid-2">
+        <div className="field">
+          <label className="field-label">Account SID</label>
+          <input className="input" value={accountSid} onChange={(e) => setAccountSid(e.target.value)} placeholder="ACxxxxxxxx..." />
+        </div>
+        <div className="field">
+          <label className="field-label">Auth Token</label>
+          <input
+            className="input"
+            type="password"
+            value={authToken}
+            onChange={(e) => setAuthToken(e.target.value)}
+            placeholder={hasAuthToken ? 'já salvo — deixe em branco pra manter' : ''}
+          />
+        </div>
+      </div>
+
+      <div className="grid-2">
+        <div className="field">
+          <label className="field-label">Número de origem (Twilio)</label>
+          <input className="input" value={fromNumber} onChange={(e) => setFromNumber(e.target.value)} placeholder="+15550000000" />
+        </div>
+        <div className="field">
+          <label className="field-label">Escalar pra ligação depois de</label>
+          <select
+            className="select"
+            style={{ maxWidth: 220 }}
+            value={callAfterSeconds}
+            onChange={(e) => setCallAfterSeconds(e.target.value)}
+          >
+            <option value={120}>2 minutos sem reconhecer</option>
+            <option value={300}>5 minutos sem reconhecer</option>
+            <option value={600}>10 minutos sem reconhecer</option>
+            <option value={1800}>30 minutos sem reconhecer</option>
+          </select>
+        </div>
+      </div>
+
+      <div className="field">
+        <label className="field-label">Números pra ligar (separados por vírgula)</label>
+        <input
+          className="input"
+          value={toNumbersText}
+          onChange={(e) => setToNumbersText(e.target.value)}
+          placeholder="+5511999990000, +5511888880000"
+        />
+        <span className="field-hint">Formato internacional, com +55 e DDD.</span>
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
+          {saving ? <span className="spinner" /> : 'Salvar'}
+        </button>
+        <button className="btn btn-secondary" onClick={handleTest} disabled={testing || (!accountSid && !hasAuthToken)}>
+          {testing ? <span className="spinner spinner-dark" /> : 'Testar conta (sem ligar/sem custo)'}
+        </button>
+      </div>
+      {!configured && (
+        <span className="field-hint">
+          Ainda falta preencher Account SID, Auth Token, número de origem e ao menos um número pra ligar.
+        </span>
+      )}
+    </div>
+  );
+}
+
 export default function Settings() {
   const [gateways, setGateways] = useState(null);
 
@@ -758,6 +978,10 @@ export default function Settings() {
       <PushSettingsCard />
 
       <TelegramSettingsCard />
+
+      <AlarmPrioritiesCard />
+
+      <TwilioSettingsCard />
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         {gateways === null ? (
