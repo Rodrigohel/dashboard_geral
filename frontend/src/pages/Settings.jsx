@@ -619,6 +619,7 @@ function TelegramSettingsCard() {
   const [resendIntervalSeconds, setResendIntervalSeconds] = useState(1800);
   const [snoozeMinutes, setSnoozeMinutes] = useState(10);
   const [maintenanceMinutes, setMaintenanceMinutes] = useState(60);
+  const [resolveDebounceMinutes, setResolveDebounceMinutes] = useState(2);
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
@@ -636,6 +637,7 @@ function TelegramSettingsCard() {
       setResendIntervalSeconds(s.resendIntervalSeconds);
       setSnoozeMinutes(s.snoozeMinutes);
       setMaintenanceMinutes(s.maintenanceMinutes);
+      setResolveDebounceMinutes(s.resolveDebounceMinutes);
       setLoaded(true);
       return s;
     });
@@ -669,6 +671,7 @@ function TelegramSettingsCard() {
         resendIntervalSeconds: Number(resendIntervalSeconds),
         snoozeMinutes: Number(snoozeMinutes),
         maintenanceMinutes: Number(maintenanceMinutes),
+        resolveDebounceMinutes: Number(resolveDebounceMinutes),
       });
       setBotToken('');
       toast('Token salvo.');
@@ -722,6 +725,7 @@ function TelegramSettingsCard() {
         resendIntervalSeconds: Number(resendIntervalSeconds),
         snoozeMinutes: Number(snoozeMinutes),
         maintenanceMinutes: Number(maintenanceMinutes),
+        resolveDebounceMinutes: Number(resolveDebounceMinutes),
       });
       toast('Configuração salva.');
       load();
@@ -867,6 +871,21 @@ function TelegramSettingsCard() {
                 <option value={60}>1 hora</option>
               </select>
             </div>
+          </div>
+          <div className="field">
+            <label className="field-label">Confirmar "resolveu sozinho" depois de ficar limpo por</label>
+            <select className="select" style={{ maxWidth: 220 }} value={resolveDebounceMinutes} onChange={(e) => setResolveDebounceMinutes(e.target.value)}>
+              <option value={1}>1 minuto</option>
+              <option value={2}>2 minutos</option>
+              <option value={3}>3 minutos</option>
+              <option value={5}>5 minutos</option>
+              <option value={10}>10 minutos</option>
+            </select>
+            <span className="field-hint">
+              Independente de ter clicado em algum botão: quando o problema some de verdade por esse tempo sem
+              voltar, manda uma mensagem avisando ("iniciado em... resolvido em..."). Evita confirmar resolvido numa
+              oscilação rápida.
+            </span>
           </div>
           <span className="field-hint">
             Cada mensagem de alarme de prioridade vem com três botões: <strong>✅ Resolvido</strong> reconhece de vez

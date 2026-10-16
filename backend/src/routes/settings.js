@@ -87,11 +87,16 @@ settingsRouter.get('/telegram', (req, res) => {
 });
 
 settingsRouter.put('/telegram', (req, res) => {
-  const { enabled, botToken, chatId, resendIntervalSeconds } = req.body || {};
+  // BUG corrigido aqui: `snoozeMinutes`/`maintenanceMinutes` mandados pela
+  // tela eram descartados nessa desestruturação antes de chegar no
+  // service — os dropdowns de duração pareciam salvar (sem erro), mas não
+  // tinham efeito nenhum. `resolveDebounceMinutes` é novo (ver
+  // telegramService.js).
+  const { enabled, botToken, chatId, resendIntervalSeconds, snoozeMinutes, maintenanceMinutes, resolveDebounceMinutes } = req.body || {};
   if (enabled && !botToken && !getTelegramSettings().hasToken) {
     return res.status(400).json({ error: 'Informe o token do bot antes de ativar.' });
   }
-  res.json(saveTelegramSettings({ enabled, botToken, chatId, resendIntervalSeconds }));
+  res.json(saveTelegramSettings({ enabled, botToken, chatId, resendIntervalSeconds, snoozeMinutes, maintenanceMinutes, resolveDebounceMinutes }));
 });
 
 // Testa o token digitado na hora (antes de salvar) — "getMe" confirma que o
