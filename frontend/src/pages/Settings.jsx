@@ -618,6 +618,7 @@ function TelegramSettingsCard() {
   const [webhookRegisteredUrl, setWebhookRegisteredUrl] = useState('');
   const [resendIntervalSeconds, setResendIntervalSeconds] = useState(1800);
   const [snoozeMinutes, setSnoozeMinutes] = useState(10);
+  const [maintenanceMinutes, setMaintenanceMinutes] = useState(60);
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
@@ -634,6 +635,7 @@ function TelegramSettingsCard() {
       setWebhookRegisteredUrl(s.webhookRegisteredUrl);
       setResendIntervalSeconds(s.resendIntervalSeconds);
       setSnoozeMinutes(s.snoozeMinutes);
+      setMaintenanceMinutes(s.maintenanceMinutes);
       setLoaded(true);
       return s;
     });
@@ -666,6 +668,7 @@ function TelegramSettingsCard() {
         botToken: botToken || undefined,
         resendIntervalSeconds: Number(resendIntervalSeconds),
         snoozeMinutes: Number(snoozeMinutes),
+        maintenanceMinutes: Number(maintenanceMinutes),
       });
       setBotToken('');
       toast('Token salvo.');
@@ -714,7 +717,12 @@ function TelegramSettingsCard() {
   async function handleSaveAtivacao() {
     setSaving(true);
     try {
-      await api.settings.saveTelegram({ enabled, resendIntervalSeconds: Number(resendIntervalSeconds), snoozeMinutes: Number(snoozeMinutes) });
+      await api.settings.saveTelegram({
+        enabled,
+        resendIntervalSeconds: Number(resendIntervalSeconds),
+        snoozeMinutes: Number(snoozeMinutes),
+        maintenanceMinutes: Number(maintenanceMinutes),
+      });
       toast('Configuração salva.');
       load();
     } catch (err) {
@@ -838,21 +846,34 @@ function TelegramSettingsCard() {
               <option value={7200}>2 horas</option>
             </select>
           </div>
-          <div className="field">
-            <label className="field-label">Botão "🚗 Já estou indo" adia por</label>
-            <select className="select" style={{ maxWidth: 220 }} value={snoozeMinutes} onChange={(e) => setSnoozeMinutes(e.target.value)}>
-              <option value={5}>5 minutos</option>
-              <option value={10}>10 minutos</option>
-              <option value={20}>20 minutos</option>
-              <option value={30}>30 minutos</option>
-              <option value={60}>1 hora</option>
-            </select>
-            <span className="field-hint">
-              Cada mensagem de alarme de prioridade vem com três botões: <strong>✅ Visto</strong> e{' '}
-              <strong>🔧 Em manutenção</strong> reconhecem de vez (para de insistir até resolver e disparar de novo);{' '}
-              <strong>🚗 Já estou indo</strong> só adia — se não resolver até o tempo acima, volta a insistir sozinho.
-            </span>
+          <div className="grid-2">
+            <div className="field">
+              <label className="field-label">Botão "🔧 Em manutenção" adia por</label>
+              <select className="select" value={maintenanceMinutes} onChange={(e) => setMaintenanceMinutes(e.target.value)}>
+                <option value={30}>30 minutos</option>
+                <option value={60}>1 hora</option>
+                <option value={120}>2 horas</option>
+                <option value={240}>4 horas</option>
+                <option value={1440}>24 horas</option>
+              </select>
+            </div>
+            <div className="field">
+              <label className="field-label">Botão "🚗 Já estou indo" adia por</label>
+              <select className="select" value={snoozeMinutes} onChange={(e) => setSnoozeMinutes(e.target.value)}>
+                <option value={5}>5 minutos</option>
+                <option value={10}>10 minutos</option>
+                <option value={20}>20 minutos</option>
+                <option value={30}>30 minutos</option>
+                <option value={60}>1 hora</option>
+              </select>
+            </div>
           </div>
+          <span className="field-hint">
+            Cada mensagem de alarme de prioridade vem com três botões: <strong>✅ Resolvido</strong> reconhece de vez
+            (só dispara de novo numa próxima falha real); <strong>🔧 Em manutenção</strong> e{' '}
+            <strong>🚗 Já estou indo</strong> só adiam, cada um pelo tempo configurado acima — se não resolver até lá,
+            a insistência volta sozinha.
+          </span>
           <div>
             <button className="btn btn-primary" onClick={handleSaveAtivacao} disabled={saving || !chatId}>
               {saving ? <span className="spinner" /> : 'Salvar'}
@@ -1057,9 +1078,9 @@ function PrioritiesCard() {
           <span className="field-hint">Painel de Rede ainda não suporta marcar favorito por equipamento.</span>
         ) : redeDevices.devices.length === 0 ? (
           <span className="field-hint">
-            Nenhum equipamento favoritado ainda. Marque favorito nos equipamentos importantes lá no painel de Rede
-            (ícone de estrela) — só esses aparecem aqui pra escolher prioridade, em vez de um alarme só pra "N
-            equipamentos offline" do módulo inteiro.
+            {redeDevices.totalDevices === 0
+              ? 'Não consegui ler nenhum equipamento do painel de Rede agora (confira a conexão em Configurações → Integrações).'
+              : `Nenhum dos ${redeDevices.totalDevices} equipamento(s) está favoritado. Marque favorito lá no painel de Rede (ícone de estrela) — só esses aparecem aqui.`}
           </span>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>

@@ -79,4 +79,8 @@ export const FEATURE_KEYS = [
   'usuarios.incluir',
   'usuarios.editar',
   'usuarios.excluir',
+  // Mesma ideia de "usuarios.*": Auditoria nunca foi módulo escolhível,
+  // sempre só-dono — essa chave dá pro dono liberar alguém específico pra
+  // ver/baixar os logs sem virar dono.
+  'auditoria.ver',
 ];

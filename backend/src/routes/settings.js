@@ -183,8 +183,8 @@ settingsRouter.get('/external-devices/:moduleKey', async (req, res) => {
     return res.json({ supported: false, devices: [] });
   }
   try {
-    const devices = await listFavoritedExternalDevices(moduleKey);
-    res.json({ supported: true, devices });
+    const result = await listFavoritedExternalDevices(moduleKey);
+    res.json({ supported: true, ...result });
   } catch (err) {
     res.status(502).json({ error: `Não consegui falar com o painel: ${err.message}` });
   }

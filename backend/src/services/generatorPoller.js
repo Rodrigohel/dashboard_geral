@@ -6,6 +6,15 @@
 import { db } from '../db/sqlite.js';
 import { readGeneratorStatus } from './generatorClient.js';
 import { checkGeneratorAlarms } from './telegramService.js';
+import { logSystemEvent } from './systemEventsService.js';
+
+const POINT_LABEL = { pronto: 'Pronto (standby)', falha: 'Falha', emOperacao: 'Em operação (gerando energia)' };
+
+// Mesmo cuidado do pumpStationHistoryPoller: só loga mudança de estado
+// (não a leitura em si), e só depois da primeira leitura bem sucedida
+// (baseline) — senão todo restart do Portal geraria um evento falso.
+let lastKnown = {};
+let hasBaseline = false;
 
 function getConfig() {
   const row = db.prepare('SELECT * FROM generator_station WHERE id = 1').get();
@@ -35,6 +44,17 @@ async function pollOnce() {
     // rodada, igual pumpStationHistoryPoller.
     return;
   }
+  for (const key of Object.keys(POINT_LABEL)) {
+    const value = points[key];
+    if (value === null || (typeof value === 'object' && value?.error)) continue;
+    const boolValue = Boolean(value);
+    if (hasBaseline && lastKnown[key] !== boolValue) {
+      logSystemEvent('gerador.' + key, `${POINT_LABEL[key]}: ${boolValue ? 'entrou' : 'saiu'}`);
+    }
+    lastKnown[key] = boolValue;
+  }
+  hasBaseline = true;
+
   await checkGeneratorAlarms(points, config.falhaPriority).catch(() => {});
 }
 

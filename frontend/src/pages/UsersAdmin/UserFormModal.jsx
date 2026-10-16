@@ -47,6 +47,7 @@ const USUARIOS_FEATURES = [
   { key: 'usuarios.editar', label: 'Editar usuários' },
   { key: 'usuarios.excluir', label: 'Excluir usuários' },
 ];
+const AUDITORIA_FEATURES = [{ key: 'auditoria.ver', label: 'Ver e baixar os logs de auditoria/sistema' }];
 
 export default function UserFormModal({ user, currentUserId, isOwner, can, onClose, onSave }) {
   // Mesma regra de escalonamento do backend (assertNoEscalation em
@@ -302,6 +303,20 @@ export default function UserFormModal({ user, currentUserId, isOwner, can, onClo
                 <label className="field-label">Tela de Usuários do Portal, pode:</label>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
                   {USUARIOS_FEATURES.filter((f) => allowed(f.key)).map((f) => (
+                    <label className="checkbox-row" key={f.key}>
+                      <input type="checkbox" checked={form.modules.includes(f.key)} onChange={() => toggleModule(f.key)} />
+                      {f.label}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {AUDITORIA_FEATURES.some((f) => allowed(f.key)) && (
+              <div className="field">
+                <label className="field-label">Auditoria:</label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
+                  {AUDITORIA_FEATURES.filter((f) => allowed(f.key)).map((f) => (
                     <label className="checkbox-row" key={f.key}>
                       <input type="checkbox" checked={form.modules.includes(f.key)} onChange={() => toggleModule(f.key)} />
                       {f.label}
