@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Abrir portão/porteiro com "Hey Siri" — manual</title>
+<style>
+  body { font-family: -apple-system, system-ui, Arial, sans-serif; max-width: 680px; margin: 0 auto; padding: 24px 20px 60px; color: #1a1a1a; line-height: 1.55; }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  h2 { font-size: 16px; margin-top: 32px; border-top: 1px solid #ddd; padding-top: 16px; }
+  .step { margin: 14px 0; }
+  .step b { color: #0a6; }
+  .box { background: #f4f4f4; border-left: 3px solid #0a6; padding: 10px 14px; border-radius: 6px; margin: 10px 0; }
+  .warn { background: #fff3e0; border-left: 3px solid #e67e22; padding: 10px 14px; border-radius: 6px; margin: 16px 0; }
+  code { background: #eee; padding: 1px 5px; border-radius: 4px; font-size: 13px; }
+  ol, ul { padding-left: 22px; }
+  @media print { body { padding: 0 10px; } }
+</style>
+</head>
+<body>
+<h1>Abrir portão/porteiro com "Hey Siri"</h1>
+<p>Via app <b>Atalhos</b> (Shortcuts), já vem instalado no iPhone/iPad.</p>
+
+<h2>Passo 1 — Gerar o link no Portal</h2>
+<ol>
+  <li class="step">No Portal, abra <b>Controle de acesso</b>.</li>
+  <li class="step">Encontre o equipamento (porteiro/portão) que quer abrir por voz e clique no ícone <b>🎙️</b> ao lado de "Abrir".</li>
+  <li class="step">Clique em <b>"Criar link"</b>, dê um nome (ex.: "Siri - Portão") e copie a URL gerada.</li>
+</ol>
+<div class="warn">Esse link abre o equipamento pra quem tiver ele — trate como uma senha. Dá pra revogar a qualquer momento na mesma tela.</div>
+
+<h2>Passo 2 — Criar o Atalho</h2>
+<ol>
+  <li class="step">Abra o app <b>Atalhos</b> no iPhone → aba <b>Atalhos</b> → toque no <b>+</b> (novo atalho).</li>
+  <li class="step">Toque em <b>"Adicionar Ação"</b> e procure por <b>"Buscar Conteúdo da URL"</b> (em inglês: "Get Contents of URL").</li>
+  <li class="step">Cole o link copiado do Portal no campo da URL. Deixe o método como <code>GET</code> (padrão).</li>
+  <li class="step">Toque no nome do atalho (ícone/engrenagem no topo) e dê um nome claro, ex.: <code>Abrir portão</code> — esse nome é a frase que a Siri vai reconhecer.</li>
+  <li class="step">Salve o atalho.</li>
+</ol>
+
+<h2>Passo 3 — Testar</h2>
+<p>Fale "Ei Siri, abrir portão" (o nome exato que você deu ao atalho no passo anterior).</p>
+<div class="box">Se a Siri não reconhecer de primeira, abra o atalho na lista, toque em "Adicionar à Siri" e grave a frase manualmente.</div>
+
+<h2>Se quiser revogar o acesso</h2>
+<p>Volte em Controle de acesso → equipamento → 🎙️ → encontre o link na lista e clique em revogar. O Atalho para de funcionar imediatamente (pode deixar ele no celular, ou apagar se preferir).</p>
+</body>
+</html>

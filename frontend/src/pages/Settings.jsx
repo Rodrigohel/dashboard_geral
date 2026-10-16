@@ -1334,6 +1334,37 @@ function TwilioSettingsCard() {
 // do ComAp AMF-9) e foi movida pra aqui, generalizada — a tela toda de
 // Configurações já é só-dono (ver App.jsx), então não precisa de trava
 // extra nesse componente.
+// Manuais estáticos (pedido do Rodrigo: "disponibilizar no menu do
+// administrador pra download") — arquivos em frontend/public/manuals/,
+// servidos direto pelo Portal (mesmo domínio), sem nada sensível neles
+// (os links de voz em si são gerados por equipamento em Acesso → 🎙️, não
+// aparecem aqui). HTML, não PDF — abre em qualquer navegador; quem quiser
+// guardar como PDF pode usar "Imprimir → Salvar como PDF" do navegador.
+const MANUALS = [
+  { href: '/manuals/google-home.html', label: 'Abrir por voz — Google Home / "Ok Google"', file: 'Manual-Google-Home.html' },
+  { href: '/manuals/siri.html', label: 'Abrir por voz — Siri / "Hey Siri"', file: 'Manual-Siri.html' },
+];
+
+function ManualsCard() {
+  return (
+    <div className="surface" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ fontWeight: 700 }}>Manuais</div>
+      <div className="field-hint">
+        Passo a passo pra configurar abertura por voz (gerar o link pra cada equipamento fica em Controle de acesso →
+        ícone 🎙️). Baixa um arquivo HTML — abre em qualquer navegador, e dá pra "Salvar como PDF" na hora de imprimir
+        se preferir guardar assim.
+      </div>
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+        {MANUALS.map((m) => (
+          <a key={m.href} className="btn btn-secondary btn-sm" href={m.href} download={m.file}>
+            <Icon name="download" size={15} /> {m.label}
+          </a>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function NetworkProbeCard() {
   const [host, setHost] = useState('');
   const [port, setPort] = useState(23);
@@ -1442,7 +1473,12 @@ export default function Settings() {
         ))}
       </div>
 
-      {tab === 'geral' && <BrandingCard />}
+      {tab === 'geral' && (
+        <>
+          <BrandingCard />
+          <ManualsCard />
+        </>
+      )}
 
       {tab === 'seguranca' && (
         <>
