@@ -112,9 +112,12 @@ function StatusCard({ status, error, loaded, canEditConfig, onGoToConfig }) {
               {value === null || value === undefined ? (
                 <span className="field-hint">não configurado</span>
               ) : typeof value === 'object' && value.error ? (
-                <span className="badge badge-danger" title={value.error}>
-                  <span className="badge-dot" /> erro de leitura
-                </span>
+                <>
+                  <span className="badge badge-danger" title={value.error}>
+                    <span className="badge-dot" /> erro de leitura
+                  </span>
+                  <span className="field-hint" style={{ color: 'var(--danger-500)', maxWidth: 220 }}>{value.error}</span>
+                </>
               ) : (
                 <span className={`badge ${value ? 'badge-success' : 'badge-neutral'}`}>
                   <span className="badge-dot" /> {value ? 'sim' : 'não'}
@@ -137,17 +140,21 @@ function StatusCard({ status, error, loaded, canEditConfig, onGoToConfig }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <span className="field-hint">Estado do motor</span>
           <span style={{ fontWeight: 600 }}>{points.estadoMotor?.label || '—'}</span>
+          {points.estadoMotor?.error && <span className="field-hint" style={{ color: 'var(--danger-500)', maxWidth: 220 }}>{points.estadoMotor.error}</span>}
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <span className="field-hint">Modo do controlador</span>
           <span style={{ fontWeight: 600 }}>{points.modoControlador?.label || '—'}</span>
+          {points.modoControlador?.error && <span className="field-hint" style={{ color: 'var(--danger-500)', maxWidth: 220 }}>{points.modoControlador.error}</span>}
         </div>
         {VOLTAGE_META.map((v) => {
           const value = points[v.key];
+          const error = value && typeof value === 'object' ? value.error : null;
           return (
             <div key={v.key} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               <span className="field-hint">Tensão {v.label}</span>
               <span style={{ fontWeight: 600 }}>{typeof value === 'number' ? `${value} V` : '—'}</span>
+              {error && <span className="field-hint" style={{ color: 'var(--danger-500)', maxWidth: 220 }}>{error}</span>}
             </div>
           );
         })}
