@@ -132,19 +132,17 @@ const BOUNDARIES = [
 ];
 
 export function getLevelTransitionStats() {
+  // Corte de validade (ver resetPumpHistoryValidity) só vale pra ESVAZIANDO
+  // (o nível desce porque uma bomba está puxando — direto afetado pela
+  // falha dos contatores jumpeados: as duas bombas rodavam juntas, drenando
+  // mais rápido que o normal). ENCHENDO é o poço recebendo água de fora,
+  // sem bomba nenhuma envolvida — não tem relação com a falha, então usa o
+  // histórico todo sempre (pedido do Rodrigo: "o tempo de enchimento é a
+  // única coisa que permanece, pois independe das bombas").
   const validSince = getHistoryValidSince();
-  // Com corte, já filtra na consulta: diferente de getPumpStationHistory,
-  // aqui cada amostra (subida/descida de uma fronteira) só depende dos
-  // eventos entre as duas bordas dela mesma — não precisa de contexto de
-  // antes do corte, então simplesmente não existir linha antiga já garante
-  // que nenhuma amostra "cruza" o corte.
-  const rows = validSince
-    ? db
-        .prepare(`SELECT point_key, state, created_at FROM pump_events WHERE point_key IN (?, ?, ?, ?) AND created_at >= ? ORDER BY created_at ASC, id ASC`)
-        .all(...LEVEL_KEYS, validSince)
-    : db
-        .prepare(`SELECT point_key, state, created_at FROM pump_events WHERE point_key IN (?, ?, ?, ?) ORDER BY created_at ASC, id ASC`)
-        .all(...LEVEL_KEYS);
+  const rows = db
+    .prepare(`SELECT point_key, state, created_at FROM pump_events WHERE point_key IN (?, ?, ?, ?) ORDER BY created_at ASC, id ASC`)
+    .all(...LEVEL_KEYS);
 
   // BUG corrigido aqui (relatado pelo Rodrigo: "máximo → médio" aparecia com
   // duração enorme e dezenas de ciclos mesmo o nível nunca tendo chegado no
@@ -219,11 +217,12 @@ export function getLevelTransitionStats() {
     return { avgSeconds: Math.round(avgMs / 1000), sampleCount: samples.length, samples: recent };
   }
 
+  const validSinceMs = validSince ? new Date(validSince.replace(' ', 'T') + 'Z').getTime() : null;
   return BOUNDARIES.map((b, i) => ({
     from: b.from,
     to: b.to,
     rising: summarize(risingSamples[i]),
-    falling: summarize(fallingSamples[i]),
+    falling: summarize(validSinceMs ? fallingSamples[i].filter((s) => s.startAt >= validSinceMs) : fallingSamples[i]),
   }));
 }
 
@@ -232,8 +231,10 @@ export function getLevelTransitionStats() {
 // enchidas atípicas (chuva forte, maré) distorceriam demais a estimativa.
 const MIN_SAMPLES_FOR_ESTIMATE = 3;
 
-function lastEventAt(pointKey, state) {
-  const validSince = getHistoryValidSince();
+// `respectCutoff` só faz sentido pra esvaziando (ver getLevelTransitionStats
+// acima) — enchendo não tem corte, usa o último evento real sempre.
+function lastEventAt(pointKey, state, respectCutoff = true) {
+  const validSince = respectCutoff ? getHistoryValidSince() : null;
   const row = validSince
     ? db
         .prepare('SELECT created_at FROM pump_events WHERE point_key = ? AND state = ? AND created_at >= ? ORDER BY id DESC LIMIT 1')
@@ -269,7 +270,7 @@ export function getFillEstimate(points) {
   const dirStats = pumping ? stats.falling : stats.rising;
   if (!dirStats || dirStats.sampleCount < MIN_SAMPLES_FOR_ESTIMATE) return null;
 
-  const anchorMs = pumping ? lastEventAt(boundary.to, false) : lastEventAt(boundary.from, true);
+  const anchorMs = pumping ? lastEventAt(boundary.to, false, true) : lastEventAt(boundary.from, true, false);
   if (anchorMs === null) return null;
 
   const elapsedSeconds = (Date.now() - anchorMs) / 1000;

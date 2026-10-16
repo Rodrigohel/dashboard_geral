@@ -886,7 +886,7 @@ function HistoryCard({ canEditConfig }) {
   // ignorar tudo antes de agora nas médias/estatística (ver
   // pumpStationHistoryService.js).
   async function handleResetHistory() {
-    if (!window.confirm('Isso vai zerar todas as médias e estatísticas de tempo das bombas, usando só o que acontecer a partir de agora. Os dados antigos continuam no sistema, só deixam de contar. Confirma?')) return;
+    if (!window.confirm('Isso vai zerar quantas vezes/quanto tempo cada bomba ligou e o tempo de ESVAZIAMENTO entre boias, usando só o que acontecer a partir de agora. O tempo de ENCHIMENTO continua usando o histórico todo (não depende das bombas). Os dados antigos continuam no sistema, só deixam de contar. Confirma?')) return;
     setResetting(true);
     try {
       await api.pumpStation.resetHistory();
@@ -930,8 +930,9 @@ function HistoryCard({ canEditConfig }) {
 
       {history?.historyValidSince && (
         <div className="surface" style={{ padding: '10px 14px', marginBottom: 16, borderLeft: '3px solid var(--warning-500)', fontSize: 13 }}>
-          Médias e estatísticas abaixo consideram só a partir de {formatDateTime(history.historyValidSince)} — tempo
-          medido antes disso foi descartado (falha física encontrada no local).
+          Bomba ligada/tempo de esvaziamento abaixo consideram só a partir de {formatDateTime(history.historyValidSince)} —
+          falha física encontrada no local contaminou essas medições antes disso. Tempo de enchimento não entra
+          nessa conta (não depende das bombas, usa o histórico todo).
         </div>
       )}
 
