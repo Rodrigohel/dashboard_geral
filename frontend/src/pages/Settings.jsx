@@ -1328,6 +1328,76 @@ function TwilioSettingsCard() {
   );
 }
 
+// Sonda de rede genérica — IP/porta QUALQUER, pedido do Rodrigo: "não sei se
+// pode tirar ele daí, colocar em outro lugar para escanear o IP que eu
+// quiser... só pra mim, o administrador". Nasceu presa ao gerador (porta 23
+// do ComAp AMF-9) e foi movida pra aqui, generalizada — a tela toda de
+// Configurações já é só-dono (ver App.jsx), então não precisa de trava
+// extra nesse componente.
+function NetworkProbeCard() {
+  const [host, setHost] = useState('');
+  const [port, setPort] = useState(23);
+  const [send, setSend] = useState('');
+  const [result, setResult] = useState(null);
+  const [probing, setProbing] = useState(false);
+  const toast = useToast();
+
+  async function handleProbe() {
+    setProbing(true);
+    setResult(null);
+    try {
+      const res = await api.settings.networkProbe({ host, port: Number(port), send });
+      setResult(res);
+    } catch (err) {
+      toast(err.message, 'error');
+    } finally {
+      setProbing(false);
+    }
+  }
+
+  return (
+    <div className="surface" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ fontWeight: 700 }}>Sonda de rede (diagnóstico)</div>
+      <div className="field-hint">
+        Abre uma conexão TCP crua em qualquer IP/porta da sua rede, manda um texto opcional e mostra tudo que voltou
+        (texto e hexadecimal — se vier binário, o texto fica ilegível, mas o hex sempre dá pra ler). Útil pra
+        descobrir o protocolo de um equipamento sem documentação (ex.: porta 23/Telnet de um controlador) antes de
+        implementar leitura de verdade.
+      </div>
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+        <div className="field" style={{ flex: 2, minWidth: 160 }}>
+          <label className="field-label">IP/host</label>
+          <input className="input" value={host} onChange={(e) => setHost(e.target.value)} placeholder="ex.: 192.168.1.253" />
+        </div>
+        <div className="field" style={{ width: 100 }}>
+          <label className="field-label">Porta</label>
+          <input className="input" type="number" value={port} onChange={(e) => setPort(e.target.value)} />
+        </div>
+        <div className="field" style={{ flex: 2, minWidth: 160 }}>
+          <label className="field-label">Texto pra mandar (opcional)</label>
+          <input className="input" value={send} onChange={(e) => setSend(e.target.value)} placeholder="ex.: STATUS, ou deixe em branco" />
+        </div>
+        <button type="button" className="btn btn-secondary" onClick={handleProbe} disabled={probing || !host || !port} style={{ alignSelf: 'end' }}>
+          {probing ? <span className="spinner spinner-dark" /> : 'Sondar'}
+        </button>
+      </div>
+      {result && (
+        <div>
+          <div className="field-hint" style={{ marginBottom: 6 }}>{result.bytes} byte(s) recebido(s).</div>
+          <label className="field-label">Como texto</label>
+          <pre className="surface" style={{ padding: 10, fontSize: 12, overflowX: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+            {result.text || '(nada)'}
+          </pre>
+          <label className="field-label">Em hexadecimal</label>
+          <pre className="surface" style={{ padding: 10, fontSize: 12, overflowX: 'auto', wordBreak: 'break-all' }}>
+            {result.hex || '(nada)'}
+          </pre>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Antes era um empilhado de 9 cards numa rolagem só — confuso de achar
 // onde estava cada coisa. Agrupado em abas por assunto; cada aba só monta
 // (e só busca dados) quando é a ativa, então abrir "Geral" não dispara as
@@ -1414,6 +1484,8 @@ export default function Settings() {
               confirma que a conta de serviço realmente consegue logar no painel.
             </div>
           </div>
+
+          <NetworkProbeCard />
         </>
       )}
     </>

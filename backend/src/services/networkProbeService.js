@@ -1,16 +1,17 @@
-// Sonda de diagnóstico pro gerador (ComAp AMF-9, porta 23/Telnet — diferente
-// da 502/Modbus já usada em generatorClient.js) — ver IDEIAS.md. Antes de
-// implementar leitura de verdade (falhas, estado Pronto/Auto/Manual/Teste,
-// tensões), precisa ver o que o controlador realmente devolve nessa porta:
-// não documentado, pode ser um menu de texto, um protocolo binário próprio
-// da ComAp, ou nada. Só abre a conexão, manda o texto digitado (se algum) e
-// devolve tudo que chegou em `timeoutMs` — tanto como texto quanto em hex,
-// porque se for binário o texto vem ilegível.
+// Sonda de diagnóstico de rede genérica — IP e porta QUALQUER, só pra quem é
+// dono (ver requireOwner na rota). Começou presa ao gerador (ComAp AMF-9,
+// porta 23) mas o Rodrigo pediu pra generalizar: "não sei se pode tirar ele
+// daí, colocar em outro lugar para escanear o IP que eu quiser... só pra
+// mim, o administrador" — útil pra qualquer equipamento com protocolo não
+// documentado (abre a conexão, manda o texto digitado, se algum, e devolve
+// tudo que chegou em `timeoutMs` — texto e hex, porque se for binário o
+// texto vem ilegível).
 import net from 'node:net';
 
-export function probeGeneratorTelnet({ host, port = 23, send = '', timeoutMs = 4000 }) {
+export function probeTcp({ host, port, send = '', timeoutMs = 4000 }) {
   return new Promise((resolve, reject) => {
-    if (!host) return reject(new Error('Host do gerador não configurado (ver Gerador → Configurações).'));
+    if (!host) return reject(new Error('Informe o IP/host.'));
+    if (!port) return reject(new Error('Informe a porta.'));
     const socket = new net.Socket();
     const chunks = [];
     let settled = false;

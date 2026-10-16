@@ -264,7 +264,6 @@ export const api = {
     addCustomPoint: (payload) => request('/api/generator/custom-points', { method: 'POST', body: payload }),
     saveCustomPoint: (id, payload) => request(`/api/generator/custom-points/${id}`, { method: 'PUT', body: payload }),
     deleteCustomPoint: (id) => request(`/api/generator/custom-points/${id}`, { method: 'DELETE' }),
-    telnetProbe: (send) => request('/api/generator/telnet-probe', { method: 'POST', body: { send } }),
   },
 
   settings: {
@@ -293,6 +292,7 @@ export const api = {
     testTwilio: (payload) => request('/api/settings/twilio/test-connection', { method: 'POST', body: payload }),
     getModuleCards: () => request('/api/settings/module-cards'),
     saveModuleCard: (moduleKey, payload) => request(`/api/settings/module-cards/${moduleKey}`, { method: 'PUT', body: payload }),
+    networkProbe: (payload) => request('/api/settings/network-probe', { method: 'POST', body: payload }),
   },
 
   push: {

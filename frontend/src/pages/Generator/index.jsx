@@ -246,9 +246,6 @@ function ConfigCard({ configId }) {
   const [newPointName, setNewPointName] = useState('');
   const [newPointAddr, setNewPointAddr] = useState('');
   const [addingPoint, setAddingPoint] = useState(false);
-  const [telnetSend, setTelnetSend] = useState('');
-  const [telnetResult, setTelnetResult] = useState(null);
-  const [telnetProbing, setTelnetProbing] = useState(false);
   const toast = useToast();
 
   function load() {
@@ -347,19 +344,6 @@ function ConfigCard({ configId }) {
       toast(err.message, 'error');
     } finally {
       setTesting(false);
-    }
-  }
-
-  async function handleTelnetProbe() {
-    setTelnetProbing(true);
-    setTelnetResult(null);
-    try {
-      const result = await api.generator.telnetProbe(telnetSend);
-      setTelnetResult(result);
-    } catch (err) {
-      toast(err.message, 'error');
-    } finally {
-      setTelnetProbing(false);
     }
   }
 
@@ -545,38 +529,6 @@ function ConfigCard({ configId }) {
             {addingPoint ? <span className="spinner spinner-dark" /> : '+ Adicionar ponto'}
           </button>
         </div>
-      </div>
-
-      <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: 16, marginTop: 4 }}>
-        <div style={{ fontWeight: 700, marginBottom: 4 }}>Diagnóstico — porta 23 (Telnet)</div>
-        <div className="field-hint" style={{ marginBottom: 12 }}>
-          Diferente da porta 502 (Modbus) acima. Ainda não sabemos o que o controlador devolve nessa porta — abre a
-          conexão, manda o texto digitado (se algum) e mostra tudo que chegou, puro, pra descobrir antes de
-          implementar leitura de verdade (falhas, estado Pronto/Auto/Manual/Teste, tensões). Sempre usa o IP já
-          configurado acima.
-        </div>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'end', flexWrap: 'wrap' }}>
-          <div className="field" style={{ flex: 1, minWidth: 160 }}>
-            <label className="field-label">Texto pra mandar (opcional)</label>
-            <input className="input" value={telnetSend} onChange={(e) => setTelnetSend(e.target.value)} placeholder="ex.: STATUS, ou deixe em branco" />
-          </div>
-          <button type="button" className="btn btn-secondary" onClick={handleTelnetProbe} disabled={telnetProbing || !canTest}>
-            {telnetProbing ? <span className="spinner spinner-dark" /> : 'Sondar porta 23'}
-          </button>
-        </div>
-        {telnetResult && (
-          <div style={{ marginTop: 12 }}>
-            <div className="field-hint" style={{ marginBottom: 6 }}>{telnetResult.bytes} byte(s) recebido(s).</div>
-            <label className="field-label">Como texto</label>
-            <pre className="surface" style={{ padding: 10, fontSize: 12, overflowX: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
-              {telnetResult.text || '(nada)'}
-            </pre>
-            <label className="field-label">Em hexadecimal (se vier ilegível em texto)</label>
-            <pre className="surface" style={{ padding: 10, fontSize: 12, overflowX: 'auto', wordBreak: 'break-all' }}>
-              {telnetResult.hex || '(nada)'}
-            </pre>
-          </div>
-        )}
       </div>
     </div>
   );
