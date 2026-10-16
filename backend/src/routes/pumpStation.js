@@ -1,6 +1,7 @@
 import { Router } from 'express';
+import bcrypt from 'bcryptjs';
 import { db } from '../db/sqlite.js';
-import { requirePermission } from '../middleware/auth.js';
+import { requirePermission, requireOwner } from '../middleware/auth.js';
 import { readPumpStationStatus, testPumpStationConnection } from '../services/pumpStationClient.js';
 import { getPumpStationHistory, getFillEstimate, getPumpActivationSnapshots, resetPumpHistoryValidity } from '../services/pumpStationHistoryService.js';
 import { logSystemEvent } from '../services/systemEventsService.js';
@@ -208,8 +209,19 @@ pumpStationRouter.get('/activation-snapshots', requirePermission('bombas.editar'
 // no CLP) que contaminou as medições (ver IDEIAS.md/changelog: contatores
 // das bombas 1 e 2 jumpeados, fazendo uma ligar a outra junto o tempo
 // todo). Não apaga pump_events, só marca a partir de quando confiar.
-pumpStationRouter.post('/history-reset', requirePermission('bombas.editar'), (req, res) => {
+// Só o dono (não basta "bombas.editar" — pedido explícito do Rodrigo: "só
+// deve aparecer para o administrador") e exige a senha da própria conta de
+// novo, mesma exigência de PUT /api/auth/me/password — é uma ação que
+// descarta estatística de verdade, não dá pra ser um clique só. Quem fez e
+// quando fica sempre no log (ver mensagem abaixo).
+pumpStationRouter.post('/history-reset', requireOwner, (req, res) => {
+  const { password } = req.body || {};
+  const user = db.prepare('SELECT password_hash FROM users WHERE id = ?').get(req.user.sub);
+  if (!password || !user || !bcrypt.compareSync(password, user.password_hash)) {
+    return res.status(401).json({ error: 'Senha incorreta.' });
+  }
   const cutoff = resetPumpHistoryValidity();
-  logSystemEvent('bombas.history-reset', `Histórico de tempo das bombas zerado — válido a partir de ${cutoff} UTC (falha física encontrada no local).`);
+  const who = req.user.displayName || req.user.username;
+  logSystemEvent('bombas.history-reset', `Histórico de tempo das bombas zerado por "${who}" — válido a partir de ${cutoff} UTC (falha física encontrada no local).`);
   res.json({ ok: true, historyValidSince: cutoff.replace(' ', 'T') + 'Z' });
 });

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import Icon from '../../components/Icon.jsx';
+import Modal from '../../components/Modal.jsx';
 import { api } from '../../api/client.js';
 import { useToast } from '../../hooks/useToast.jsx';
 import { LEVEL_STOPS, fillPercentFor, severityColorVar, bombaDoDiaLabel, waterColorForPercent } from '../../utils/pumpLevel.js';
@@ -861,13 +862,59 @@ const SNAPSHOT_LABEL = {
   ...Object.fromEntries(ALARM_POINTS.map((p) => [p.key, p.label])),
 };
 
-function HistoryCard({ canEditConfig }) {
+// Confirma com a senha da própria conta antes de zerar — mesma exigência de
+// qualquer troca de senha (ver ChangePasswordModal.jsx). É uma ação que
+// descarta estatística de verdade, não dá pra ser clique único.
+function ResetHistoryModal({ onClose, onDone }) {
+  const [password, setPassword] = useState('');
+  const [saving, setSaving] = useState(false);
+  const toast = useToast();
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      await api.pumpStation.resetHistory(password);
+      toast('Histórico de tempo zerado — só conta a partir de agora.');
+      onDone();
+    } catch (err) {
+      toast(err.message, 'error');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal title="Zerar histórico de tempo das bombas" onClose={onClose}>
+      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <p className="field-hint">
+          Isso vai zerar quantas vezes/quanto tempo cada bomba ligou e o tempo de <strong>esvaziamento</strong> entre
+          boias, usando só o que acontecer a partir de agora. O tempo de <strong>enchimento</strong> continua usando
+          o histórico todo (não depende das bombas). Os dados antigos continuam no sistema, só deixam de contar.
+        </p>
+        <div className="field">
+          <label className="field-label">Confirme sua senha</label>
+          <input className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoFocus required />
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+          <button type="button" className="btn btn-ghost" onClick={onClose}>
+            Cancelar
+          </button>
+          <button type="submit" className="btn btn-primary" disabled={saving || !password}>
+            {saving ? <span className="spinner" /> : 'Zerar histórico'}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function HistoryCard({ canEditConfig, isOwner }) {
   const [days, setDays] = useState(30);
   const [history, setHistory] = useState(null);
   const [error, setError] = useState('');
   const [snapshots, setSnapshots] = useState(null);
-  const [resetting, setResetting] = useState(false);
-  const toast = useToast();
+  const [showResetModal, setShowResetModal] = useState(false);
 
   function load() {
     setHistory(null);
@@ -878,26 +925,6 @@ function HistoryCard({ canEditConfig }) {
       .catch((err) => setError(err.message));
   }
   useEffect(load, [days]);
-
-  // Pra quando uma falha FÍSICA no local (ex.: contatores jumpeados, uma
-  // bomba ligando a outra junto) é descoberta e corrigida depois do fato —
-  // todo tempo medido ANTES disso ficou errado, mas não dá pra saber desde
-  // quando sem o Rodrigo confirmar. Não apaga nada do banco, só passa a
-  // ignorar tudo antes de agora nas médias/estatística (ver
-  // pumpStationHistoryService.js).
-  async function handleResetHistory() {
-    if (!window.confirm('Isso vai zerar quantas vezes/quanto tempo cada bomba ligou e o tempo de ESVAZIAMENTO entre boias, usando só o que acontecer a partir de agora. O tempo de ENCHIMENTO continua usando o histórico todo (não depende das bombas). Os dados antigos continuam no sistema, só deixam de contar. Confirma?')) return;
-    setResetting(true);
-    try {
-      await api.pumpStation.resetHistory();
-      toast('Histórico de tempo zerado — só conta a partir de agora.');
-      load();
-    } catch (err) {
-      toast(err.message, 'error');
-    } finally {
-      setResetting(false);
-    }
-  }
 
   // Fotos automáticas tiradas no instante em que uma bomba liga — só pra
   // quem edita config (mesmo público de /config), pra comparar com o
@@ -920,13 +947,23 @@ function HistoryCard({ canEditConfig }) {
               {d} dias
             </button>
           ))}
-          {canEditConfig && (
-            <button className="btn btn-sm btn-secondary" onClick={handleResetHistory} disabled={resetting} title="Usar só quando uma falha física (não do CLP) tiver contaminado as medições de tempo">
-              {resetting ? <span className="spinner" /> : 'Zerar histórico de tempo'}
+          {isOwner && (
+            <button className="btn btn-sm btn-secondary" onClick={() => setShowResetModal(true)} title="Usar só quando uma falha física (não do CLP) tiver contaminado as medições de tempo">
+              Zerar histórico de tempo
             </button>
           )}
         </div>
       </div>
+
+      {showResetModal && (
+        <ResetHistoryModal
+          onClose={() => setShowResetModal(false)}
+          onDone={() => {
+            setShowResetModal(false);
+            load();
+          }}
+        />
+      )}
 
       {history?.historyValidSince && (
         <div className="surface" style={{ padding: '10px 14px', marginBottom: 16, borderLeft: '3px solid var(--warning-500)', fontSize: 13 }}>
@@ -1072,7 +1109,7 @@ export default function PumpStation({ isOwner, can }) {
         onGoToConfig={() => document.getElementById(configId)?.scrollIntoView({ behavior: 'smooth' })}
       />
 
-      <HistoryCard canEditConfig={canEditConfig} />
+      <HistoryCard canEditConfig={canEditConfig} isOwner={isOwner} />
 
       {canEditConfig && <ConfigCard configId={configId} />}
     </>

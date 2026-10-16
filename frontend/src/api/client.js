@@ -251,7 +251,7 @@ export const api = {
     addCustomPoint: (payload) => request('/api/pumpstation/custom-points', { method: 'POST', body: payload }),
     saveCustomPoint: (id, payload) => request(`/api/pumpstation/custom-points/${id}`, { method: 'PUT', body: payload }),
     deleteCustomPoint: (id) => request(`/api/pumpstation/custom-points/${id}`, { method: 'DELETE' }),
-    resetHistory: () => request('/api/pumpstation/history-reset', { method: 'POST' }),
+    resetHistory: (password) => request('/api/pumpstation/history-reset', { method: 'POST', body: { password } }),
   },
 
   generator: {
