@@ -313,8 +313,20 @@ accessDevicesRouter.get('/:id/camera-snapshot', requireDeviceAccess, requireDevi
 // enxerga de uma vez, em vez de abrir porteiro por porteiro — cada
 // equipamento é consultado em paralelo e o que der erro (offline,
 // credencial errada) não derruba os outros, só entra em "errors" separado.
+// Normaliza acento/caixa pra busca — "joao" tem que achar "João", "jose"
+// tem que achar "José". Sem isso, `.includes()` batia certo pra nomes só em
+// ASCII (ex.: "Rodri" em "Rodrigo H") mas falhava silenciosamente pra
+// qualquer nome com acento, que é a maioria dos nomes reais em português.
+function normalizeSearchText(text) {
+  return String(text || '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '');
+}
+
 accessDevicesRouter.get('/search-users', async (req, res) => {
-  const q = String(req.query.q || '').trim().toLowerCase();
+  const q = normalizeSearchText(req.query.q);
   if (!q) return res.json({ results: [], errors: [] });
   // Segplace/Axiom Wifi (portão) não tem cadastro de pessoas — a API deles só
   // abre/vê status (ver segplaceUnsupported em accessControlClient.js).
@@ -329,7 +341,7 @@ accessDevicesRouter.get('/search-users', async (req, res) => {
       try {
         const users = await deviceApi.listUsers(device, decryptSecret(device.device_password_enc));
         for (const user of users) {
-          if ((user.name || '').toLowerCase().includes(q)) {
+          if (normalizeSearchText(user.name).includes(q)) {
             results.push({ device: { id: device.id, name: device.name, location: device.location, isFacial: Boolean(device.is_facial) }, user });
           }
         }

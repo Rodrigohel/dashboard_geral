@@ -98,7 +98,16 @@ authRouter.post('/login', (req, res) => {
   const { modules, deviceIds, openDeviceIds } = permissionsFor(user);
   res.json({
     token,
-    user: { id: user.id, username: user.username, displayName: user.display_name, role: user.role, modules, deviceIds, openDeviceIds },
+    user: {
+      id: user.id,
+      username: user.username,
+      displayName: user.display_name,
+      role: user.role,
+      tvMode: Boolean(user.tv_mode),
+      modules,
+      deviceIds,
+      openDeviceIds,
+    },
   });
 });
 
@@ -107,7 +116,16 @@ authRouter.get('/me', requireAuth, (req, res) => {
   if (!user) return res.status(401).json({ error: 'Usuário não existe mais' });
 
   const { modules, deviceIds, openDeviceIds } = permissionsFor(user);
-  res.json({ id: user.id, username: user.username, displayName: user.display_name, role: user.role, modules, deviceIds, openDeviceIds });
+  res.json({
+    id: user.id,
+    username: user.username,
+    displayName: user.display_name,
+    role: user.role,
+    tvMode: Boolean(user.tv_mode),
+    modules,
+    deviceIds,
+    openDeviceIds,
+  });
 });
 
 // Autoatendimento: qualquer usuário logado troca a PRÓPRIA senha, sem

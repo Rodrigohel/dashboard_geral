@@ -39,10 +39,20 @@ function serializeCustomPoint(row) {
   return { id: row.id, name: row.name, addr: row.addr, type: row.type, invert: Boolean(row.invert) };
 }
 
+// "Prioridade" (ver telegramService.js) só existe pra esses 7 — os 4 níveis
+// não são alarme, não tem o que "insistir". Mesma lista de colunas da
+// migração em sqlite.js.
+const PRIORITY_KEYS = new Set(['termico1', 'termico2', 'modoManual', 'emergencia', 'faltaFase', 'painelDesligado', 'falhaBoias']);
+
 function serializeConfig(row) {
   const points = {};
   for (const [key, column] of POINTS) {
-    points[key] = { addr: row[`${column}_addr`], type: row[`${column}_type`], invert: Boolean(row[`${column}_invert`]) };
+    points[key] = {
+      addr: row[`${column}_addr`],
+      type: row[`${column}_type`],
+      invert: Boolean(row[`${column}_invert`]),
+      priority: PRIORITY_KEYS.has(key) ? Boolean(row[`${column}_priority`]) : false,
+    };
   }
   return {
     enabled: Boolean(row.enabled),
@@ -99,6 +109,14 @@ pumpStationRouter.put('/config', requirePermission('bombas.editar'), (req, res) 
     const invert = incoming && incoming.invert !== undefined ? (incoming.invert ? 1 : 0) : existingInvert;
     assignments.push(`${column}_addr = ?`, `${column}_type = ?`, `${column}_invert = ?`);
     values.push(incoming ? addr : existingAddr, type, invert);
+    // Coluna só existe pros 7 pontos em PRIORITY_KEYS (ver migração em
+    // sqlite.js) — pra qualquer outro, nem monta o UPDATE dessa coluna.
+    if (PRIORITY_KEYS.has(key)) {
+      const existingPriority = row[`${column}_priority`];
+      const priority = incoming && incoming.priority !== undefined ? (incoming.priority ? 1 : 0) : existingPriority;
+      assignments.push(`${column}_priority = ?`);
+      values.push(priority);
+    }
   }
 
   db.prepare(`UPDATE pump_station SET ${assignments.join(', ')} WHERE id = 1`).run(...values);

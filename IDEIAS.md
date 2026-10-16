@@ -22,12 +22,13 @@ quando se quer atacar algum destes.
   modelo espera de verdade (essa implementação nunca foi validada contra hardware real antes
   desta sessão). Precisa testar com uma foto de rosto real (não a de 1 pixel) pra confirmar se
   o erro é de formato ou outra coisa.
-- **Busca de morador não acha por nome parcial/apelido** — ex.: buscar "Rodri" não encontrou
-  um morador cadastrado como "Rodrigo H". Ponto técnico pra quando for investigar: o código
-  atual (`GET /search-users` em `accessDevices.js`) já faz `.includes(q)` (substring, não exige
-  o nome inteiro) — em teoria "rodri" já deveria bater dentro de "rodrigo h". Não reproduzido
-  ainda; primeiro passo da próxima vez é confirmar o termo exato digitado e o nome exato salvo
-  no equipamento (podem não ser bem o que parecem — maiúsculo/acento/espaço a mais etc.).
+- **Busca de morador não acha por nome parcial/apelido** — melhorado: `GET /search-users`
+  agora ignora acento/maiúscula dos dois lados (nome digitado e nome salvo no equipamento) via
+  normalização NFD, então "joao" acha "João", "jose" acha "José" etc. — antes só funcionava
+  por acaso pra nomes 100% sem acento. O caso original relatado ("Rodri" não achando "Rodrigo
+  H") já era puro ASCII e o `.includes()` já deveria ter batido antes dessa mudança também —
+  não foi possível reproduzir contra hardware real; se continuar acontecendo, próximo passo é
+  confirmar o termo exato digitado e o nome exato salvo no equipamento no momento do erro.
 - ~~**Busca de morador consulta equipamentos sem cadastro de pessoas**~~ — corrigido:
   `GET /search-users` agora pula os equipamentos Segplace/Axiom Wifi (checando `device.model`)
   antes de consultar, em vez de tentar e cair em `errors`. Testado criando um equipamento
@@ -54,10 +55,15 @@ de Rede original via gateway, exigiria um poller novo do lado do servidor só pr
 pra depois se fizer falta). Limitação conhecida: no iPhone só funciona se o usuário instalou
 de verdade ("Adicionar à Tela de Início"), Safari não manda push de aba aberta no navegador.
 
-## Modo TV / painel de portaria
-Tela cheia, sem menu, rotacionando sozinha entre status de rede/interfone/porteiros — pensada
-pra ficar num monitor fixo na guarita/portaria. Mais rápido de fazer que o push, mas é mais
-estético que funcional (não abre nenhuma informação nova).
+## ~~Modo TV / painel de portaria~~ — feito
+Implementado como um flag por conta (`tv_mode`), marcado ao criar/editar um usuário em
+Usuários do Portal — "Modo TV / painel de portaria". Conta marcada assim, ao logar, não vê
+Sidebar/TopBar/BottomNav/menu nenhum: só os cards dos módulos liberados pra ela + um painel
+"Alarmes ativos" no topo (bombas: térmico/emergência/falta de fase/painel desligado/falha nas
+boias; rede/interfone/acesso: quantos equipamentos estão offline), sempre em tela cheia.
+Continua usando o sistema de permissões normal (módulos/equipamentos) pra decidir o que
+aparece — o flag só troca a apresentação, não dá acesso a nada que a conta já não tivesse.
+Tem um botão "Sair" no canto pra deslogar, já que não tem menu nenhum pra isso.
 
 ## ~~Detecção de anomalia nos dados já coletados~~ — feito
 Implementado: latência de rede fora do padrão (compara contra média + desvio-padrão das
@@ -121,34 +127,35 @@ começar a implementar. Pedido explícito: **desenhar uma prévia do card primei
 dinâmica já usada pro card de Bombas via Artifact, aprovada antes de implementar de verdade)
 antes de escrever qualquer código.
 
-## Alertas insistentes com prioridade, via Telegram (+ ligação telefônica)
-Sistema de notificação bem mais robusto que o push PWA que já existe (que hoje só avisa
-porteiro offline e força bruta, pros donos, sem repetição nem prioridade). O que o Rodrigo
-pediu, junto (duas rodadas de pedidos, já mescladas aqui):
-- Mandar mensagem via **Telegram** (bot) quando um alarme dispara, não só push do navegador.
-- Poder marcar **equipamentos/sinais como críticos** (ex.: Bombas, Gerador, alguns itens de
-  Rede) vs. não-críticos — provavelmente um checkbox por equipamento/sinal em algum lugar da
-  configuração de cada módulo (sinalização visual de "equipamento crítico" na tela também,
-  não só pra fins de alerta).
-- **Reenviar a mensagem de forma insistente** até alguém resolver, tanto pra itens críticos
-  quanto não-críticos — com **intervalo configurável a cada X tempo** (provavelmente um
-  intervalo diferente pra cada categoria, crítico insiste mais rápido).
-- Poder **responder a mensagem no Telegram** (ex.: "já verifiquei"/"estou verificando") e o
-  Portal **parar de insistir** nesse alarme específico a partir daí.
-- **Além do Telegram, ligação telefônica de verdade** pros equipamentos que o Rodrigo
-  habilitar — via **Twilio ou alternativa mais barata** (ele quer só ligação de voz, não
-  SMS/WhatsApp — cotar o que sai mais em conta só pra isso). Se a pessoa **atender a
-  ligação, desliga automático** (atender já conta como reconhecimento/confirmação de que
-  viu o alerta, não precisa dizer nada nem apertar tecla).
+## Alertas insistentes com prioridade, via Telegram (+ ligação telefônica) — fase 1 feita (só Bombas)
+**Fase 1 implementada**, escopo restrito aos 7 alarmes da casa de bombas (térmico 1/2, modo
+manual, emergência, falta de fase, painel desligado, falha nas boias) — ainda NÃO cobre
+rede/interfone (offline) nem porteiro offline/força bruta (esses continuam só no push PWA já
+existente) nem o módulo Gerador (que ainda não existe). O que foi implementado:
+- Bot do Telegram de verdade: token + chat ID configuráveis em Configurações → "Alertas via
+  Telegram" (token guardado criptografado, igual outras senhas do Portal). Botão "Testar
+  token" (chama `getMe`) e botão "Configurar resposta no chat" (chama `setWebhook` do
+  Telegram apontando pro Portal).
+- Checkbox **"Prioridade"** por sinal de alarme, em Bombas → Configuração (ao lado do
+  "Inverter") — só os 7 alarmes têm essa opção (níveis não são alarme).
+- Mensagem é mandada uma vez quando o alarme dispara (sempre, prioridade ou não); se for
+  prioridade, **reenvia a cada X tempo** (configurável: 5min/15min/30min/1h/2h) até resolver
+  ou ser reconhecido.
+- Qualquer resposta no chat do bot reconhece **todos** os alarmes ativos no momento (não
+  amarra a resposta a um alarme específico — simplificação de propósito, documentada no
+  código) e o Portal manda uma confirmação de volta.
+- Endpoint do webhook (`POST /api/telegram/webhook/<secret>`) é público (o Telegram chama,
+  não um usuário logado) mas protegido por um segredo aleatório na própria URL, não por JWT.
 
-Isso implica: um bot do Telegram de verdade (token, chat ID dos destinatários) com endpoint
-recebendo updates/respostas (webhook ou polling); uma conta Twilio (ou similar) configurada
-com número de origem, pra disparar chamadas de voz (TwiML simples, sem IVR — só toca e espera
-atender); e algum registro de "alarmes ativos reconhecidos vs. não reconhecidos" no banco pra
-saber quando parar de insistir (por Telegram) e quando considerar atendido (por telefone) em
-cada alarme. Escopo bem maior que uma tela só — avaliar com calma antes de começar, e cotar
-preço de Twilio vs. alternativas (ex.: outros provedores de voz/SMS) antes de decidir qual
-usar.
+**Ainda NÃO implementado** (ideia original completa, pra continuar depois):
+- Marcar **equipamentos/sinais de outros módulos** (rede, interfone, porteiro offline) como
+  prioridade — hoje só os 7 alarmes de Bombas têm essa opção.
+- Sinalização visual de "equipamento crítico" na tela (não só pra fins de alerta).
+- Amarrar a resposta no Telegram a um alarme específico (reply_to_message) — hoje qualquer
+  resposta reconhece todos os alarmes ativos de uma vez, de propósito simplificado.
+- **Ligação telefônica de verdade** (Twilio ou alternativa mais barata) pros equipamentos
+  habilitados — desligando automático ao atender (atender já conta como reconhecimento).
+  Precisa cotar preço antes de decidir qual provedor usar.
 
 ## ~~Bombas: permitir adicionar pontos customizados~~ — fase 1 feita
 Fase 1 implementada: em "Bombas → Configuração" agora dá pra adicionar um sinal novo sozinho

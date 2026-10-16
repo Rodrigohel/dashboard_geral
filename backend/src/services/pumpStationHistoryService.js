@@ -102,8 +102,26 @@ export function getLevelTransitionStats() {
     .prepare(`SELECT point_key, state, created_at FROM pump_events WHERE point_key IN (?, ?, ?, ?) ORDER BY created_at ASC, id ASC`)
     .all(...LEVEL_KEYS);
 
-  const lastOnAt = {};
-  const lastOffAt = {};
+  // BUG corrigido aqui (relatado pelo Rodrigo: "máximo → médio" aparecia com
+  // duração enorme e dezenas de ciclos mesmo o nível nunca tendo chegado no
+  // máximo de verdade). Causa: a versão anterior usava `lastOnAt`/`lastOffAt`
+  // como mapas "última vez que ligou/desligou, pra sempre" — uma vez que o
+  // nível máximo ligasse e desligasse UMA VEZ (meses atrás, numa maré
+  // forte), esse timestamp antigo ficava pendurado pra sempre e era reusado
+  // em TODO ciclo futuro do médio desligando, mesmo sem relação nenhuma com
+  // aquele evento antigo — inflando contagem e duração sem sentido.
+  //
+  // Corrigido com uma "pendência" por fronteira que só existe enquanto o
+  // ciclo está de fato em andamento, e é consumida (ou invalidada) uma vez:
+  // - pendingAscent[i]: timestamp em que a boia de BAIXO da fronteira i
+  //   ligou — fica válido até a boia de CIMA ligar também (fecha o ciclo,
+  //   gera a amostra) ou até a boia de baixo desligar de novo antes disso
+  //   (invalida — não é mais a mesma enchente).
+  // - pendingDescent[i]: timestamp em que a boia de CIMA da fronteira i
+  //   desligou — fica válido até a boia de BAIXO desligar também (fecha o
+  //   ciclo) ou até a boia de cima ligar de novo antes disso (invalida).
+  const pendingAscent = BOUNDARIES.map(() => null);
+  const pendingDescent = BOUNDARIES.map(() => null);
   const risingSamples = BOUNDARIES.map(() => []);
   const fallingSamples = BOUNDARIES.map(() => []);
 
@@ -111,19 +129,35 @@ export function getLevelTransitionStats() {
     const atMs = new Date(row.created_at.replace(' ', 'T') + 'Z').getTime();
     const idx = LEVEL_KEYS.indexOf(row.point_key);
     if (row.state === 1) {
-      // Subindo: essa boia ligou — se a de baixo já estava ligada, essa é a
-      // duração de cruzar a fronteira entre as duas.
-      if (idx > 0 && lastOnAt[LEVEL_KEYS[idx - 1]] !== undefined) {
-        risingSamples[idx - 1].push(atMs - lastOnAt[LEVEL_KEYS[idx - 1]]);
+      // Essa boia ligou: fecha a subida da fronteira de baixo dela (idx-1),
+      // se tinha uma pendente — e invalida qualquer descida pendente dessa
+      // mesma fronteira (essa boia religou antes da de baixo completar o
+      // esvaziamento, não é mais o mesmo ciclo).
+      if (idx > 0) {
+        if (pendingAscent[idx - 1] !== null) {
+          risingSamples[idx - 1].push(atMs - pendingAscent[idx - 1]);
+          pendingAscent[idx - 1] = null;
+        }
+        pendingDescent[idx - 1] = null;
       }
-      lastOnAt[row.point_key] = atMs;
+      // E abre a pendência de subida da fronteira de cima dela (idx),
+      // esperando a próxima boia ligar.
+      if (idx < BOUNDARIES.length) pendingAscent[idx] = atMs;
     } else {
-      // Descendo: essa boia desligou — se a de cima já tinha desligado
-      // antes, essa é a duração de cruzar a mesma fronteira esvaziando.
-      if (idx < LEVEL_KEYS.length - 1 && lastOffAt[LEVEL_KEYS[idx + 1]] !== undefined) {
-        fallingSamples[idx].push(atMs - lastOffAt[LEVEL_KEYS[idx + 1]]);
+      // Essa boia desligou: fecha a descida da fronteira de cima dela
+      // (idx), se tinha uma pendente — e invalida qualquer subida pendente
+      // dessa mesma fronteira (essa boia desligou antes da de cima
+      // completar o enchimento).
+      if (idx < BOUNDARIES.length) {
+        if (pendingDescent[idx] !== null) {
+          fallingSamples[idx].push(atMs - pendingDescent[idx]);
+          pendingDescent[idx] = null;
+        }
+        pendingAscent[idx] = null;
       }
-      lastOffAt[row.point_key] = atMs;
+      // E abre a pendência de descida da fronteira de baixo dela (idx-1),
+      // esperando a próxima boia (de baixo) desligar também.
+      if (idx > 0) pendingDescent[idx - 1] = atMs;
     }
   }
 

@@ -26,6 +26,7 @@ function serializeUser(user) {
     username: user.username,
     displayName: user.display_name,
     role: user.role,
+    tvMode: Boolean(user.tv_mode),
     modules,
     deviceIds,
     openDeviceIds,
@@ -109,7 +110,7 @@ usersRouter.get('/', requirePermission('usuarios.ver'), (req, res) => {
 });
 
 usersRouter.post('/', requirePermission('usuarios.incluir'), (req, res) => {
-  const { username, displayName, password, role, modules, deviceIds, openDeviceIds } = req.body || {};
+  const { username, displayName, password, role, tvMode, modules, deviceIds, openDeviceIds } = req.body || {};
   if (!username || !password || !displayName) {
     return res.status(400).json({ error: 'Usuário, nome e senha são obrigatórios' });
   }
@@ -121,8 +122,8 @@ usersRouter.post('/', requirePermission('usuarios.incluir'), (req, res) => {
   const passwordHash = bcrypt.hashSync(password, 10);
   try {
     const info = db
-      .prepare('INSERT INTO users (username, display_name, password_hash, role) VALUES (?, ?, ?, ?)')
-      .run(username, displayName, passwordHash, role || 'user');
+      .prepare('INSERT INTO users (username, display_name, password_hash, role, tv_mode) VALUES (?, ?, ?, ?, ?)')
+      .run(username, displayName, passwordHash, role || 'user', tvMode ? 1 : 0);
     setPermissions(info.lastInsertRowid, modules, deviceIds);
     if (openDeviceIds !== undefined) setOpenPermissions(info.lastInsertRowid, openDeviceIds);
     const created = db.prepare('SELECT * FROM users WHERE id = ?').get(info.lastInsertRowid);
@@ -140,7 +141,7 @@ usersRouter.put('/:id', requirePermission('usuarios.editar'), (req, res) => {
   if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
   if (!assertNotTargetingOwner(req, res, user)) return;
 
-  const { displayName, password, role, modules, deviceIds, openDeviceIds } = req.body || {};
+  const { displayName, password, role, tvMode, modules, deviceIds, openDeviceIds } = req.body || {};
   if (!assertNoEscalation(req, res, { role: role ?? user.role, modules, existingModules: getUserPermissionKeys(user.id) })) return;
 
   if (role && role !== user.role) {
@@ -151,9 +152,10 @@ usersRouter.put('/:id', requirePermission('usuarios.editar'), (req, res) => {
     }
   }
 
-  db.prepare('UPDATE users SET display_name = ?, role = ? WHERE id = ?').run(
+  db.prepare('UPDATE users SET display_name = ?, role = ?, tv_mode = ? WHERE id = ?').run(
     displayName ?? user.display_name,
     role ?? user.role,
+    tvMode === undefined ? user.tv_mode : (tvMode ? 1 : 0),
     user.id
   );
 

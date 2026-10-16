@@ -60,6 +60,7 @@ export default function UserFormModal({ user, currentUserId, isOwner, can, onClo
     displayName: user?.displayName || '',
     password: '',
     role: user?.role || 'user',
+    tvMode: user?.tvMode || false,
     modules: user?.modules || [],
     deviceIds: user?.deviceIds || [],
     openDeviceIds: user?.openDeviceIds || [],
@@ -168,6 +169,15 @@ export default function UserFormModal({ user, currentUserId, isOwner, can, onClo
 
         {form.role === 'user' && (
           <>
+            <label className="checkbox-row">
+              <input type="checkbox" checked={form.tvMode} onChange={(e) => set('tvMode', e.target.checked)} />
+              Modo TV / painel de portaria
+            </label>
+            <span className="field-hint" style={{ marginTop: -6 }}>
+              Pensado pra ficar logado num monitor fixo — essa conta só vê os cards dos módulos liberados abaixo +
+              alarmes ativos, sem menu nem acesso a nenhuma outra tela.
+            </span>
+
             <div className="field">
               <label className="field-label">Módulos liberados</label>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>

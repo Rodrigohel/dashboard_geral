@@ -591,6 +591,140 @@ function PushSettingsCard() {
   );
 }
 
+// Alertas via Telegram (ver IDEIAS.md) — bot que manda mensagem quando um
+// alarme da casa de bombas dispara, insistindo (reenviando) nos marcados
+// como "prioridade" (ver checkbox em Bombas → Configuração) até alguém
+// responder qualquer coisa no chat.
+function TelegramSettingsCard() {
+  const [enabled, setEnabled] = useState(false);
+  const [hasToken, setHasToken] = useState(false);
+  const [botToken, setBotToken] = useState('');
+  const [chatId, setChatId] = useState('');
+  const [resendIntervalSeconds, setResendIntervalSeconds] = useState(1800);
+  const [loaded, setLoaded] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [registeringWebhook, setRegisteringWebhook] = useState(false);
+  const toast = useToast();
+
+  function load() {
+    api.settings.getTelegram().then((s) => {
+      setEnabled(s.enabled);
+      setHasToken(s.hasToken);
+      setChatId(s.chatId);
+      setResendIntervalSeconds(s.resendIntervalSeconds);
+      setLoaded(true);
+    });
+  }
+  useEffect(load, []);
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      await api.settings.saveTelegram({ enabled, botToken: botToken || undefined, chatId, resendIntervalSeconds: Number(resendIntervalSeconds) });
+      setBotToken('');
+      toast('Configuração do Telegram salva.');
+      load();
+    } catch (err) {
+      toast(err.message, 'error');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleTest() {
+    setTesting(true);
+    try {
+      const res = await api.settings.testTelegram({ botToken: botToken || undefined });
+      toast(`Token válido — bot @${res.username}.`);
+    } catch (err) {
+      toast(err.message, 'error');
+    } finally {
+      setTesting(false);
+    }
+  }
+
+  async function handleRegisterWebhook() {
+    setRegisteringWebhook(true);
+    try {
+      await api.settings.registerTelegramWebhook(window.location.origin);
+      toast('Webhook configurado no Telegram.');
+    } catch (err) {
+      toast(err.message, 'error');
+    } finally {
+      setRegisteringWebhook(false);
+    }
+  }
+
+  if (!loaded) return <div className="skeleton" style={{ height: 200, borderRadius: 20 }} />;
+
+  return (
+    <div className="surface" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div>
+        <div style={{ fontWeight: 700 }}>Alertas via Telegram</div>
+        <div className="field-hint">
+          Manda mensagem num chat do Telegram quando um alarme da casa de bombas dispara. Pra criar o bot: fale com
+          @BotFather no Telegram, "/newbot", e copie o token que ele te der. Pra achar o chat ID: mande qualquer
+          mensagem pro bot e acesse{' '}
+          <code>https://api.telegram.org/bot&lt;SEU_TOKEN&gt;/getUpdates</code> no navegador — o número em
+          "chat":"id" é o chat ID.
+        </div>
+      </div>
+
+      <label className="checkbox-row">
+        <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
+        Ativar alertas via Telegram
+      </label>
+
+      <div className="grid-2">
+        <div className="field">
+          <label className="field-label">Token do bot</label>
+          <input
+            className="input"
+            type="password"
+            value={botToken}
+            onChange={(e) => setBotToken(e.target.value)}
+            placeholder={hasToken ? 'já salvo — deixe em branco pra manter' : '123456:ABC-...'}
+          />
+        </div>
+        <div className="field">
+          <label className="field-label">Chat ID</label>
+          <input className="input" value={chatId} onChange={(e) => setChatId(e.target.value)} placeholder="ex.: 123456789" />
+        </div>
+      </div>
+
+      <div className="field">
+        <label className="field-label">Insistir (alarmes de prioridade) a cada</label>
+        <select className="select" style={{ maxWidth: 220 }} value={resendIntervalSeconds} onChange={(e) => setResendIntervalSeconds(e.target.value)}>
+          <option value={300}>5 minutos</option>
+          <option value={900}>15 minutos</option>
+          <option value={1800}>30 minutos</option>
+          <option value={3600}>1 hora</option>
+          <option value={7200}>2 horas</option>
+        </select>
+        <span className="field-hint">Só os sinais marcados como "prioridade" em Bombas → Configuração insistem — os demais mandam uma vez só.</span>
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
+          {saving ? <span className="spinner" /> : 'Salvar'}
+        </button>
+        <button className="btn btn-secondary" onClick={handleTest} disabled={testing || (!botToken && !hasToken)}>
+          {testing ? <span className="spinner spinner-dark" /> : 'Testar token'}
+        </button>
+        <button className="btn btn-secondary" onClick={handleRegisterWebhook} disabled={registeringWebhook || !hasToken}>
+          {registeringWebhook ? <span className="spinner spinner-dark" /> : 'Configurar resposta no chat'}
+        </button>
+      </div>
+      <span className="field-hint">
+        "Configurar resposta no chat" registra no Telegram que respostas no chat (ex.: "já verifiquei") avisam o
+        Portal pra parar de insistir — só funciona depois de salvar um token e o Portal estar acessível por HTTPS
+        público (ex.: pelo túnel Cloudflare já configurado).
+      </span>
+    </div>
+  );
+}
+
 export default function Settings() {
   const [gateways, setGateways] = useState(null);
 
@@ -622,6 +756,8 @@ export default function Settings() {
       <RetentionCard />
 
       <PushSettingsCard />
+
+      <TelegramSettingsCard />
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         {gateways === null ? (

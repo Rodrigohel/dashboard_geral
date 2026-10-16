@@ -132,6 +132,11 @@ export default function UsersAdmin({ currentUserId, isOwner, can }) {
                     ) : (
                       <span className="badge badge-neutral">Usuário</span>
                     )}
+                    {u.tvMode && (
+                      <span className="badge badge-neutral" style={{ marginLeft: 6 }} title="Só vê cards + alarmes, sem menu">
+                        TV
+                      </span>
+                    )}
                   </td>
                   <td className="hide-mobile">
                     {(u.role === 'owner' ? ALL_PERMISSIONS : u.modules).length === 0 ? (
