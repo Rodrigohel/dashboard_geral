@@ -1075,17 +1075,18 @@ function PrioritiesCard() {
       <div>
         <div style={{ fontWeight: 600, marginBottom: 8 }}>Rede</div>
         {!redeDevices.supported ? (
-          <span className="field-hint">Painel de Rede ainda não suporta marcar favorito por equipamento.</span>
+          <span className="field-hint">Painel de Rede ainda não suporta marcar equipamento crítico.</span>
         ) : redeDevices.devices.length === 0 ? (
           <span className="field-hint">
             {redeDevices.totalDevices === 0
               ? 'Não consegui ler nenhum equipamento do painel de Rede agora (confira a conexão em Configurações → Integrações).'
-              : `Nenhum dos ${redeDevices.totalDevices} equipamento(s) está favoritado. Marque favorito lá no painel de Rede (ícone de estrela) — só esses aparecem aqui.`}
+              : `Nenhum dos ${redeDevices.totalDevices} equipamento(s) está marcado como crítico lá no painel de Rede — só esses aparecem aqui.`}
           </span>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             <span className="field-hint" style={{ marginBottom: 2 }}>
-              Só aparecem aqui os favoritados no painel de Rede — marque quais desses também insistem via Telegram.
+              Só aparecem aqui os marcados como crítico no painel de Rede — marque quais desses também insistem via
+              Telegram.
             </span>
             {redeDevices.devices.map((d) => (
               <label key={d.id} className="checkbox-row">
@@ -1110,8 +1111,8 @@ function PrioritiesCard() {
       <div>
         <div style={{ fontWeight: 600, marginBottom: 8 }}>Interfone / Segurança</div>
         <div className="field-hint" style={{ marginBottom: 4 }}>
-          Interfone ainda não tem favorito por equipamento (como Rede já tem) — por enquanto é só um alarme pro
-          módulo inteiro ("N ramal(is) offline"), até esse campo existir lá também.
+          Interfone não terá prioridade por equipamento — fica só o alarme pro módulo inteiro ("N ramal(is)
+          offline"), por decisão do Rodrigo.
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           <label className="checkbox-row">

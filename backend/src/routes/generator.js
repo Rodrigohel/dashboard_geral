@@ -3,6 +3,7 @@ import { db } from '../db/sqlite.js';
 import { requirePermission } from '../middleware/auth.js';
 import { readGeneratorStatus, testGeneratorConnection } from '../services/generatorClient.js';
 import { encryptSecret } from '../services/cryptoService.js';
+import { getGeneratorHistory, getGeneratorActivationSnapshots } from '../services/generatorHistoryService.js';
 
 export const generatorRouter = Router();
 
@@ -16,6 +17,14 @@ const VALID_TYPES = new Set(['coil', 'discrete', 'holding', 'input']);
 
 function getRow() {
   return db.prepare('SELECT * FROM generator_station WHERE id = 1').get();
+}
+
+function getCustomPointRows() {
+  return db.prepare('SELECT id, name, addr, type, invert FROM generator_custom_points ORDER BY id ASC').all();
+}
+
+function serializeCustomPoint(row) {
+  return { id: row.id, name: row.name, addr: row.addr, type: row.type, invert: Boolean(row.invert) };
 }
 
 function serializeConfig(row) {
@@ -44,6 +53,7 @@ function serializeConfig(row) {
     // Senha nunca volta decifrada, só se já tem uma salva.
     username: row.username || '',
     hasPassword: Boolean(row.password_enc),
+    customPoints: getCustomPointRows().map(serializeCustomPoint),
   };
 }
 
@@ -102,6 +112,45 @@ generatorRouter.put('/config', requirePermission('gerador.editar'), (req, res) =
   res.json(serializeConfig(getRow()));
 });
 
+// Mesma fase 1 de "pontos customizados" das Bombas (ver IDEIAS.md): sinal
+// extra que o Rodrigo cadastra sozinho, sem precisar de deploy.
+generatorRouter.post('/custom-points', requirePermission('gerador.editar'), (req, res) => {
+  const { name, addr, type, invert } = req.body || {};
+  if (!name || !String(name).trim()) return res.status(400).json({ error: 'Informe um nome pro ponto.' });
+  const validType = VALID_TYPES.has(type) ? type : 'coil';
+  const addrValue = addr === '' || addr === null || addr === undefined ? null : Number(addr);
+  const { lastInsertRowid } = db
+    .prepare('INSERT INTO generator_custom_points (name, addr, type, invert) VALUES (?, ?, ?, ?)')
+    .run(String(name).trim(), addrValue, validType, invert ? 1 : 0);
+  res.status(201).json(serializeCustomPoint(db.prepare('SELECT id, name, addr, type, invert FROM generator_custom_points WHERE id = ?').get(lastInsertRowid)));
+});
+
+generatorRouter.put('/custom-points/:id', requirePermission('gerador.editar'), (req, res) => {
+  const existing = db.prepare('SELECT id, name, addr, type, invert FROM generator_custom_points WHERE id = ?').get(req.params.id);
+  if (!existing) return res.status(404).json({ error: 'Ponto customizado não encontrado.' });
+  const body = req.body || {};
+  const newName = body.name && String(body.name).trim() ? String(body.name).trim() : existing.name;
+  const newType = VALID_TYPES.has(body.type) ? body.type : existing.type;
+  const addrValue = 'addr' in body ? (body.addr === '' || body.addr === null || body.addr === undefined ? null : Number(body.addr)) : existing.addr;
+  const newInvert = body.invert === undefined ? existing.invert : (body.invert ? 1 : 0);
+  db.prepare('UPDATE generator_custom_points SET name = ?, addr = ?, type = ?, invert = ? WHERE id = ?').run(newName, addrValue, newType, newInvert, existing.id);
+  res.json(serializeCustomPoint(db.prepare('SELECT id, name, addr, type, invert FROM generator_custom_points WHERE id = ?').get(existing.id)));
+});
+
+generatorRouter.delete('/custom-points/:id', requirePermission('gerador.editar'), (req, res) => {
+  db.prepare('DELETE FROM generator_custom_points WHERE id = ?').run(req.params.id);
+  res.json({ ok: true });
+});
+
+generatorRouter.get('/history', (req, res) => {
+  const days = Math.min(365, Math.max(1, Number(req.query.days) || 30));
+  res.json(getGeneratorHistory({ days }));
+});
+
+generatorRouter.get('/activation-snapshots', requirePermission('gerador.editar'), (req, res) => {
+  res.json(getGeneratorActivationSnapshots());
+});
+
 generatorRouter.post('/test-connection', requirePermission('gerador.editar'), async (req, res) => {
   const { host, port, unitId } = req.body || {};
   if (!host) return res.status(400).json({ error: 'Informe o IP do controlador' });
@@ -121,7 +170,8 @@ generatorRouter.get('/status', async (req, res) => {
   }
   try {
     const points = await readGeneratorStatus(config);
-    res.json({ name: config.name, pollSeconds: config.pollSeconds, points });
+    const customPoints = config.customPoints.map((p) => ({ id: p.id, name: p.name, value: points[`custom_${p.id}`] }));
+    res.json({ name: config.name, pollSeconds: config.pollSeconds, points, customPoints });
   } catch (err) {
     res.status(502).json({ error: err.message });
   }

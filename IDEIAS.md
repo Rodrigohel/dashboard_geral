@@ -124,7 +124,7 @@ reconhecimento facial (não só abrir porta), dava pra mostrar um feed tipo "Ful
 portaria às 14:32" ao vivo no Portal. Precisa descobrir primeiro se o equipamento realmente
 expõe esse evento via API — não é garantido.
 
-## ~~Módulo "Gerador" (grupo gerador de energia)~~ — fase 1 feita (sem endereços ainda)
+## ~~Módulo "Gerador" (grupo gerador de energia)~~ — feito
 Novo módulo nativo, mesmo padrão do módulo Bombas: card na Início (cor âmbar, ícone de raio),
 tela própria ("Gerador" no menu/busca rápida), permissão própria (`gerador` +
 `gerador.editar`). Prévia aprovada pelo Rodrigo em
@@ -132,26 +132,18 @@ https://claude.ai/artifact/XDbgrhL62ACCH5isBdjLPA antes de implementar — folha
 confirmou o controlador (ComAp AMF-9, Perkins 1103A-33TG2, grupo CE60 47kW/60kVA), IP
 192.168.1.253.
 
-Implementado: leitura via Modbus TCP direto no controlador (sem login — Modbus não tem
-usuário/senha, só a tela própria do controlador teria, que o Portal nem usa — correção de uma
-suposição errada que eu tinha colocado na prévia). Três pontos monitorados: **pronto**
-(standby), **falha** (ativa) e **em operação** (gerando energia), cada um com
-endereço/tipo/inverter configurável em "Gerador → Configuração", igual Bombas — endereço fica
-em branco até confirmar o certo, nunca inventado. Card na Início mostra badge de status
-(pronto/gerando energia/falha/não pronto); Modo TV mostra "Gerador — falha ativa" no painel de
-alarmes quando acontece.
+Implementado, **igual a Bombas em tudo**: leitura via Modbus TCP direto no controlador (sem
+login); três pontos monitorados (**pronto**, **falha**, **em operação**) com
+endereço/tipo/inverter configurável; usuário/senha prontos (mesmo sem o Modbus exigir);
+histórico de transições (Gerador → tela própria, últimos 30 dias); foto de todos os pontos no
+instante em que entra em operação (igual a foto de ativação de bomba); pontos customizados
+(sinal extra que o Rodrigo cadastra sozinho, sem deploy). Card na Início mostra badge de
+status; Modo TV mostra "Gerador — falha ativa" no painel de alarmes.
 
-**Ainda falta pra funcionar de verdade**: os ENDEREÇOS Modbus reais dos 3 pontos no ComAp
-AMF-9 — ninguém sabe ainda, precisa descobrir na documentação do controlador ou testando
-contra o equipamento real (mesmo processo usado pra achar os endereços certos de Bombas).
-Também falta confirmar se o módulo de rede/Ethernet (IB-Lite, aparece sem marcar ✓ na folha de
-dados) está de fato instalado no painel — sem ele, não tem Modbus TCP nenhum pra ler.
-**Não implementado ainda** (não pedido, fica pra depois se fizer falta): histórico de
-ativações/falhas, fotos automáticas, pontos customizados — isso existe em Bombas e pode ser
-replicado quando fizer sentido pro Gerador também. **Usuário/senha** (campos pedidos pelo
-Rodrigo) foram adicionados em "Gerador → Configuração" mesmo o Modbus TCP não exigindo login —
-ficam em branco, prontos pra preencher se descobrir que o controlador precisa disso por algum
-outro caminho (ex.: tela web própria do ComAp).
+**Os ENDEREÇOS Modbus reais dos 3 pontos no ComAp AMF-9 não são pendência do Portal** — é o
+Rodrigo quem vai descobrir (documentação do controlador ou testando contra o equipamento real,
+mesmo processo usado nas Bombas) e preencher sozinho em "Gerador → Configuração"; o código já
+está pronto pra ler assim que os endereços certos forem preenchidos.
 
 ## ~~Alertas insistentes com prioridade, via Telegram (+ ligação telefônica)~~ — feito pra todos os módulos
 Generalizado pra cobrir rede, interfone, acesso (porteiro offline + força bruta) e gerador
@@ -177,31 +169,22 @@ Generalizado pra cobrir rede, interfone, acesso (porteiro offline + força bruta
   ou ser reconhecido. Rede/Interfone usam a mesma contagem de offline já mostrada na Início;
   Acesso é um alarme por equipamento (sobrevive a renomear o porteiro); força bruta manda uma
   mensagem avulsa (é um evento, não um sinal contínuo — não insiste).
-- Cada mensagem de alarme (exceto força bruta) já vem com **dois botões** ("✅ Visto" e "🔧 Em
-  manutenção") — tocar um deles reconhece SÓ aquele alarme específico (via `callback_data`),
-  parando de insistir nesse sem mexer nos outros alarmes ativos. Digitar qualquer mensagem
-  solta no chat (sem tocar botão) continua reconhecendo todos os alarmes ativos de uma vez,
-  como fallback. A confirmação de "reconhecido" mostra o nome bonito do alarme (ex.: "Gerador:
-  falha ativa", "Acesso: porteiro 'Garagem' offline") pra QUALQUER módulo — o nome é guardado
-  junto com o estado no momento em que o alarme dispara, não reconstruído só pros 7 de Bombas
-  como na primeira versão.
+- Cada mensagem de alarme (exceto força bruta) vem com os três botões (ver "Resolvido"/
+  "Em manutenção"/"Já estou indo" mais abaixo), via `callback_data`. Digitar qualquer mensagem
+  solta no chat (sem tocar botão) reconhece todos os alarmes ativos de uma vez, como fallback.
+  A confirmação mostra o nome bonito do alarme (ex.: "Gerador: falha ativa", "Acesso: porteiro
+  'Garagem' offline') pra QUALQUER módulo — o nome é guardado junto com o estado no momento em
+  que o alarme dispara, não reconstruído só pros 7 de Bombas como na primeira versão.
 - Endpoint do webhook (`POST /api/telegram/webhook/<secret>`) é público (o Telegram chama,
   não um usuário logado) mas protegido por um segredo aleatório na própria URL, não por JWT.
-- **Ligação telefônica (Twilio)**: infraestrutura completa pronta em Configurações → "Ligação
-  telefônica (Twilio)" — Account SID, Auth Token, número de origem, números de destino,
-  "ligar depois de X sem reconhecer" (escalonamento, só pros alarmes de prioridade) e URL
-  pública do Portal. Liga pros números cadastrados automaticamente quando um alarme de
-  prioridade passa do tempo configurado sem ninguém reconhecer no Telegram — uma vez só por
-  episódio do alarme. **Atender a ligação já conta como reconhecimento** (preenchendo a URL
-  pública): o Twilio avisa o Portal via `POST /api/twilio/status/<secret>` quando a chamada é
-  atendida, e isso reconhece o alarme igual tocar "Visto" no Telegram, sem precisar fazer mais
-  nada por voz — mesmo esquema de segredo na URL do webhook do Telegram. **Mas não dá pra
-  testar nem funcionar de verdade sem uma conta Twilio real**: ninguém criou a conta ainda, e eu
-  não posso inventar Account SID/Auth Token/número — são credenciais de um serviço pago de
-  terceiro, diferente do Modbus (que não precisa de nada). Falta: criar a conta em twilio.com
-  (ou escolher outro provedor — cotar preço antes), comprar um número, e preencher os campos; o
-  botão "Testar conta" confere as credenciais sem custo (sem ligar), antes de confiar que vai
-  funcionar de verdade.
+- **Ligação telefônica (Twilio)** — **código 100% pronto, do lado do Portal não falta nada**:
+  Account SID, Auth Token, número de origem, números de destino, "ligar depois de X sem
+  reconhecer" e URL pública, tudo em Configurações → "Ligação telefônica (Twilio)". Liga pros
+  números automaticamente quando um alarme de prioridade passa do tempo configurado sem
+  reconhecer, uma vez só por episódio; atender a ligação já reconhece o alarme, igual "Visto"
+  no Telegram. **O que falta é só o Rodrigo preencher**: criar a conta em twilio.com (ou outro
+  provedor), comprar um número, colar as credenciais — isso é dele, não é mais pendência do
+  Portal.
 - Lista de equipamentos (Acesso → Equipamentos) mostra um badge "prioridade" no card de quem
   está marcado, pra não precisar abrir o formulário de editar pra saber quem tem a opção
   ligada.
@@ -210,18 +193,18 @@ Generalizado pra cobrir rede, interfone, acesso (porteiro offline + força bruta
   cada um com sua própria duração configurável (Configurações → Alertas: manutenção até 24h,
   "já estou indo" até 1h) — se não resolver até lá, a insistência volta sozinha, sem precisar
   de ação extra pra "destravar".
-- **Rede por equipamento, não o módulo inteiro**: lendo o código do painel de Rede
-  (Debian_dashboard), achei que ele já tem um campo "favorito" por equipamento (usado hoje só
-  como estrela na listagem de lá) — a tela de Prioridades do Portal lista só os equipamentos JÁ
-  favoritados no painel de Rede, e deixa marcar quais desses também insistem via Telegram aqui.
-  Resolve o medo do Rodrigo de "500 avisos" se vários equipamentos caírem junto: só os que ele
-  escolheu (favoritar lá + marcar prioridade aqui) geram alarme. O alarme agregado antigo
-  ("Rede — N offline") foi removido. **Interfone continua agregado** — esse painel
-  (FreePBX_Asterisk) ainda não tem campo de favorito; o Rodrigo disse que vai adicionar, e aí o
-  Portal pode ser estendido do mesmo jeito (`externalDeviceService.js` já está pronto pra isso).
-  A tela agora também mostra quantos equipamentos o painel devolveu e quantos estão favoritados
-  (diagnóstico, pra não ficar adivinhando se a lista vazia é "gateway não respondeu" ou
-  "nenhum favoritado").
+- **Rede por equipamento, não o módulo inteiro**: o campo certo é **`critical`** ("equipamento
+  crítico"), NÃO o `favorite` (estrela) — descoberto um engano meu numa leitura anterior do
+  código do painel de Rede (Debian_dashboard), que tinha ficado numa branch/commit antigo; a
+  branch de verdade já tinha o campo `critical` (com Twilio e Telegram próprios lá, inclusive).
+  Corrigido: a tela de Prioridades do Portal lista os equipamentos já marcados como **crítico**
+  no painel de Rede, e deixa marcar quais desses também insistem via Telegram aqui. Resolve o
+  medo do Rodrigo de "500 avisos" se vários caírem junto: só os que ele marcou crítico lá +
+  prioridade aqui geram alarme. Mostra também quantos equipamentos o painel devolveu e quantos
+  estão marcados como crítico (diagnóstico, pra não ficar adivinhando se a lista vazia é
+  "gateway não respondeu" ou "nenhum marcado"). **Interfone não vai ganhar isso** — decisão do
+  Rodrigo: a prioridade dele é dada direto no painel de Rede, Interfone fica só com o alarme
+  agregado ("N ramal(is) offline") de vez.
 
 ## ~~Logs/auditoria de tudo~~ — feito
 Pedido do Rodrigo: "relatório de tudo" (bomba ligou/desligou, gerador em falha, alarme
@@ -267,20 +250,19 @@ pensado:
   rápida tipo "sem preferência"), exatamente quais pontos ele quer poder forçar — ação que
   aciona equipamento físico de verdade merece decisão explícita, não suposição.
 
-## Abrir portão/porteiro por voz (OK Google / Hey Siri)
+## ~~Abrir portão/porteiro por voz (OK Google / Hey Siri)~~ — feito
 Pedido do Rodrigo: abrir qualquer porta/portão que ele escolher só falando "OK Google" ou "Hey
-Siri", sem abrir o Portal. Caminho mais realista pros dois lados é um webhook próprio (token
-fixo na URL, um por equipamento+usuário — mesmo esquema já usado no webhook do Telegram/Twilio,
-não JWT, porque o assistente de voz não loga) que chama a abertura real (mesma rota que o botão
-"Abrir" já usa) e grava em Auditoria → Sistema quem abriu por voz:
-- **Siri**: direto no app Atalhos (Shortcuts) do iPhone, sem precisar de nada novo do lado do
-  Portal além do webhook — cria um atalho "Buscar conteúdo da URL" apontando pro token daquele
-  equipamento, dá um nome, e "Hey Siri, abrir portão" já funciona. Mais simples dos dois.
-- **Google**: integração "smart home" oficial (Actions on Google) é pesada pra esse caso (OAuth,
-  catálogo de dispositivo, revisão do Google). Caminho mais direto é IFTTT: applet "Google
-  Assistant" (frase de disparo) → "Webhooks" (chama a URL do Portal) — sem precisar publicar
-  nada, só configurar no app do IFTTT.
-- Cada token só abre UM equipamento especifico pra UM usuário (reaproveita a permissão
-  `device_open_permissions` que já existe) — nunca um token genérico "abre qualquer coisa".
-Não começado ainda — fica pra quando o Rodrigo quiser escolher por onde começar (Siri é o mais
-rápido de entregar).
+Siri", sem abrir o Portal. Implementado como webhook próprio — token por equipamento+usuário
+(não JWT, porque o assistente de voz não loga), gerenciável direto na tela de Acesso
+(botão 🎙️ ao lado de "Abrir", em cada equipamento que o usuário já pode abrir): criar link,
+copiar, dar um nome, revogar. Abrir por voz reaproveita a MESMA permissão de abrir pelo botão
+(revalidada a cada chamada, não só na criação do token — revogar o acesso de abrir já desliga o
+link de voz sozinho) e fica registrado em Auditoria → Sistema (`acesso.abertura.voz`) e também
+em door_open_events (aparece na aba "Aberturas de porteiro" com "(voz)" no nome).
+- **Siri**: no app Atalhos (Shortcuts) do iPhone, atalho "Buscar conteúdo da URL" com o link
+  gerado + "Hey Siri, abrir portão".
+- **Google**: via IFTTT — applet "Google Assistant" (frase de disparo) → "Webhooks" (GET no
+  link gerado). Integração "smart home" oficial do Google não foi usada de propósito (OAuth,
+  catálogo de dispositivo, revisão do Google — pesado demais pra esse caso).
+- Cada link só abre UM equipamento pra UM usuário — nunca um token genérico "abre qualquer
+  coisa". Tratar o link como senha (quem tiver, abre).

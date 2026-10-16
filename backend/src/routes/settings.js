@@ -11,7 +11,7 @@ import {
 import { getPushSettings, setPushEnabled } from '../services/pushService.js';
 import { getTelegramSettings, saveTelegramSettings, testTelegramToken, getSavedBotToken, registerWebhook } from '../services/telegramService.js';
 import { getTwilioSettings, saveTwilioSettings, testTwilioConnection } from '../services/twilioService.js';
-import { listFavoritedExternalDevices, setExternalDevicePriority, supportsFavoritePriority } from '../services/externalDeviceService.js';
+import { listCriticalExternalDevices, setExternalDevicePriority, supportsCriticalPriority } from '../services/externalDeviceService.js';
 
 export const settingsRouter = Router();
 const GATEWAY_MODULES = MODULE_KEYS.filter((k) => k !== 'acesso'); // 'rede' | 'interfone'
@@ -173,17 +173,17 @@ settingsRouter.post('/twilio/test-connection', async (req, res) => {
   }
 });
 
-// Equipamentos de Rede/Interfone já marcados como favorito NO PRÓPRIO
+// Equipamentos de Rede/Interfone já marcados como CRÍTICO NO PRÓPRIO
 // painel (ver externalDeviceService.js) — candidatos a marcar prioridade
 // aqui no Portal, um por um, em vez de um alarme só pro módulo inteiro.
 settingsRouter.get('/external-devices/:moduleKey', async (req, res) => {
   const { moduleKey } = req.params;
   if (!['rede', 'interfone'].includes(moduleKey)) return res.status(400).json({ error: 'Módulo inválido.' });
-  if (!supportsFavoritePriority(moduleKey)) {
+  if (!supportsCriticalPriority(moduleKey)) {
     return res.json({ supported: false, devices: [] });
   }
   try {
-    const result = await listFavoritedExternalDevices(moduleKey);
+    const result = await listCriticalExternalDevices(moduleKey);
     res.json({ supported: true, ...result });
   } catch (err) {
     res.status(502).json({ error: `Não consegui falar com o painel: ${err.message}` });

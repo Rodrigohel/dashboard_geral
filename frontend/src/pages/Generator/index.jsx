@@ -108,7 +108,68 @@ function StatusCard({ status, error, loaded, canEditConfig, onGoToConfig }) {
             </div>
           );
         })}
+        {(status?.customPoints || []).map((p) => (
+          <div key={p.id} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <span className="field-hint">{p.name}</span>
+            <span className={`badge ${p.value ? 'badge-success' : 'badge-neutral'}`}>
+              <span className="badge-dot" /> {p.value ? 'sim' : 'não'}
+            </span>
+          </div>
+        ))}
       </div>
+    </div>
+  );
+}
+
+function formatDateTime(iso) {
+  return new Date(iso).toLocaleString('pt-BR');
+}
+
+// Histórico de transições (liga/desliga pronto/falha/emOperacao) — mesma
+// ideia do histórico de Bombas, simplificado: Gerador não tem "nível", só
+// lista crua das mudanças, mais recente primeiro.
+function HistoryCard() {
+  const [events, setEvents] = useState(null);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    api.generator.history(30).then(setEvents).catch((err) => setError(err.message));
+  }, []);
+
+  if (error) return null; // módulo pode não estar habilitado ainda — não é erro pra mostrar aqui
+  if (events === null) return <div className="skeleton" style={{ height: 120, borderRadius: 20 }} />;
+
+  return (
+    <div className="surface" style={{ padding: 24 }}>
+      <div style={{ fontWeight: 700, marginBottom: 12 }}>Histórico (últimos 30 dias)</div>
+      {events.length === 0 ? (
+        <span className="field-hint">Nenhuma transição registrada ainda.</span>
+      ) : (
+        <div className="table-wrap">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Data/hora</th>
+                <th>Sinal</th>
+                <th>Transição</th>
+              </tr>
+            </thead>
+            <tbody>
+              {events.slice(0, 50).map((e, i) => (
+                <tr key={i}>
+                  <td>{formatDateTime(e.createdAt)}</td>
+                  <td>{POINT_META.find((p) => p.key === e.pointKey)?.label || e.pointKey}</td>
+                  <td>
+                    <span className={`badge ${e.state ? 'badge-success' : 'badge-neutral'}`}>
+                      <span className="badge-dot" /> {e.state ? 'entrou' : 'saiu'}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
@@ -181,6 +242,10 @@ function ConfigCard({ configId }) {
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [customPoints, setCustomPoints] = useState([]);
+  const [newPointName, setNewPointName] = useState('');
+  const [newPointAddr, setNewPointAddr] = useState('');
+  const [addingPoint, setAddingPoint] = useState(false);
   const toast = useToast();
 
   function load() {
@@ -194,10 +259,45 @@ function ConfigCard({ configId }) {
       setPoints(c.points);
       setUsername(c.username || '');
       setHasPassword(c.hasPassword);
+      setCustomPoints(c.customPoints || []);
       setLoaded(true);
     });
   }
   useEffect(load, []);
+
+  async function handleAddCustomPoint() {
+    setAddingPoint(true);
+    try {
+      const created = await api.generator.addCustomPoint({
+        name: newPointName.trim(),
+        addr: newPointAddr === '' ? null : Number(newPointAddr),
+        type: 'coil',
+        invert: false,
+      });
+      setCustomPoints((list) => [...list, created]);
+      setNewPointName('');
+      setNewPointAddr('');
+    } catch (err) {
+      toast(err.message, 'error');
+    } finally {
+      setAddingPoint(false);
+    }
+  }
+
+  function handleUpdateCustomPoint(point, changes) {
+    const updated = { ...point, ...changes };
+    setCustomPoints((list) => list.map((p) => (p.id === point.id ? updated : p)));
+    api.generator.saveCustomPoint(point.id, updated).catch((err) => toast(err.message, 'error'));
+  }
+
+  async function handleDeleteCustomPoint(point) {
+    try {
+      await api.generator.deleteCustomPoint(point.id);
+      setCustomPoints((list) => list.filter((p) => p.id !== point.id));
+    } catch (err) {
+      toast(err.message, 'error');
+    }
+  }
 
   function setPoint(key, value) {
     setPoints((p) => ({ ...p, [key]: value }));
@@ -378,6 +478,58 @@ function ConfigCard({ configId }) {
           ))}
         </div>
       </div>
+
+      <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: 16, marginTop: 4 }}>
+        <div style={{ fontWeight: 700, marginBottom: 4 }}>Pontos customizados</div>
+        <div className="field-hint" style={{ marginBottom: 12 }}>
+          Sinal novo no controlador que ainda não tem um campo fixo aqui — cadastre o nome e o endereço e ele passa a
+          aparecer (nome + sim/não) na tela de status.
+        </div>
+        {customPoints.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 14 }}>
+            {customPoints.map((p) => (
+              <div key={p.id} className="field" style={{ border: '1px solid var(--border-subtle)', borderRadius: 10, padding: 12 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px auto', gap: 10, alignItems: 'end' }}>
+                  <div className="field">
+                    <label className="field-label">Nome</label>
+                    <input className="input" value={p.name} onChange={(e) => handleUpdateCustomPoint(p, { name: e.target.value })} />
+                  </div>
+                  <div className="field">
+                    <label className="field-label">Endereço</label>
+                    <input
+                      className="input"
+                      type="number"
+                      value={p.addr ?? ''}
+                      placeholder="ex.: 10"
+                      onChange={(e) => handleUpdateCustomPoint(p, { addr: e.target.value === '' ? null : Number(e.target.value) })}
+                    />
+                  </div>
+                  <button type="button" className="btn btn-secondary btn-sm" onClick={() => handleDeleteCustomPoint(p)}>
+                    Remover
+                  </button>
+                </div>
+                <label className="checkbox-row" style={{ marginTop: 8 }}>
+                  <input type="checkbox" checked={Boolean(p.invert)} onChange={(e) => handleUpdateCustomPoint(p, { invert: e.target.checked })} />
+                  <span className="field-hint">Inverter valor lido (contato normalmente fechado)</span>
+                </label>
+              </div>
+            ))}
+          </div>
+        )}
+        <div style={{ display: 'flex', gap: 10, alignItems: 'end', flexWrap: 'wrap' }}>
+          <div className="field" style={{ flex: 1, minWidth: 160 }}>
+            <label className="field-label">Nome do ponto novo</label>
+            <input className="input" value={newPointName} onChange={(e) => setNewPointName(e.target.value)} placeholder="ex.: Bateria" />
+          </div>
+          <div className="field" style={{ width: 120 }}>
+            <label className="field-label">Endereço</label>
+            <input className="input" type="number" value={newPointAddr} onChange={(e) => setNewPointAddr(e.target.value)} placeholder="ex.: 10" />
+          </div>
+          <button type="button" className="btn btn-secondary" onClick={handleAddCustomPoint} disabled={addingPoint || !newPointName.trim()}>
+            {addingPoint ? <span className="spinner spinner-dark" /> : '+ Adicionar ponto'}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -403,6 +555,8 @@ export default function Generator({ isOwner, can }) {
         canEditConfig={canEditConfig}
         onGoToConfig={() => document.getElementById(configId)?.scrollIntoView({ behavior: 'smooth' })}
       />
+
+      <HistoryCard />
 
       {canEditConfig && <ConfigCard configId={configId} />}
     </>
