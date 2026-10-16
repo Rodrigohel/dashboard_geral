@@ -461,3 +461,68 @@ db.exec(`
   );
   INSERT OR IGNORE INTO generator_station (id) VALUES (1);
 `);
+
+// Usuário/senha do gerador, pedidos pelo Rodrigo mesmo sabendo que o Modbus
+// TCP em si não pede login (ver comentário acima) — guardados pra quando ele
+// descobrir se o controlador precisa disso por algum outro caminho (ex.: tela
+// web própria do ComAp), em vez de ficar pedindo de novo depois. Mesmo padrão
+// de device_password_enc: nunca decifrado de volta pro front.
+const generatorStationColumns = db.prepare('PRAGMA table_info(generator_station)').all().map((c) => c.name);
+if (!generatorStationColumns.includes('username')) {
+  db.exec("ALTER TABLE generator_station ADD COLUMN username TEXT NOT NULL DEFAULT ''");
+}
+if (!generatorStationColumns.includes('password_enc')) {
+  db.exec("ALTER TABLE generator_station ADD COLUMN password_enc TEXT NOT NULL DEFAULT ''");
+}
+if (!generatorStationColumns.includes('falha_priority')) {
+  db.exec('ALTER TABLE generator_station ADD COLUMN falha_priority INTEGER NOT NULL DEFAULT 0');
+}
+
+// Flag "prioridade" por porteiro — mesma ideia do `_priority` dos pontos de
+// pump_station, só que aqui é por EQUIPAMENTO (não por sinal): porteiro cair
+// com essa marcação insiste via Telegram até reconhecer, igual os alarmes
+// de bombas.
+const accessDevicesColumnsForPriority = db.prepare('PRAGMA table_info(access_devices)').all().map((c) => c.name);
+if (!accessDevicesColumnsForPriority.includes('telegram_priority')) {
+  db.exec('ALTER TABLE access_devices ADD COLUMN telegram_priority INTEGER NOT NULL DEFAULT 0');
+}
+
+// Alarmes que não são "por equipamento cadastrado" (Rede/Interfone são
+// painéis à parte, só dão uma contagem de offline — não uma lista estável de
+// IDs locais) e a trava de força bruta (evento, não sinal contínuo) — flags
+// de prioridade únicas, uma linha singleton igual telegram_settings.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS telegram_module_priority (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    rede_offline_priority INTEGER NOT NULL DEFAULT 0,
+    interfone_offline_priority INTEGER NOT NULL DEFAULT 0,
+    forca_bruta_priority INTEGER NOT NULL DEFAULT 0
+  );
+  INSERT OR IGNORE INTO telegram_module_priority (id) VALUES (1);
+`);
+
+// Ligação telefônica (Twilio) como escalonamento de um alarme de prioridade
+// que ninguém reconheceu via Telegram — ver twilioService.js. Preço/provedor
+// ainda não decididos (ver IDEIAS.md); os campos ficam em branco até o
+// Rodrigo criar a conta e preencher aqui.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS twilio_settings (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    enabled INTEGER NOT NULL DEFAULT 0,
+    account_sid TEXT NOT NULL DEFAULT '',
+    auth_token_enc TEXT NOT NULL DEFAULT '',
+    from_number TEXT NOT NULL DEFAULT '',
+    to_numbers TEXT NOT NULL DEFAULT '',
+    call_after_seconds INTEGER NOT NULL DEFAULT 300
+  );
+  INSERT OR IGNORE INTO twilio_settings (id) VALUES (1);
+`);
+
+// Marca se já ligou por telefone pra esse episódio do alarme — sem isso, a
+// cada reenvio do Telegram (ver resend_interval_seconds) ligaria de novo
+// também, o que viraria ligação atrás de ligação pro mesmo alarme ainda
+// ativo.
+const telegramAlarmStateColumnsForCall = db.prepare('PRAGMA table_info(telegram_alarm_state)').all().map((c) => c.name);
+if (!telegramAlarmStateColumnsForCall.includes('call_sent_at')) {
+  db.exec('ALTER TABLE telegram_alarm_state ADD COLUMN call_sent_at TEXT');
+}

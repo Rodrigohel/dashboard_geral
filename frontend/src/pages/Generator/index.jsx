@@ -174,6 +174,9 @@ function ConfigCard({ configId }) {
   const [unitId, setUnitId] = useState(1);
   const [pollSeconds, setPollSeconds] = useState(10);
   const [points, setPoints] = useState({});
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [hasPassword, setHasPassword] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
@@ -189,6 +192,8 @@ function ConfigCard({ configId }) {
       setUnitId(c.unitId);
       setPollSeconds(c.pollSeconds);
       setPoints(c.points);
+      setUsername(c.username || '');
+      setHasPassword(c.hasPassword);
       setLoaded(true);
     });
   }
@@ -199,13 +204,26 @@ function ConfigCard({ configId }) {
   }
 
   function buildPayload() {
-    return { enabled, name, host, port: Number(port), unitId: Number(unitId), pollSeconds: Number(pollSeconds), points };
+    return {
+      enabled,
+      name,
+      host,
+      port: Number(port),
+      unitId: Number(unitId),
+      pollSeconds: Number(pollSeconds),
+      points,
+      username,
+      // Senha nunca é obrigatória nem exigida de novo a cada "Salvar" — só
+      // manda quando a pessoa digitou algo novo, igual senha de porteiro.
+      password: password || undefined,
+    };
   }
 
   async function handleSave() {
     setSaving(true);
     try {
       await api.generator.saveConfig(buildPayload());
+      setPassword('');
       toast('Configuração do gerador salva.');
       load();
     } catch (err) {
@@ -292,6 +310,27 @@ function ConfigCard({ configId }) {
         />
       </div>
 
+      <div className="grid-2">
+        <div className="field">
+          <label className="field-label">Usuário</label>
+          <input className="input" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="opcional" />
+        </div>
+        <div className="field">
+          <label className="field-label">Senha</label>
+          <input
+            className="input"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder={hasPassword ? 'já salva — deixe em branco pra manter' : 'opcional'}
+          />
+        </div>
+      </div>
+      <span className="field-hint">
+        O Modbus TCP em si não pede login — deixe em branco se não souber. Preencha só se descobrir que o controlador
+        precisa disso por algum outro caminho (ex.: tela web própria do ComAp).
+      </span>
+
       <div style={{ display: 'flex', gap: 8 }}>
         <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
           {saving ? <span className="spinner" /> : 'Salvar'}
@@ -316,13 +355,26 @@ function ConfigCard({ configId }) {
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           {POINT_META.map((meta) => (
-            <PointField
-              key={meta.key}
-              label={meta.label}
-              point={points[meta.key] || EMPTY_POINT}
-              showAdvanced={showAdvanced}
-              onChange={(v) => setPoint(meta.key, v)}
-            />
+            <div key={meta.key}>
+              <PointField
+                label={meta.label}
+                point={points[meta.key] || EMPTY_POINT}
+                showAdvanced={showAdvanced}
+                onChange={(v) => setPoint(meta.key, v)}
+              />
+              {meta.key === 'falha' && (
+                <label className="checkbox-row" style={{ marginTop: 4 }}>
+                  <input
+                    type="checkbox"
+                    checked={Boolean(points.falha?.priority)}
+                    onChange={(e) => setPoint('falha', { ...(points.falha || EMPTY_POINT), priority: e.target.checked })}
+                  />
+                  <span className="field-hint">
+                    Prioridade — insiste via Telegram (e liga por telefone, se configurado) até alguém reconhecer.
+                  </span>
+                </label>
+              )}
+            </div>
           ))}
         </div>
       </div>

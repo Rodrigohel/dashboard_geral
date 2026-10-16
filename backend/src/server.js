@@ -22,6 +22,8 @@ import { gatewayProxy } from './services/gatewayService.js';
 import { startDeviceHealthPoller } from './services/deviceHealthPoller.js';
 import { startAuditRetentionPruner } from './services/auditRetentionPruner.js';
 import { startPumpStationHistoryPoller } from './services/pumpStationHistoryPoller.js';
+import { startGeneratorPoller } from './services/generatorPoller.js';
+import { startNetworkAlarmPoller } from './services/networkAlarmPoller.js';
 import { isValidWebhookSecret, acknowledgeAllActiveAlarms, sendTelegramMessage, handleCallbackQuery } from './services/telegramService.js';
 import './db/sqlite.js';
 
@@ -186,3 +188,5 @@ app.listen(config.port, '0.0.0.0', () => {
 startDeviceHealthPoller();
 startAuditRetentionPruner();
 startPumpStationHistoryPoller();
+startGeneratorPoller();
+startNetworkAlarmPoller();

@@ -2,6 +2,7 @@ import { db } from '../db/sqlite.js';
 import { decryptSecret } from './cryptoService.js';
 import { testConnection } from './accessControlClient.js';
 import { notifyDeviceOffline } from './pushService.js';
+import { checkAccessDeviceAlarms } from './telegramService.js';
 
 const POLL_MS = 5 * 60 * 1000;
 // Pequeno atraso pro servidor terminar de subir antes da primeira rodada —
@@ -29,6 +30,12 @@ async function pollOnce() {
       }
     })
   );
+
+  // Alertas via Telegram (ver IDEIAS.md) — checa a cada rodada, não só na
+  // transição, pro mesmo motivo do pumpStationHistoryPoller: se o Portal
+  // reiniciar com um porteiro já offline, ainda assim quer avisar/insistir.
+  const freshDevices = db.prepare('SELECT * FROM access_devices').all();
+  checkAccessDeviceAlarms(freshDevices).catch(() => {});
 }
 
 // Checagem periódica e silenciosa de saúde de cada porteiro cadastrado —

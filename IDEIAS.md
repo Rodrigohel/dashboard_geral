@@ -138,37 +138,52 @@ contra o equipamento real (mesmo processo usado pra achar os endereços certos d
 Também falta confirmar se o módulo de rede/Ethernet (IB-Lite, aparece sem marcar ✓ na folha de
 dados) está de fato instalado no painel — sem ele, não tem Modbus TCP nenhum pra ler.
 **Não implementado ainda** (não pedido, fica pra depois se fizer falta): histórico de
-ativações/falhas, fotos automáticas, pontos customizados, prioridade/Telegram — tudo isso já
-existe em Bombas e pode ser replicado quando fizer sentido pro Gerador também.
+ativações/falhas, fotos automáticas, pontos customizados — isso existe em Bombas e pode ser
+replicado quando fizer sentido pro Gerador também. **Usuário/senha** (campos pedidos pelo
+Rodrigo) foram adicionados em "Gerador → Configuração" mesmo o Modbus TCP não exigindo login —
+ficam em branco, prontos pra preencher se descobrir que o controlador precisa disso por algum
+outro caminho (ex.: tela web própria do ComAp).
 
-## Alertas insistentes com prioridade, via Telegram (+ ligação telefônica) — fase 1 feita (só Bombas)
-**Fase 1 implementada**, escopo restrito aos 7 alarmes da casa de bombas (térmico 1/2, modo
-manual, emergência, falta de fase, painel desligado, falha nas boias) — ainda NÃO cobre
-rede/interfone (offline) nem porteiro offline/força bruta (esses continuam só no push PWA já
-existente) nem o módulo Gerador (que ainda não existe). O que foi implementado:
+## ~~Alertas insistentes com prioridade, via Telegram (+ ligação telefônica)~~ — feito pra todos os módulos
+Generalizado pra cobrir rede, interfone, acesso (porteiro offline + força bruta) e gerador
+(falha), além de bombas (que já tinha desde a fase 1). O que foi implementado:
 - Bot do Telegram de verdade: token + chat ID configuráveis em Configurações → "Alertas via
   Telegram" (token guardado criptografado, igual outras senhas do Portal). Botão "Testar
   token" (chama `getMe`) e botão "Configurar resposta no chat" (chama `setWebhook` do
   Telegram apontando pro Portal).
-- Checkbox **"Prioridade"** por sinal de alarme, em Bombas → Configuração (ao lado do
-  "Inverter") — só os 7 alarmes têm essa opção (níveis não são alarme).
+- Checkbox **"Prioridade"**, um por módulo/sinal: Bombas → Configuração (7 alarmes, já
+  existia), Gerador → Configuração (falha ativa), Acesso → Equipamentos (um por porteiro
+  cadastrado — porteiro caiu insiste só se marcado) e Configurações → "Prioridade de outros
+  alarmes" (Rede/Interfone offline e a trava de força bruta, que não têm um equipamento
+  cadastrado pra marcar individualmente).
 - Mensagem é mandada uma vez quando o alarme dispara (sempre, prioridade ou não); se for
   prioridade, **reenvia a cada X tempo** (configurável: 5min/15min/30min/1h/2h) até resolver
-  ou ser reconhecido.
-- Cada mensagem de alarme já vem com **dois botões** ("✅ Visto" e "🔧 Em manutenção") —
-  tocar um deles reconhece SÓ aquele alarme específico (via `callback_data`), parando de
-  insistir nesse sem mexer nos outros alarmes ativos. Digitar qualquer mensagem solta no chat
-  (sem tocar botão) continua reconhecendo todos os alarmes ativos de uma vez, como fallback.
+  ou ser reconhecido. Rede/Interfone usam a mesma contagem de offline já mostrada na Início;
+  Acesso é um alarme por equipamento (sobrevive a renomear o porteiro); força bruta manda uma
+  mensagem avulsa (é um evento, não um sinal contínuo — não insiste).
+- Cada mensagem de alarme (exceto força bruta) já vem com **dois botões** ("✅ Visto" e "🔧 Em
+  manutenção") — tocar um deles reconhece SÓ aquele alarme específico (via `callback_data`),
+  parando de insistir nesse sem mexer nos outros alarmes ativos. Digitar qualquer mensagem
+  solta no chat (sem tocar botão) continua reconhecendo todos os alarmes ativos de uma vez,
+  como fallback.
 - Endpoint do webhook (`POST /api/telegram/webhook/<secret>`) é público (o Telegram chama,
   não um usuário logado) mas protegido por um segredo aleatório na própria URL, não por JWT.
+- **Ligação telefônica (Twilio)**: infraestrutura completa pronta em Configurações → "Ligação
+  telefônica (Twilio)" — Account SID, Auth Token, número de origem, números de destino e
+  "ligar depois de X sem reconhecer" (escalonamento, só pros alarmes de prioridade). Liga pros
+  números cadastrados automaticamente quando um alarme de prioridade passa do tempo
+  configurado sem ninguém reconhecer no Telegram — uma vez só por episódio do alarme (não fica
+  ligando repetido enquanto insiste por mensagem). **Mas não dá pra testar nem funcionar de
+  verdade sem uma conta Twilio real**: ninguém criou a conta ainda, e eu não posso inventar
+  Account SID/Auth Token/número — são credenciais de um serviço pago de terceiro, diferente do
+  Modbus (que não precisa de nada). Falta: criar a conta em twilio.com (ou escolher outro
+  provedor — cotar preço antes), comprar um número, e preencher os campos; o botão "Testar
+  conta" confere as credenciais sem custo (sem ligar), antes de confiar que vai funcionar de
+  verdade.
 
-**Ainda NÃO implementado** (ideia original completa, pra continuar depois):
-- Marcar **equipamentos/sinais de outros módulos** (rede, interfone, porteiro offline) como
-  prioridade — hoje só os 7 alarmes de Bombas têm essa opção.
-- Sinalização visual de "equipamento crítico" na tela (não só pra fins de alerta).
-- **Ligação telefônica de verdade** (Twilio ou alternativa mais barata) pros equipamentos
-  habilitados — desligando automático ao atender (atender já conta como reconhecimento).
-  Precisa cotar preço antes de decidir qual provedor usar.
+**Ainda não implementado** (não pedido, fica pra depois se fizer falta): desligar a ligação
+automático ao atender (hoje ela só fala a mensagem e desliga, não espera confirmação por voz);
+sinalização visual de "equipamento crítico" na tela (fora do alerta em si).
 
 ## ~~Bombas: permitir adicionar pontos customizados~~ — fase 1 feita
 Fase 1 implementada: em "Bombas → Configuração" agora dá pra adicionar um sinal novo sozinho

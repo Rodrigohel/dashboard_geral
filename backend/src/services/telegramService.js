@@ -9,6 +9,7 @@
 import crypto from 'node:crypto';
 import { db } from '../db/sqlite.js';
 import { encryptSecret, decryptSecret } from './cryptoService.js';
+import { maybeEscalateToCall } from './twilioService.js';
 
 function getRow() {
   return db.prepare('SELECT * FROM telegram_settings WHERE id = 1').get();
@@ -165,41 +166,91 @@ const ALARM_LABELS = {
   falhaBoias: 'Falha nas boias de nível',
 };
 
-// Chamado a cada leitura da casa de bombas (ver pumpStationHistoryPoller.js)
-// com os valores atuais dos 7 sinais de alarme + quais deles são
-// prioridade. Decide sozinho quando mandar mensagem nova, quando insistir
-// (só prioridade, a cada `resendIntervalSeconds`) e quando considerar
-// resolvido (sinal voltou a false — limpa o estado, próxima vez que
-// disparar manda de novo do zero).
-export async function checkBombasAlarms(points, priorityByKey) {
+// Núcleo genérico, usado por TODOS os módulos (ver funções abaixo) — decide
+// quando mandar mensagem nova, quando insistir (só prioridade, a cada
+// `resendIntervalSeconds`), quando escalar pra ligação (ver twilioService,
+// só prioridade também, depois de `callAfterSeconds` sem reconhecer) e
+// quando considerar resolvido (isActive = false limpa o estado; próxima vez
+// que disparar manda tudo de novo do zero).
+async function upsertAlarm(alarmKey, label, isActive, isPriority) {
   const settings = getTelegramSettings();
   if (!settings.enabled) return;
 
+  const existing = db.prepare('SELECT * FROM telegram_alarm_state WHERE alarm_key = ?').get(alarmKey);
+
+  if (!isActive) {
+    if (existing) db.prepare('DELETE FROM telegram_alarm_state WHERE alarm_key = ?').run(alarmKey);
+    return;
+  }
+
+  if (!existing) {
+    db.prepare("INSERT INTO telegram_alarm_state (alarm_key, active_since, last_sent_at) VALUES (?, datetime('now'), datetime('now'))").run(alarmKey);
+    await sendTelegramMessage(`⚠️ ${label}`, alarmReplyMarkup(alarmKey)).catch(() => {});
+    return;
+  }
+
+  if (!isPriority || existing.acknowledged_at) return;
+
+  maybeEscalateToCall(label, existing.active_since, existing.call_sent_at)
+    .then((called) => {
+      if (called) db.prepare("UPDATE telegram_alarm_state SET call_sent_at = datetime('now') WHERE alarm_key = ?").run(alarmKey);
+    })
+    .catch(() => {});
+
+  const lastSentMs = new Date(existing.last_sent_at.replace(' ', 'T') + 'Z').getTime();
+  const elapsedSeconds = (Date.now() - lastSentMs) / 1000;
+  if (elapsedSeconds >= settings.resendIntervalSeconds) {
+    db.prepare("UPDATE telegram_alarm_state SET last_sent_at = datetime('now') WHERE alarm_key = ?").run(alarmKey);
+    await sendTelegramMessage(`⚠️ (ainda ativo) ${label}`, alarmReplyMarkup(alarmKey)).catch(() => {});
+  }
+}
+
+// Chamado a cada leitura da casa de bombas (ver pumpStationHistoryPoller.js)
+// com os valores atuais dos 7 sinais de alarme + quais deles são prioridade.
+export async function checkBombasAlarms(points, priorityByKey) {
   for (const [key, label] of Object.entries(ALARM_LABELS)) {
-    const alarmKey = `bombas.${key}`;
-    const isActive = points?.[key] === true;
-    const existing = db.prepare('SELECT * FROM telegram_alarm_state WHERE alarm_key = ?').get(alarmKey);
+    await upsertAlarm(`bombas.${key}`, `Bombas: ${label}`, points?.[key] === true, Boolean(priorityByKey?.[key]));
+  }
+}
 
-    if (!isActive) {
-      if (existing) db.prepare('DELETE FROM telegram_alarm_state WHERE alarm_key = ?').run(alarmKey);
-      continue;
-    }
+// Chamado a cada leitura do gerador (ver generatorPoller.js) — só "falha"
+// faz sentido como alarme (pronto/emOperacao são estado normal, não algo
+// pra avisar/insistir).
+export async function checkGeneratorAlarms(points, falhaPriority) {
+  await upsertAlarm('gerador.falha', 'Gerador: falha ativa', points?.falha === true, Boolean(falhaPriority));
+}
 
-    const isPriority = Boolean(priorityByKey?.[key]);
+// Chamado a cada rodada do deviceHealthPoller.js, com TODOS os porteiros
+// cadastrados — um alarme por equipamento (alarm_key inclui o id, não o
+// nome, pra sobreviver a uma troca de nome sem perder o estado ativo).
+export async function checkAccessDeviceAlarms(devices) {
+  for (const device of devices) {
+    await upsertAlarm(
+      `acesso.device-${device.id}`,
+      `Acesso: porteiro "${device.name}" offline`,
+      device.last_status === 'offline',
+      Boolean(device.telegram_priority)
+    );
+  }
+}
 
-    if (!existing) {
-      db.prepare('INSERT INTO telegram_alarm_state (alarm_key, active_since, last_sent_at) VALUES (?, datetime(\'now\'), datetime(\'now\'))').run(alarmKey);
-      await sendTelegramMessage(`⚠️ Bombas: ${label}`, alarmReplyMarkup(alarmKey)).catch(() => {});
-      continue;
-    }
+// Rede/Interfone são painéis à parte (ver gatewayService.js) — só dão uma
+// CONTAGEM de offline, não uma lista estável de equipamentos com id local.
+// Por isso o alarme é por MÓDULO ("tem N offline" ou não), não por
+// equipamento individual.
+export async function checkNetworkAlarm(moduleKey, moduleLabel, offlineCount, isPriority) {
+  const label = `${moduleLabel}: ${offlineCount} equipamento(s)/ramal(is) offline`;
+  await upsertAlarm(`${moduleKey}.offline`, label, offlineCount > 0, isPriority);
+}
 
-    if (!isPriority || existing.acknowledged_at) continue;
-
-    const lastSentMs = new Date(existing.last_sent_at.replace(' ', 'T') + 'Z').getTime();
-    const elapsedSeconds = (Date.now() - lastSentMs) / 1000;
-    if (elapsedSeconds >= settings.resendIntervalSeconds) {
-      db.prepare("UPDATE telegram_alarm_state SET last_sent_at = datetime('now') WHERE alarm_key = ?").run(alarmKey);
-      await sendTelegramMessage(`⚠️ Bombas (ainda ativo): ${label}`, alarmReplyMarkup(alarmKey)).catch(() => {});
-    }
+// Força bruta é um EVENTO (uma tentativa isolada), não um sinal contínuo —
+// não faz sentido "resolver" ou ficar reenviando igual os outros alarmes.
+// Manda uma mensagem avulsa e, se marcado como prioridade, já liga direto
+// (sem esperar `callAfterSeconds`, que só vale pros alarmes contínuos).
+export async function sendForcaBrutaAlert(username, ip, isPriority) {
+  const label = `Segurança: trava de força bruta disparada para "${username}" (${ip || 'IP desconhecido'})`;
+  await sendTelegramMessage(`⚠️ ${label}`).catch(() => {});
+  if (isPriority) {
+    await maybeEscalateToCall(label, new Date().toISOString().replace('T', ' ').slice(0, 19), null).catch(() => {});
   }
 }

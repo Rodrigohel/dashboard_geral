@@ -6,6 +6,7 @@ import { config, MODULE_KEYS } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
 import { getSecuritySettings } from '../services/securitySettingsService.js';
 import { notifyLoginLockout } from '../services/pushService.js';
+import { sendForcaBrutaAlert } from '../services/telegramService.js';
 
 export const authRouter = Router();
 
@@ -64,6 +65,8 @@ function notifyLockoutOnce(username, ip) {
   if (Date.now() - last < LOCKOUT_NOTIFY_COOLDOWN_MS) return;
   lockoutNotifyCooldown.set(key, Date.now());
   notifyLoginLockout(username, ip);
+  const priority = db.prepare('SELECT forca_bruta_priority FROM telegram_module_priority WHERE id = 1').get();
+  sendForcaBrutaAlert(username, ip, Boolean(priority?.forca_bruta_priority)).catch(() => {});
 }
 
 authRouter.post('/login', (req, res) => {

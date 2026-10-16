@@ -33,6 +33,10 @@ function serializeDevice(row) {
     lastStatus: row.last_status,
     lastCheckedAt: row.last_checked_at || null,
     lastError: row.last_error,
+    // Prioridade no alerta via Telegram (ver telegramService.js) — porteiro
+    // offline com essa marcação insiste até reconhecer, igual os alarmes de
+    // bombas/gerador.
+    telegramPriority: Boolean(row.telegram_priority),
   };
 }
 
@@ -147,6 +151,7 @@ accessDevicesRouter.post('/', requirePermission('acesso.equipamentos.incluir'), 
     cameraChannel,
     cameraUsername,
     cameraPassword,
+    telegramPriority,
   } = req.body || {};
 
   // Segplace não tem host/porta configurável (é sempre a nuvem deles) — em
@@ -167,8 +172,8 @@ accessDevicesRouter.post('/', requirePermission('acesso.equipamentos.incluir'), 
     .prepare(
       `INSERT INTO access_devices
         (name, location, model, is_facial, host, port, use_https, device_username, device_password_enc, remote_id, notes,
-         camera_host, camera_port, camera_channel, camera_username, camera_password_enc)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+         camera_host, camera_port, camera_channel, camera_username, camera_password_enc, telegram_priority)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .run(
       name,
@@ -188,7 +193,8 @@ accessDevicesRouter.post('/', requirePermission('acesso.equipamentos.incluir'), 
       Number(cameraPort) || 80,
       Number(cameraChannel) || 1,
       cameraUsername || '',
-      cameraPassword ? encryptSecret(cameraPassword) : ''
+      cameraPassword ? encryptSecret(cameraPassword) : '',
+      telegramPriority ? 1 : 0
     );
   res.status(201).json(serializeDevice(db.prepare('SELECT * FROM access_devices WHERE id = ?').get(info.lastInsertRowid)));
 });
@@ -213,6 +219,7 @@ accessDevicesRouter.put('/:id', requirePermission('acesso.equipamentos.editar'),
     cameraChannel,
     cameraUsername,
     cameraPassword,
+    telegramPriority,
   } = req.body || {};
 
   if ((model ?? device.model) === 'segplace') {
@@ -224,7 +231,7 @@ accessDevicesRouter.put('/:id', requirePermission('acesso.equipamentos.editar'),
   db.prepare(
     `UPDATE access_devices SET
       name = ?, location = ?, model = ?, is_facial = ?, host = ?, port = ?, use_https = ?, device_username = ?, remote_id = ?, notes = ?,
-      camera_host = ?, camera_port = ?, camera_channel = ?, camera_username = ?
+      camera_host = ?, camera_port = ?, camera_channel = ?, camera_username = ?, telegram_priority = ?
      WHERE id = ?`
   ).run(
     name ?? device.name,
@@ -243,6 +250,7 @@ accessDevicesRouter.put('/:id', requirePermission('acesso.equipamentos.editar'),
     Number(cameraPort ?? device.camera_port),
     Number(cameraChannel ?? device.camera_channel),
     cameraUsername ?? device.camera_username,
+    telegramPriority === undefined ? device.telegram_priority : telegramPriority ? 1 : 0,
     device.id
   );
   if (devicePassword) {
