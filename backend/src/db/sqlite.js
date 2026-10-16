@@ -587,6 +587,20 @@ if (!telegramSettingsColumnsForStatus.includes('maintenance_minutes')) {
   db.exec('ALTER TABLE telegram_settings ADD COLUMN maintenance_minutes INTEGER NOT NULL DEFAULT 60');
 }
 
+// Confirmação de "resolvido sozinho" (pedido do Rodrigo: "independente se
+// cliquei em estou indo ou em manutenção", quando o SINAL em si fica
+// limpo por X minutos sem voltar, manda mensagem "iniciado em.../resolvido
+// em..."). `resolve_debounce_minutes` é esse X; `cleared_at` (na linha do
+// alarme) marca a primeira vez que o sinal foi visto limpo, pra não
+// confirmar resolvido numa oscilação rápida (liga/desliga em segundos) —
+// ver upsertAlarm em telegramService.js.
+if (!telegramSettingsColumnsForStatus.includes('resolve_debounce_minutes')) {
+  db.exec('ALTER TABLE telegram_settings ADD COLUMN resolve_debounce_minutes INTEGER NOT NULL DEFAULT 2');
+}
+if (!telegramAlarmStateColumnsForCall.includes('cleared_at')) {
+  db.exec('ALTER TABLE telegram_alarm_state ADD COLUMN cleared_at TEXT');
+}
+
 // Log central de eventos do sistema (ver systemEventsService.js) — liga/
 // desliga bomba, gerador em falha, alarme disparado/reconhecido, etc.
 // Login e abertura de porteiro continuam nas tabelas próprias (já existiam);

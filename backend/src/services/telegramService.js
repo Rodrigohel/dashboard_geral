@@ -28,6 +28,7 @@ export function getTelegramSettings() {
     resendIntervalSeconds: row.resend_interval_seconds,
     snoozeMinutes: row.snooze_minutes,
     maintenanceMinutes: row.maintenance_minutes,
+    resolveDebounceMinutes: row.resolve_debounce_minutes,
     webhookSecret: row.webhook_secret,
     // Guardados pra tela mostrar status PERSISTENTE ("já configurado") em
     // vez de só um toast que passa e não deixa rastro — ver IDEIAS.md
@@ -39,13 +40,14 @@ export function getTelegramSettings() {
 // Token nunca volta pro front depois de salvo (igual senha de equipamento)
 // — só `hasToken: true/false`, pra tela saber se já tem um configurado sem
 // expor o valor de novo.
-export function saveTelegramSettings({ enabled, botToken, chatId, resendIntervalSeconds, snoozeMinutes, maintenanceMinutes }) {
+export function saveTelegramSettings({ enabled, botToken, chatId, resendIntervalSeconds, snoozeMinutes, maintenanceMinutes, resolveDebounceMinutes }) {
   const row = getRow();
   const webhookSecret = row.webhook_secret || crypto.randomBytes(24).toString('hex');
   const tokenEnc = botToken ? encryptSecret(botToken) : row.bot_token_enc;
   const interval = Math.min(24 * 3600, Math.max(60, Number(resendIntervalSeconds) || row.resend_interval_seconds));
   const snooze = Math.min(180, Math.max(1, Number(snoozeMinutes) || row.snooze_minutes));
   const maintenance = Math.min(1440, Math.max(5, Number(maintenanceMinutes) || row.maintenance_minutes));
+  const resolveDebounce = Math.min(60, Math.max(1, Number(resolveDebounceMinutes) || row.resolve_debounce_minutes));
   // `enabled` tratado como os outros campos opcionais: se não vier no corpo
   // (ex.: a tela salvando só o token, ou só trocando de chat), mantém o
   // valor atual em vez de desligar sozinho — mesmo cuidado já aplicado em
@@ -53,8 +55,8 @@ export function saveTelegramSettings({ enabled, botToken, chatId, resendInterval
   const enabledValue = enabled === undefined ? row.enabled : enabled ? 1 : 0;
   db.prepare(
     `UPDATE telegram_settings SET enabled = ?, bot_token_enc = ?, chat_id = ?, webhook_secret = ?,
-      resend_interval_seconds = ?, snooze_minutes = ?, maintenance_minutes = ? WHERE id = 1`
-  ).run(enabledValue, tokenEnc, chatId ?? row.chat_id, webhookSecret, interval, snooze, maintenance);
+      resend_interval_seconds = ?, snooze_minutes = ?, maintenance_minutes = ?, resolve_debounce_minutes = ? WHERE id = 1`
+  ).run(enabledValue, tokenEnc, chatId ?? row.chat_id, webhookSecret, interval, snooze, maintenance, resolveDebounce);
   return getTelegramSettings();
 }
 
@@ -246,6 +248,15 @@ export function isValidWebhookSecret(secret) {
   return Boolean(row.webhook_secret) && secret === row.webhook_secret;
 }
 
+// Pra mensagem de "resolvido" (ver upsertAlarm) — datas no banco são UTC
+// sem fuso ("YYYY-MM-DD HH:MM:SS"), aqui mostra no fuso de Brasília em vez
+// de UTC cru, que confundiria ("resolvido às 2h da manhã" sendo 23h daqui).
+function formatBrDateTime(sqliteUtc) {
+  if (!sqliteUtc) return '';
+  const date = new Date(sqliteUtc.replace(' ', 'T') + 'Z');
+  return date.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+}
+
 const ALARM_LABELS = {
   termico1: 'Térmico da bomba 1 desarmado',
   termico2: 'Térmico da bomba 2 desarmado',
@@ -268,12 +279,31 @@ async function upsertAlarm(alarmKey, label, isActive, isPriority) {
 
   const existing = db.prepare('SELECT * FROM telegram_alarm_state WHERE alarm_key = ?').get(alarmKey);
 
+  // Confirmação de "resolvido sozinho" (pedido do Rodrigo: independente de
+  // ter clicado "estou indo"/"em manutenção") — só confirma e manda
+  // mensagem depois do sinal ficar limpo por `resolveDebounceMinutes`
+  // SEM voltar, pra não confirmar numa oscilação rápida. `cleared_at`
+  // marca a primeira vez que viu limpo; se o sinal voltar antes do prazo
+  // passar, a transição abaixo (isActive) zera `cleared_at` de novo.
   if (!isActive) {
-    if (existing) {
-      db.prepare('DELETE FROM telegram_alarm_state WHERE alarm_key = ?').run(alarmKey);
-      logSystemEvent('alarme.resolvido', `Resolvido: ${label}`);
+    if (!existing) return;
+    if (!existing.cleared_at) {
+      db.prepare("UPDATE telegram_alarm_state SET cleared_at = datetime('now') WHERE alarm_key = ?").run(alarmKey);
+      return;
     }
+    const clearedMs = new Date(existing.cleared_at.replace(' ', 'T') + 'Z').getTime();
+    if (Date.now() - clearedMs < settings.resolveDebounceMinutes * 60000) return;
+
+    db.prepare('DELETE FROM telegram_alarm_state WHERE alarm_key = ?').run(alarmKey);
+    logSystemEvent('alarme.resolvido', `Resolvido: ${label}`);
+    await sendTelegramMessage(
+      `✅ ${label} — iniciado em ${formatBrDateTime(existing.active_since)}, resolvido em ${formatBrDateTime(existing.cleared_at)}.`
+    ).catch(() => {});
     return;
+  }
+
+  if (existing?.cleared_at) {
+    db.prepare('UPDATE telegram_alarm_state SET cleared_at = NULL WHERE alarm_key = ?').run(alarmKey);
   }
 
   if (!existing) {
