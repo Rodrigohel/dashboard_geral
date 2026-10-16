@@ -1466,10 +1466,23 @@ function NetworkProbeCard() {
               placeholder="em branco = portas comuns (1-1024 + algumas outras); ex.: 1-65535, 8000-8100"
             />
           </div>
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm"
+            onClick={() => setScanSpec('1-65535')}
+            disabled={scanning}
+            style={{ alignSelf: 'end' }}
+            title="Preenche a faixa inteira — mais lento, mas não deixa passar nenhuma porta"
+          >
+            Tudo (1-65535)
+          </button>
           <button type="button" className="btn btn-secondary" onClick={handleScan} disabled={scanning || !host} style={{ alignSelf: 'end' }}>
             {scanning ? <span className="spinner spinner-dark" /> : 'Varrer portas'}
           </button>
         </div>
+        {scanning && scanSpec === '1-65535' && (
+          <span className="field-hint">Varrendo as 65.535 portas — pode levar alguns segundos a mais que o normal.</span>
+        )}
         {scanResult && (
           <div style={{ marginTop: 12 }}>
             <div className="field-hint" style={{ marginBottom: 6 }}>
