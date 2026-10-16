@@ -239,6 +239,9 @@ export const api = {
     status: () => request('/api/pumpstation/status'),
     history: (days = 30) => request(`/api/pumpstation/history?days=${days}`),
     activationSnapshots: () => request('/api/pumpstation/activation-snapshots'),
+    addCustomPoint: (payload) => request('/api/pumpstation/custom-points', { method: 'POST', body: payload }),
+    saveCustomPoint: (id, payload) => request(`/api/pumpstation/custom-points/${id}`, { method: 'PUT', body: payload }),
+    deleteCustomPoint: (id) => request(`/api/pumpstation/custom-points/${id}`, { method: 'DELETE' }),
   },
 
   settings: {

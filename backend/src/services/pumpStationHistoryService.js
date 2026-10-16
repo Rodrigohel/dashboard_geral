@@ -19,7 +19,11 @@ export function getPumpActivationSnapshots(limit = 10) {
   return db
     .prepare('SELECT id, points_json, created_at FROM pump_activation_snapshots ORDER BY id DESC LIMIT ?')
     .all(limit)
-    .map((row) => ({ id: row.id, createdAt: row.created_at, points: JSON.parse(row.points_json) }));
+    // `created_at` vem do SQLite em UTC sem indicar o fuso ("YYYY-MM-DD
+    // HH:MM:SS") — sem o "Z", o front interpreta como hora local e mostra
+    // 3h adiantado (fuso de Brasília é UTC-3). Mesmo tratamento já usado
+    // pros outros horários desse serviço (ver isoAt acima).
+    .map((row) => ({ id: row.id, createdAt: row.created_at.replace(' ', 'T') + 'Z', points: JSON.parse(row.points_json) }));
 }
 
 const LEVEL_KEYS = ['nivelMinimo', 'nivelMedio', 'nivelMaximo', 'nivelSeguranca'];
@@ -38,8 +42,6 @@ export function getPumpStationHistory({ days = 30 } = {}) {
   const currentState = {};
   const openActivations = {}; // pointKey -> { startedAt, levelsAtStart }
   const activations = [];
-  let lastMinimoOnAt = null;
-  const minimoToMedioSamples = []; // { ms, at } — at = quando o médio ligou (pra filtrar pela janela de dias)
 
   for (const row of rows) {
     const isoAt = row.created_at.replace(' ', 'T') + 'Z';
@@ -57,13 +59,6 @@ export function getPumpStationHistory({ days = 30 } = {}) {
           delete openActivations[row.point_key];
         }
       }
-    }
-    if (row.point_key === 'nivelMinimo' && row.state === 1) {
-      lastMinimoOnAt = isoAt;
-    }
-    if (row.point_key === 'nivelMedio' && row.state === 1 && lastMinimoOnAt) {
-      minimoToMedioSamples.push({ ms: new Date(isoAt) - new Date(lastMinimoOnAt), at: isoAt });
-      lastMinimoOnAt = null;
     }
     currentState[row.point_key] = row.state;
   }
@@ -86,12 +81,6 @@ export function getPumpStationHistory({ days = 30 } = {}) {
       totalSeconds: forPump.reduce((sum, a) => sum + a.durationSeconds, 0),
     };
   }
-  const avgSamples = minimoToMedioSamples.filter((s) => s.at >= sinceIso);
-  stats.avgMinimoToMedioSeconds = avgSamples.length
-    ? Math.round(avgSamples.reduce((sum, s) => sum + s.ms, 0) / avgSamples.length / 1000)
-    : null;
-  stats.minimoToMedioSampleCount = avgSamples.length;
-
   return { days, activations: inRange, stats, levelTransitions: getLevelTransitionStats() };
 }
 

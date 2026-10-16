@@ -156,6 +156,7 @@ function StatusCard({ status, error, loaded, canEditConfig, onGoToConfig }) {
   if (!canEditConfig) return null;
 
   const points = status?.points || {};
+  const customPoints = status?.customPoints || [];
 
   return (
     <div className="surface" style={{ padding: 24 }}>
@@ -198,6 +199,16 @@ function StatusCard({ status, error, loaded, canEditConfig, onGoToConfig }) {
             <PointBadge key={p.key} label={p.label} value={points[p.key]} />
           ))}
         </div>
+        {customPoints.length > 0 && (
+          <div className="status-col">
+            <div className="nav-subitem-label" style={{ marginBottom: 4 }}>
+              Pontos customizados
+            </div>
+            {customPoints.map((p) => (
+              <PointBadge key={p.id} label={p.name} value={p.value} />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -399,6 +410,10 @@ function ConfigCard({ configId }) {
   const [unitId, setUnitId] = useState(1);
   const [pollSeconds, setPollSeconds] = useState(10);
   const [points, setPoints] = useState({});
+  const [customPoints, setCustomPoints] = useState([]);
+  const [newPointName, setNewPointName] = useState('');
+  const [newPointAddr, setNewPointAddr] = useState('');
+  const [addingPoint, setAddingPoint] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
@@ -414,10 +429,43 @@ function ConfigCard({ configId }) {
       setUnitId(c.unitId);
       setPollSeconds(c.pollSeconds);
       setPoints(c.points);
+      setCustomPoints(c.customPoints || []);
       setLoaded(true);
     });
   }
   useEffect(load, []);
+
+  async function handleAddCustomPoint() {
+    if (!newPointName.trim()) return;
+    setAddingPoint(true);
+    try {
+      await api.pumpStation.addCustomPoint({ name: newPointName.trim(), addr: newPointAddr === '' ? null : Number(newPointAddr), type: 'coil', invert: false });
+      setNewPointName('');
+      setNewPointAddr('');
+      load();
+      toast('Ponto customizado adicionado.');
+    } catch (err) {
+      toast(err.message, 'error');
+    } finally {
+      setAddingPoint(false);
+    }
+  }
+
+  function handleUpdateCustomPoint(point, changes) {
+    const updated = { ...point, ...changes };
+    setCustomPoints((list) => list.map((p) => (p.id === point.id ? updated : p)));
+    api.pumpStation.saveCustomPoint(point.id, updated).catch((err) => toast(err.message, 'error'));
+  }
+
+  async function handleDeleteCustomPoint(point) {
+    try {
+      await api.pumpStation.deleteCustomPoint(point.id);
+      setCustomPoints((list) => list.filter((p) => p.id !== point.id));
+      toast(`"${point.name}" removido.`);
+    } catch (err) {
+      toast(err.message, 'error');
+    }
+  }
 
   function setPoint(key, value) {
     setPoints((p) => ({ ...p, [key]: value }));
@@ -556,6 +604,59 @@ function ConfigCard({ configId }) {
           })}
         </div>
       </div>
+
+      <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: 16, marginTop: 4 }}>
+        <div style={{ fontWeight: 700, marginBottom: 4 }}>Pontos customizados</div>
+        <div className="field-hint" style={{ marginBottom: 12 }}>
+          Sinal novo no CLP que ainda não tem um campo fixo aqui (ex.: uma entrada nova do LOGO) — cadastre o nome e o
+          endereço (LB da IHM) e ele passa a aparecer, de forma simples (nome + sim/não), na tela de status. Sem
+          desenho específico ainda — fica pra depois.
+        </div>
+        {customPoints.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 14 }}>
+            {customPoints.map((p) => (
+              <div key={p.id} className="field" style={{ border: '1px solid var(--border-subtle)', borderRadius: 10, padding: 12 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px auto', gap: 10, alignItems: 'end' }}>
+                  <div className="field">
+                    <label className="field-label">Nome</label>
+                    <input className="input" value={p.name} onChange={(e) => handleUpdateCustomPoint(p, { name: e.target.value })} />
+                  </div>
+                  <div className="field">
+                    <label className="field-label">Endereço</label>
+                    <input
+                      className="input"
+                      type="number"
+                      value={p.addr ?? ''}
+                      placeholder="ex.: 120"
+                      onChange={(e) => handleUpdateCustomPoint(p, { addr: e.target.value === '' ? null : Number(e.target.value) })}
+                    />
+                  </div>
+                  <button type="button" className="btn btn-secondary btn-sm" onClick={() => handleDeleteCustomPoint(p)}>
+                    Remover
+                  </button>
+                </div>
+                <label className="checkbox-row" style={{ marginTop: 8 }}>
+                  <input type="checkbox" checked={Boolean(p.invert)} onChange={(e) => handleUpdateCustomPoint(p, { invert: e.target.checked })} />
+                  <span className="field-hint">Inverter valor lido (contato normalmente fechado)</span>
+                </label>
+              </div>
+            ))}
+          </div>
+        )}
+        <div style={{ display: 'flex', gap: 10, alignItems: 'end', flexWrap: 'wrap' }}>
+          <div className="field" style={{ flex: 1, minWidth: 160 }}>
+            <label className="field-label">Nome do ponto novo</label>
+            <input className="input" value={newPointName} onChange={(e) => setNewPointName(e.target.value)} placeholder="ex.: Bomba reserva" />
+          </div>
+          <div className="field" style={{ width: 120 }}>
+            <label className="field-label">Endereço</label>
+            <input className="input" type="number" value={newPointAddr} onChange={(e) => setNewPointAddr(e.target.value)} placeholder="ex.: 120" />
+          </div>
+          <button type="button" className="btn btn-secondary" onClick={handleAddCustomPoint} disabled={addingPoint || !newPointName.trim()}>
+            {addingPoint ? <span className="spinner spinner-dark" /> : '+ Adicionar ponto'}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -577,12 +678,13 @@ function dayKey(iso) {
   return iso.slice(0, 10);
 }
 
-// Barras empilhadas (minutos de bomba 1 + bomba 2 por dia) — SVG desenhado à
-// mão, igual ao resto do Portal (sem biblioteca de gráficos). Cores já
-// validadas (--chart-series-1/2, ver skill de dataviz) e já usadas em outros
-// lugares do Portal, mantendo a paleta categórica em ordem fixa.
+// Duas linhas (minutos de bomba 1 e bomba 2 ligada, por dia) — SVG desenhado
+// à mão, igual ao resto do Portal (sem biblioteca de gráficos). Trocado de
+// barra empilhada pra linha a pedido do Rodrigo ("acho que é melhor
+// visualizado") — com linha dá pra ver a TENDÊNCIA dia a dia de cada bomba
+// separada, que ficava escondida uma atrás da outra na pilha. Cores já
+// validadas (--chart-series-1/2, ver skill de dataviz).
 function PumpHistoryChart({ activations, days }) {
-  const todayKey = dayKey(new Date().toISOString());
   const dayKeys = Array.from({ length: days }, (_, i) => {
     const d = new Date();
     d.setDate(d.getDate() - (days - 1 - i));
@@ -594,25 +696,39 @@ function PumpHistoryChart({ activations, days }) {
     const k = dayKey(a.startedAt);
     if (perDay[k]) perDay[k][a.pointKey] += a.durationSeconds / 60;
   }
-  const maxMinutes = Math.max(5, ...dayKeys.map((k) => perDay[k].bomba1 + perDay[k].bomba2));
+  const maxMinutes = Math.max(5, ...dayKeys.map((k) => Math.max(perDay[k].bomba1, perDay[k].bomba2)));
 
   const W = 640;
   const H = 180;
   const PAD = { top: 10, right: 10, bottom: 22, left: 36 };
   const plotW = W - PAD.left - PAD.right;
   const plotH = H - PAD.top - PAD.bottom;
-  const barGap = 2;
-  const barW = Math.max(2, plotW / dayKeys.length - barGap);
+  const stepX = dayKeys.length > 1 ? plotW / (dayKeys.length - 1) : 0;
   const [hoverIdx, setHoverIdx] = useState(null);
 
+  function xFor(i) {
+    return PAD.left + i * stepX;
+  }
   function yFor(min) {
     return PAD.top + plotH - (min / maxMinutes) * plotH;
   }
+
+  function lineFor(series) {
+    return dayKeys.map((k, i) => `${i === 0 ? 'M' : 'L'}${xFor(i)},${yFor(perDay[k][series])}`).join(' ');
+  }
+
+  // Mostra no máximo ~8 marcações de data no eixo X — com 60 dias, uma
+  // etiqueta por dia ficaria ilegível (texto em cima de texto).
+  const labelEvery = Math.max(1, Math.ceil(dayKeys.length / 8));
 
   const hovered = hoverIdx !== null ? { key: dayKeys[hoverIdx], ...perDay[dayKeys[hoverIdx]] } : null;
 
   return (
     <div style={{ position: 'relative' }}>
+      <div className="field-hint" style={{ marginBottom: 8 }}>
+        Quantos minutos cada bomba ficou ligada em cada dia, nos últimos {days} dias — passe o mouse num ponto pra ver
+        o dia exato.
+      </div>
       <div style={{ display: 'flex', gap: 20, marginBottom: 8, fontSize: 12.5 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-secondary)' }}>
           <span style={{ width: 10, height: 10, borderRadius: 3, background: 'var(--chart-series-1)', display: 'inline-block' }} />
@@ -625,21 +741,21 @@ function PumpHistoryChart({ activations, days }) {
       </div>
       <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} style={{ display: 'block', overflow: 'visible' }} role="img" aria-label="Minutos de bomba ligada por dia">
         <line x1={PAD.left} x2={W - PAD.right} y1={PAD.top + plotH} y2={PAD.top + plotH} stroke="var(--border-subtle)" strokeWidth="1" />
-        {dayKeys.map((k, i) => {
-          const x = PAD.left + i * (barW + barGap);
-          const b1 = perDay[k].bomba1;
-          const b2 = perDay[k].bomba2;
-          const y1 = yFor(b1);
-          const y2 = yFor(b1 + b2);
-          return (
-            <g key={k} onMouseEnter={() => setHoverIdx(i)} onMouseLeave={() => setHoverIdx((v) => (v === i ? null : v))}>
-              <rect x={x} y={PAD.top} width={barW} height={plotH} fill="transparent" />
-              {b1 > 0 && <rect x={x} y={y1} width={barW} height={PAD.top + plotH - y1} rx="2" fill="var(--chart-series-1)" />}
-              {b2 > 0 && <rect x={x} y={y2} width={barW} height={y1 - y2 - (b1 > 0 ? 2 : 0)} rx="2" fill="var(--chart-series-2)" />}
-              {k === todayKey && <circle cx={x + barW / 2} cy={PAD.top + plotH + 10} r="2" fill="var(--text-tertiary)" />}
-            </g>
-          );
-        })}
+        <path d={lineFor('bomba1')} fill="none" stroke="var(--chart-series-1)" strokeWidth="2" />
+        <path d={lineFor('bomba2')} fill="none" stroke="var(--chart-series-2)" strokeWidth="2" />
+        {dayKeys.map((k, i) => (
+          <g key={k} onMouseEnter={() => setHoverIdx(i)} onMouseLeave={() => setHoverIdx((v) => (v === i ? null : v))}>
+            <rect x={xFor(i) - stepX / 2} y={PAD.top} width={Math.max(stepX, 4)} height={plotH} fill="transparent" />
+            {i % labelEvery === 0 && (
+              <text x={xFor(i)} y={PAD.top + plotH + 14} fontSize="9.5" textAnchor="middle" fill="var(--text-tertiary)">
+                {new Date(k).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
+              </text>
+            )}
+            {hoverIdx === i && <line x1={xFor(i)} x2={xFor(i)} y1={PAD.top} y2={PAD.top + plotH} stroke="var(--border-strong)" strokeWidth="1" strokeDasharray="2,3" />}
+            {perDay[k].bomba1 > 0 && <circle cx={xFor(i)} cy={yFor(perDay[k].bomba1)} r={hoverIdx === i ? 4 : 2.5} fill="var(--chart-series-1)" />}
+            {perDay[k].bomba2 > 0 && <circle cx={xFor(i)} cy={yFor(perDay[k].bomba2)} r={hoverIdx === i ? 4 : 2.5} fill="var(--chart-series-2)" />}
+          </g>
+        ))}
       </svg>
       {hovered && (
         <div
@@ -657,8 +773,8 @@ function PumpHistoryChart({ activations, days }) {
           <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 4 }}>
             {new Date(hovered.key).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
           </div>
-          <div style={{ fontSize: 12.5, color: 'var(--chart-series-1)' }}>Bomba 1: {Math.round(hovered.bomba1)} min</div>
-          <div style={{ fontSize: 12.5, color: 'var(--chart-series-2)' }}>Bomba 2: {Math.round(hovered.bomba2)} min</div>
+          <div style={{ fontSize: 12.5, color: 'var(--chart-series-1)' }}>Bomba 1 ficou ligada: {Math.round(hovered.bomba1)} min</div>
+          <div style={{ fontSize: 12.5, color: 'var(--chart-series-2)' }}>Bomba 2 ficou ligada: {Math.round(hovered.bomba2)} min</div>
         </div>
       )}
     </div>
@@ -732,39 +848,43 @@ function HistoryCard({ canEditConfig }) {
       {history && (
         <>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 20 }}>
-            <StatTile label="Bomba 1 — ativações" value={history.stats.bomba1.count} sub={formatDuration(history.stats.bomba1.totalSeconds)} />
-            <StatTile label="Bomba 2 — ativações" value={history.stats.bomba2.count} sub={formatDuration(history.stats.bomba2.totalSeconds)} />
-            <StatTile
-              label="Tempo médio mínimo → médio"
-              value={history.stats.avgMinimoToMedioSeconds !== null ? formatDuration(history.stats.avgMinimoToMedioSeconds) : '—'}
-              sub={history.stats.minimoToMedioSampleCount ? `${history.stats.minimoToMedioSampleCount} ciclos` : 'sem dados ainda'}
-            />
+            <StatTile label="Bomba 1 — quantas vezes ligou" value={history.stats.bomba1.count} sub={`ficou ligada ${formatDuration(history.stats.bomba1.totalSeconds)} no total`} />
+            <StatTile label="Bomba 2 — quantas vezes ligou" value={history.stats.bomba2.count} sub={`ficou ligada ${formatDuration(history.stats.bomba2.totalSeconds)} no total`} />
           </div>
 
           {history.levelTransitions && (
             <div style={{ marginBottom: 20 }}>
-              <div className="nav-subitem-label" style={{ marginBottom: 8 }}>
-                Tempo médio entre boias (histórico completo, não só os {days} dias acima)
+              <div className="nav-subitem-label" style={{ marginBottom: 4 }}>
+                Tempo médio entre boias
+              </div>
+              <div className="field-hint" style={{ marginBottom: 8 }}>
+                Quanto tempo o poço leva, em média, pra subir (encher) ou descer (esvaziar) de uma boia pra outra —
+                calculado a partir de TODO o histórico já registrado, não só os {days} dias escolhidos acima. Ajuda a
+                notar se alguma bomba está demorando mais que o normal pra baixar o nível, por exemplo.
               </div>
               <div className="grid-2">
                 <div className="surface" style={{ padding: 16 }}>
-                  <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 8 }}>Enchendo</div>
+                  <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 8 }}>Enchendo (nível subindo)</div>
                   {history.levelTransitions.map((t) => (
                     <div className="service-row" key={`rising-${t.from}`}>
                       <span style={{ fontSize: 12.5 }}>{BOUNDARY_LABEL[t.from]} → {BOUNDARY_LABEL[t.to]}</span>
                       <span className="field-hint">
-                        {t.rising ? `${formatDuration(t.rising.avgSeconds)} (${t.rising.sampleCount}x)` : 'sem dados ainda'}
+                        {t.rising
+                          ? `~${formatDuration(t.rising.avgSeconds)} em média (${t.rising.sampleCount} ciclos registrados)`
+                          : 'ainda sem ciclos suficientes registrados'}
                       </span>
                     </div>
                   ))}
                 </div>
                 <div className="surface" style={{ padding: 16 }}>
-                  <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 8 }}>Esvaziando</div>
+                  <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 8 }}>Esvaziando (nível baixando)</div>
                   {history.levelTransitions.map((t) => (
                     <div className="service-row" key={`falling-${t.from}`}>
                       <span style={{ fontSize: 12.5 }}>{BOUNDARY_LABEL[t.to]} → {BOUNDARY_LABEL[t.from]}</span>
                       <span className="field-hint">
-                        {t.falling ? `${formatDuration(t.falling.avgSeconds)} (${t.falling.sampleCount}x)` : 'sem dados ainda'}
+                        {t.falling
+                          ? `~${formatDuration(t.falling.avgSeconds)} em média (${t.falling.sampleCount} ciclos registrados)`
+                          : 'ainda sem ciclos suficientes registrados'}
                       </span>
                     </div>
                   ))}
@@ -776,8 +896,13 @@ function HistoryCard({ canEditConfig }) {
           <PumpHistoryChart activations={history.activations} days={days} />
 
           <div style={{ marginTop: 20 }}>
-            <div className="nav-subitem-label" style={{ marginBottom: 8 }}>
+            <div className="nav-subitem-label" style={{ marginBottom: 4 }}>
               Últimas ativações
+            </div>
+            <div className="field-hint" style={{ marginBottom: 8 }}>
+              Cada linha é uma vez que uma bomba ligou — "Níveis ativos" mostra quais boias já estavam acionadas
+              naquele momento (ex.: "Mínimo + Médio" quer dizer que o poço já tinha passado do nível médio quando essa
+              bomba entrou).
             </div>
             {history.activations.length === 0 ? (
               <p className="field-hint">Nenhuma ativação registrada nesse período ainda.</p>
@@ -788,11 +913,11 @@ function HistoryCard({ canEditConfig }) {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                       <span style={{ fontWeight: 600, fontSize: 13 }}>
                         <span style={{ color: a.pointKey === 'bomba1' ? 'var(--chart-series-1)' : 'var(--chart-series-2)' }}>●</span>{' '}
-                        {a.pointKey === 'bomba1' ? 'Bomba 1' : 'Bomba 2'} — {formatDateTime(a.startedAt)}
+                        {a.pointKey === 'bomba1' ? 'Bomba 1' : 'Bomba 2'} ligou em {formatDateTime(a.startedAt)}
                       </span>
-                      <span style={{ fontSize: 11.5, color: 'var(--text-tertiary)' }}>Níveis ativos: {LEVELS_ACTIVE_LABEL(a.levelsAtStart)}</span>
+                      <span style={{ fontSize: 11.5, color: 'var(--text-tertiary)' }}>Níveis ativos no momento: {LEVELS_ACTIVE_LABEL(a.levelsAtStart)}</span>
                     </div>
-                    <span className="field-hint">{a.endedAt ? formatDuration(a.durationSeconds) : 'em andamento'}</span>
+                    <span className="field-hint">{a.endedAt ? `ficou ligada ${formatDuration(a.durationSeconds)}` : 'ainda ligada agora'}</span>
                   </div>
                 ))}
               </div>
@@ -801,8 +926,13 @@ function HistoryCard({ canEditConfig }) {
 
           {canEditConfig && snapshots && snapshots.length > 0 && (
             <div style={{ marginTop: 20 }}>
-              <div className="nav-subitem-label" style={{ marginBottom: 8 }}>
-                Fotos automáticas ao ligar uma bomba (pra comparar com o painel físico)
+              <div className="nav-subitem-label" style={{ marginBottom: 4 }}>
+                Fotos automáticas ao ligar uma bomba
+              </div>
+              <div className="field-hint" style={{ marginBottom: 8 }}>
+                Toda vez que a bomba 1 ou a bomba 2 liga, o Portal tira sozinho uma "foto" de todos os sinais naquele
+                exato instante — serve pra comparar com o que o painel físico mostrava nessa mesma hora, sem precisar
+                estar presente esperando a bomba ligar.
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 320, overflowY: 'auto' }}>
                 {snapshots.map((s) => (

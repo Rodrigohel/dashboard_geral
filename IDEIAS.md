@@ -154,17 +154,11 @@ cada alarme. Escopo bem maior que uma tela só — avaliar com calma antes de co
 preço de Twilio vs. alternativas (ex.: outros provedores de voz/SMS) antes de decidir qual
 usar.
 
-## Bombas: permitir adicionar pontos customizados (não só os fixos)
-Hoje a tela "Bombas → Configuração" só tem os 15 sinais fixos já mapeados (nivelMinimo ...
-bomba2DoDia, ver `docs/casa-de-bombas.md`) — cada sinal novo exige mexer no código
-(`pump_station` no schema, `POINTS` nas três rotas/serviços, os componentes React). O Rodrigo
-quer poder **adicionar um sinal novo sozinho, sem deploy**, direto na tela: ex. "Entrada I11 →
-LB00120, nome: Bomba Reserva". Pedido explícito de fazer em duas fases:
-1. **Agora**: só a parte de dados — conseguir adicionar/nomear/configurar (endereço + tipo +
-   inverter) um ponto extra qualquer, mesmo que ele apareça de forma genérica/crua na tela de
-   status (sem desenho específico, só um nome + sim/não).
-2. **Depois** (não agora): alguém faz a parte gráfica bonita desses campos extras.
-Arquiteturalmente isso significa trocar o esquema fixo (uma coluna addr/type/invert por sinal
-nomeado) por uma lista dinâmica de pontos — provavelmente uma tabela nova
-(`pump_station_custom_points` ou similar) em vez de colunas fixas, já que não dá pra prever
-quantos campos custom vão existir.
+## ~~Bombas: permitir adicionar pontos customizados~~ — fase 1 feita
+Fase 1 implementada: em "Bombas → Configuração" agora dá pra adicionar um sinal novo sozinho
+(nome + endereço, tipo sempre "coil" por padrão, inverter opcional), sem precisar de deploy —
+tabela nova `pump_custom_points` (lista dinâmica, em vez de colunas fixas) lida pela mesma
+lógica Modbus dos pontos fixos. Aparece de forma genérica (nome + sim/não) numa coluna extra
+"Pontos customizados" no card de status detalhado (só quem edita config vê, igual o resto
+desse card) — ainda sem desenho gráfico específico nem entrada no histórico/gráfico de
+ativações, isso fica pra fase 2, quando fizer falta.
