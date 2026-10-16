@@ -67,6 +67,18 @@ export default function App() {
   if (checking) return <LoadingScreen />;
   if (!user) return <Login branding={branding} onLogin={handleLogin} />;
 
+  // Modo TV / painel de portaria (ver IDEIAS.md) — conta marcada assim na
+  // criação não vê menu, nem qualquer outra tela: só os cards dos módulos
+  // liberados + alarmes ativos, pensada pra ficar logada num monitor fixo
+  // na guarita. Sem Sidebar/TopBar/BottomNav/CommandPalette de propósito.
+  if (user.tvMode) {
+    return (
+      <div className="shell-tv">
+        <Home user={user} can={can} tvMode onLogout={logout} />
+      </div>
+    );
+  }
+
   const isOwner = user.role === 'owner';
 
   // `section` é opcional — vem dos atalhos do submenu lateral (ex.: "Planta

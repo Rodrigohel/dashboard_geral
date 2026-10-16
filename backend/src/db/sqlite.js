@@ -369,3 +369,57 @@ for (const point of [
     db.exec(`ALTER TABLE pump_station ADD COLUMN ${point}_invert INTEGER NOT NULL DEFAULT 0`);
   }
 }
+
+// Alertas via Telegram (ver IDEIAS.md) — token do bot guardado criptografado
+// igual outros segredos (ver cryptoService). `webhook_secret` vai na URL do
+// webhook configurado no Telegram, pra qualquer um na internet não poder
+// chamar POST /api/telegram/webhook/<secret> fingindo ser o Telegram e
+// reconhecer alarmes à toa. `resend_interval_seconds` vale só pros alarmes
+// marcados como prioridade (ver `_priority` nos pontos de pump_station,
+// migração logo abaixo) — os demais mandam uma mensagem só, sem insistir.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS telegram_settings (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    enabled INTEGER NOT NULL DEFAULT 0,
+    bot_token_enc TEXT NOT NULL DEFAULT '',
+    chat_id TEXT NOT NULL DEFAULT '',
+    webhook_secret TEXT NOT NULL DEFAULT '',
+    resend_interval_seconds INTEGER NOT NULL DEFAULT 1800
+  );
+  INSERT OR IGNORE INTO telegram_settings (id) VALUES (1);
+
+  -- Um alarme "ativo" (ver telegramService.js) vira uma linha aqui entre o
+  -- instante em que disparou e o instante em que resolveu (sinal voltou a
+  -- false) OU foi reconhecido por uma resposta no chat do Telegram. Sem
+  -- linha = alarme não está ativo (não dispara de novo até acontecer uma
+  -- transição false->true nova).
+  CREATE TABLE IF NOT EXISTS telegram_alarm_state (
+    alarm_key TEXT PRIMARY KEY,
+    active_since TEXT NOT NULL DEFAULT (datetime('now')),
+    last_sent_at TEXT NOT NULL DEFAULT (datetime('now')),
+    acknowledged_at TEXT
+  );
+`);
+
+// Flag "prioridade" por sinal de alarme da casa de bombas — só esses 7
+// pontos fazem sentido como "alarme" (os 4 sensores de nível não são
+// alarme, são leitura de nível normal). Prioridade = o Telegram insiste
+// (reenvia) até reconhecer; sem prioridade = manda uma vez só.
+const pumpStationColumnsForPriority = db.prepare('PRAGMA table_info(pump_station)').all().map((c) => c.name);
+for (const point of ['termico1', 'termico2', 'modo_manual', 'emergencia', 'falta_fase', 'painel_desligado', 'falha_boias']) {
+  if (!pumpStationColumnsForPriority.includes(`${point}_priority`)) {
+    db.exec(`ALTER TABLE pump_station ADD COLUMN ${point}_priority INTEGER NOT NULL DEFAULT 0`);
+  }
+}
+
+// "Modo TV / painel de portaria" — conta especial marcada na criação do
+// usuário (não é um 'role' novo, é um flag à parte) que faz o front mostrar
+// só os cards de módulo + alarmes ativos, sem menu nenhum — pensada pra
+// ficar logada num monitor fixo na guarita. Continua usando o sistema de
+// permissões normal (módulos/equipamentos) pra decidir quais cards
+// aparecem; isso só troca a APRESENTAÇÃO, não dá acesso a nada que a conta
+// já não teria.
+const usersColumns = db.prepare('PRAGMA table_info(users)').all().map((c) => c.name);
+if (!usersColumns.includes('tv_mode')) {
+  db.exec('ALTER TABLE users ADD COLUMN tv_mode INTEGER NOT NULL DEFAULT 0');
+}

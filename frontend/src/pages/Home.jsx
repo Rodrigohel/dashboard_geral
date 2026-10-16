@@ -297,7 +297,7 @@ function formatEyebrow(date) {
 // precisar recarregar a página manualmente.
 const POLL_MS = 10000;
 
-export default function Home({ user, onNavigate, can }) {
+export default function Home({ user, onNavigate, can, tvMode = false, onLogout }) {
   const [modules, setModules] = useState(null);
   const [redeSummary, setRedeSummary] = useState(null);
   const [redePoints, setRedePoints] = useState(null);
@@ -576,17 +576,66 @@ export default function Home({ user, onNavigate, can }) {
     };
   }
 
+  // Alarmes ativos agora, juntando as mesmas fontes que já alimentam os
+  // cards — usado só no Modo TV (ver tvMode), pra mostrar uma lista clara
+  // do que está errado agora, sem precisar entrar em cada módulo.
+  const BOMBAS_ALARM_LABELS = {
+    termico1: 'Bombas — térmico da bomba 1 desarmado',
+    termico2: 'Bombas — térmico da bomba 2 desarmado',
+    emergencia: 'Bombas — emergência acionada',
+    faltaFase: 'Bombas — falta de fase na rede elétrica',
+    painelDesligado: 'Bombas — painel de bombas desligado',
+    falhaBoias: 'Bombas — falha nas boias de nível',
+  };
+  const activeAlarms = [
+    ...(hasRede && redeSummary?.offline > 0 ? [{ id: 'rede', text: `Rede — ${redeSummary.offline} equipamento(s) offline` }] : []),
+    ...(hasInterfone && interfoneSummary?.offline > 0 ? [{ id: 'interfone', text: `Interfone — ${interfoneSummary.offline} ramal(is) offline` }] : []),
+    ...(hasAcesso && modules?.acesso?.offline > 0 ? [{ id: 'acesso', text: `Controle de acesso — ${modules.acesso.offline} porteiro(s) offline` }] : []),
+    ...(hasBombas
+      ? Object.entries(BOMBAS_ALARM_LABELS)
+          .filter(([key]) => bombasStatus?.points?.[key] === true)
+          .map(([key, text]) => ({ id: `bombas-${key}`, text }))
+      : []),
+  ];
+
   return (
     <>
-      <div className="page-header">
-        <div>
-          <div className="home-eyebrow">{formatEyebrow(new Date())}</div>
-          <h1>
-            {greeting}, {firstName} 👋
-          </h1>
-          <p>Aqui está um resumo do que você tem acesso.</p>
+      {tvMode && (
+        <div className="surface" style={{ padding: '16px 20px', marginBottom: 20, borderLeft: `3px solid ${activeAlarms.length > 0 ? 'var(--danger-500)' : 'var(--success-500)'}` }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: activeAlarms.length > 0 ? 10 : 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700, fontSize: 16 }}>
+              <Icon name="activity" size={18} />
+              {activeAlarms.length > 0 ? `${activeAlarms.length} alarme(s) ativo(s)` : 'Tudo normal agora'}
+            </div>
+            {onLogout && (
+              <button className="btn btn-ghost btn-sm" onClick={onLogout}>
+                Sair
+              </button>
+            )}
+          </div>
+          {activeAlarms.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {activeAlarms.map((a) => (
+                <div key={a.id} className="badge badge-danger" style={{ width: 'fit-content', fontSize: 13.5 }}>
+                  <span className="badge-dot" /> {a.text}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
-      </div>
+      )}
+
+      {!tvMode && (
+        <div className="page-header">
+          <div>
+            <div className="home-eyebrow">{formatEyebrow(new Date())}</div>
+            <h1>
+              {greeting}, {firstName} 👋
+            </h1>
+            <p>Aqui está um resumo do que você tem acesso.</p>
+          </div>
+        </div>
+      )}
 
       <div className="home-main">
         {isOwner && <ServerHealthWidget onNavigate={onNavigate} />}
@@ -628,8 +677,8 @@ export default function Home({ user, onNavigate, can }) {
               <div
                 key={key}
                 className="module-card surface"
-                style={{ '--module-color': meta.color, cursor: 'pointer' }}
-                onClick={handleClick}
+                style={{ '--module-color': meta.color, cursor: tvMode ? 'default' : 'pointer' }}
+                onClick={tvMode ? undefined : handleClick}
               >
                 <span className="module-card-corner tl" />
                 <span className="module-card-corner br" />
@@ -769,7 +818,7 @@ export default function Home({ user, onNavigate, can }) {
             </div>
           )}
 
-        {(hasRede || hasInterfone || hasAcesso) && <ActivityFeed events={activityFeed} />}
+        {!tvMode && (hasRede || hasInterfone || hasAcesso) && <ActivityFeed events={activityFeed} />}
       </div>
 
       {editingCard && (

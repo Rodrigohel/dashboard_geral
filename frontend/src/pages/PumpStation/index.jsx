@@ -348,11 +348,20 @@ function TankVisualization({ status, error, loaded }) {
 // por padrão (só endereço) e só aparece se a pessoa pedir "avançado" (ver
 // showAdvanced em ConfigCard). Sem isso, ninguém de fora de TI tinha ideia
 // do que "FC1/FC3/holding register" significava.
-function PointField({ label, point, showAdvanced, onChange }) {
+function PointField({ label, point, showAdvanced, showPriority, onChange }) {
   const invertRow = (
     <label className="checkbox-row" style={{ marginTop: 4 }}>
       <input type="checkbox" checked={Boolean(point.invert)} onChange={(e) => onChange({ ...point, invert: e.target.checked })} />
       <span className="field-hint">Inverter valor lido (contato normalmente fechado — vem "ligado" em repouso)</span>
+    </label>
+  );
+  // Só pros 7 sinais de alarme (ver PRIORITY_KEYS no backend) — "prioridade"
+  // faz o alerta via Telegram insistir (reenviar) até alguém reconhecer, em
+  // vez de mandar uma mensagem só (ver Configurações → Alertas via Telegram).
+  const priorityRow = showPriority && (
+    <label className="checkbox-row" style={{ marginTop: 4 }}>
+      <input type="checkbox" checked={Boolean(point.priority)} onChange={(e) => onChange({ ...point, priority: e.target.checked })} />
+      <span className="field-hint">Prioridade — Telegram insiste até reconhecer (ver Configurações)</span>
     </label>
   );
   if (!showAdvanced) {
@@ -367,6 +376,7 @@ function PointField({ label, point, showAdvanced, onChange }) {
           onChange={(e) => onChange({ ...point, addr: e.target.value === '' ? null : Number(e.target.value) })}
         />
         {invertRow}
+        {priorityRow}
       </div>
     );
   }
@@ -395,11 +405,13 @@ function PointField({ label, point, showAdvanced, onChange }) {
         </div>
       </div>
       {invertRow}
+      {priorityRow}
     </div>
   );
 }
 
-const EMPTY_POINT = { addr: null, type: 'coil', invert: false };
+const EMPTY_POINT = { addr: null, type: 'coil', invert: false, priority: false };
+const ALARM_POINT_KEYS = new Set(ALARM_POINTS.map((p) => p.key));
 const ALL_POINT_KEYS = [...LEVEL_POINTS, ...PUMP_POINTS, ...BOMBA_DO_DIA_POINTS, ...ALARM_POINTS].map((p) => p.key);
 
 function ConfigCard({ configId }) {
@@ -598,6 +610,7 @@ function ConfigCard({ configId }) {
                 label={meta.label}
                 point={points[key] || EMPTY_POINT}
                 showAdvanced={showAdvanced}
+                showPriority={ALARM_POINT_KEYS.has(key)}
                 onChange={(v) => setPoint(key, v)}
               />
             );
@@ -704,7 +717,19 @@ function PumpHistoryChart({ activations, days }) {
   const plotW = W - PAD.left - PAD.right;
   const plotH = H - PAD.top - PAD.bottom;
   const stepX = dayKeys.length > 1 ? plotW / (dayKeys.length - 1) : 0;
-  const [hoverIdx, setHoverIdx] = useState(null);
+  const [selectedIdx, setSelectedIdx] = useState(dayKeys.length - 1);
+
+  // Sempre que o período muda (30/45/60 dias), recalcula o dia selecionado:
+  // o último com alguma ativação, senão o último do período — assim sempre
+  // tem um resumo legível embaixo do gráfico sem precisar tocar em nada
+  // primeiro (no celular "passar o mouse" não existe, por isso trocamos
+  // hover por toque/clique com resumo fixo, não flutuante).
+  useEffect(() => {
+    const lastWithData = [...dayKeys].reverse().find((k) => perDay[k].bomba1 > 0 || perDay[k].bomba2 > 0);
+    const idx = dayKeys.indexOf(lastWithData ?? dayKeys[dayKeys.length - 1]);
+    setSelectedIdx(idx === -1 ? dayKeys.length - 1 : idx);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [days]);
 
   function xFor(i) {
     return PAD.left + i * stepX;
@@ -717,17 +742,19 @@ function PumpHistoryChart({ activations, days }) {
     return dayKeys.map((k, i) => `${i === 0 ? 'M' : 'L'}${xFor(i)},${yFor(perDay[k][series])}`).join(' ');
   }
 
-  // Mostra no máximo ~8 marcações de data no eixo X — com 60 dias, uma
-  // etiqueta por dia ficaria ilegível (texto em cima de texto).
-  const labelEvery = Math.max(1, Math.ceil(dayKeys.length / 8));
+  // Mostra no máximo ~6 marcações de data no eixo X — com 60 dias, uma
+  // etiqueta por dia ficaria ilegível, principalmente no celular (tela
+  // estreita).
+  const labelEvery = Math.max(1, Math.ceil(dayKeys.length / 6));
 
-  const hovered = hoverIdx !== null ? { key: dayKeys[hoverIdx], ...perDay[dayKeys[hoverIdx]] } : null;
+  const selectedKey = dayKeys[selectedIdx];
+  const selected = selectedKey ? { key: selectedKey, ...perDay[selectedKey] } : null;
 
   return (
-    <div style={{ position: 'relative' }}>
+    <div>
       <div className="field-hint" style={{ marginBottom: 8 }}>
-        Quantos minutos cada bomba ficou ligada em cada dia, nos últimos {days} dias — passe o mouse num ponto pra ver
-        o dia exato.
+        Quantos minutos cada bomba ficou ligada em cada dia, nos últimos {days} dias — toque num ponto do gráfico pra
+        ver o dia exato.
       </div>
       <div style={{ display: 'flex', gap: 20, marginBottom: 8, fontSize: 12.5 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-secondary)' }}>
@@ -739,42 +766,31 @@ function PumpHistoryChart({ activations, days }) {
           Bomba 2
         </div>
       </div>
-      <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} style={{ display: 'block', overflow: 'visible' }} role="img" aria-label="Minutos de bomba ligada por dia">
+      <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} style={{ display: 'block', overflow: 'visible', touchAction: 'pan-y' }} role="img" aria-label="Minutos de bomba ligada por dia">
         <line x1={PAD.left} x2={W - PAD.right} y1={PAD.top + plotH} y2={PAD.top + plotH} stroke="var(--border-subtle)" strokeWidth="1" />
         <path d={lineFor('bomba1')} fill="none" stroke="var(--chart-series-1)" strokeWidth="2" />
         <path d={lineFor('bomba2')} fill="none" stroke="var(--chart-series-2)" strokeWidth="2" />
         {dayKeys.map((k, i) => (
-          <g key={k} onMouseEnter={() => setHoverIdx(i)} onMouseLeave={() => setHoverIdx((v) => (v === i ? null : v))}>
+          <g key={k} onClick={() => setSelectedIdx(i)} style={{ cursor: 'pointer' }}>
             <rect x={xFor(i) - stepX / 2} y={PAD.top} width={Math.max(stepX, 4)} height={plotH} fill="transparent" />
             {i % labelEvery === 0 && (
-              <text x={xFor(i)} y={PAD.top + plotH + 14} fontSize="9.5" textAnchor="middle" fill="var(--text-tertiary)">
+              <text x={xFor(i)} y={PAD.top + plotH + 14} fontSize="10.5" textAnchor="middle" fill="var(--text-tertiary)">
                 {new Date(k).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
               </text>
             )}
-            {hoverIdx === i && <line x1={xFor(i)} x2={xFor(i)} y1={PAD.top} y2={PAD.top + plotH} stroke="var(--border-strong)" strokeWidth="1" strokeDasharray="2,3" />}
-            {perDay[k].bomba1 > 0 && <circle cx={xFor(i)} cy={yFor(perDay[k].bomba1)} r={hoverIdx === i ? 4 : 2.5} fill="var(--chart-series-1)" />}
-            {perDay[k].bomba2 > 0 && <circle cx={xFor(i)} cy={yFor(perDay[k].bomba2)} r={hoverIdx === i ? 4 : 2.5} fill="var(--chart-series-2)" />}
+            {selectedIdx === i && <line x1={xFor(i)} x2={xFor(i)} y1={PAD.top} y2={PAD.top + plotH} stroke="var(--border-strong)" strokeWidth="1" strokeDasharray="2,3" />}
+            {perDay[k].bomba1 > 0 && <circle cx={xFor(i)} cy={yFor(perDay[k].bomba1)} r={selectedIdx === i ? 5 : 2.5} fill="var(--chart-series-1)" />}
+            {perDay[k].bomba2 > 0 && <circle cx={xFor(i)} cy={yFor(perDay[k].bomba2)} r={selectedIdx === i ? 5 : 2.5} fill="var(--chart-series-2)" />}
           </g>
         ))}
       </svg>
-      {hovered && (
-        <div
-          className="surface"
-          style={{
-            position: 'absolute',
-            top: 0,
-            right: 0,
-            padding: '8px 12px',
-            minWidth: 150,
-            pointerEvents: 'none',
-            boxShadow: 'var(--shadow-md)',
-          }}
-        >
-          <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 4 }}>
-            {new Date(hovered.key).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
-          </div>
-          <div style={{ fontSize: 12.5, color: 'var(--chart-series-1)' }}>Bomba 1 ficou ligada: {Math.round(hovered.bomba1)} min</div>
-          <div style={{ fontSize: 12.5, color: 'var(--chart-series-2)' }}>Bomba 2 ficou ligada: {Math.round(hovered.bomba2)} min</div>
+      {selected && (
+        <div className="surface" style={{ marginTop: 10, padding: '10px 14px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '6px 18px' }}>
+          <span style={{ fontWeight: 700, fontSize: 13 }}>
+            {new Date(selected.key).toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit' })}
+          </span>
+          <span style={{ fontSize: 13, color: 'var(--chart-series-1)' }}>● Bomba 1: {Math.round(selected.bomba1)} min</span>
+          <span style={{ fontSize: 13, color: 'var(--chart-series-2)' }}>● Bomba 2: {Math.round(selected.bomba2)} min</span>
         </div>
       )}
     </div>

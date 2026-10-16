@@ -1,6 +1,20 @@
 import { db } from '../db/sqlite.js';
 import { readPumpStationStatus } from './pumpStationClient.js';
 import { recordPumpStationEvent, recordPumpActivationSnapshot } from './pumpStationHistoryService.js';
+import { checkBombasAlarms } from './telegramService.js';
+
+// Mesma lista de PRIORITY_KEYS de routes/pumpStation.js — centralizada aqui
+// de novo (igual os POINTS acima) pra não importar o router inteiro só por
+// causa disso.
+const PRIORITY_COLUMN_BY_KEY = {
+  termico1: 'termico1',
+  termico2: 'termico2',
+  modoManual: 'modo_manual',
+  emergencia: 'emergencia',
+  faltaFase: 'falta_fase',
+  painelDesligado: 'painel_desligado',
+  falhaBoias: 'falha_boias',
+};
 
 // Mesmos 9 sinais da tela "Bombas" — centralizado aqui pra bater com
 // routes/pumpStation.js sem importar o router inteiro só por causa disso.
@@ -28,7 +42,11 @@ function getConfig() {
   for (const [key, column] of POINTS) {
     points[key] = { addr: row[`${column}_addr`], type: row[`${column}_type`] };
   }
-  return { enabled: Boolean(row.enabled), host: row.host, port: row.port, unitId: row.unit_id, pollSeconds: row.poll_seconds, points };
+  const priorityByKey = {};
+  for (const [key, column] of Object.entries(PRIORITY_COLUMN_BY_KEY)) {
+    priorityByKey[key] = Boolean(row[`${column}_priority`]);
+  }
+  return { enabled: Boolean(row.enabled), host: row.host, port: row.port, unitId: row.unit_id, pollSeconds: row.poll_seconds, points, priorityByKey };
 }
 
 // Último valor conhecido de cada sinal — null até a primeira leitura bem
@@ -68,6 +86,11 @@ async function pollOnce() {
     lastKnown[key] = boolValue;
   }
   hasBaseline = true;
+
+  // Alertas via Telegram (ver IDEIAS.md) — checa a cada leitura, não só em
+  // cima de edge/baseline: se o Portal reiniciar com um alarme já ativo,
+  // ainda assim quer avisar.
+  checkBombasAlarms(status, config.priorityByKey).catch(() => {});
 }
 
 export function startPumpStationHistoryPoller() {

@@ -21,6 +21,7 @@ import { gatewayProxy } from './services/gatewayService.js';
 import { startDeviceHealthPoller } from './services/deviceHealthPoller.js';
 import { startAuditRetentionPruner } from './services/auditRetentionPruner.js';
 import { startPumpStationHistoryPoller } from './services/pumpStationHistoryPoller.js';
+import { isValidWebhookSecret, acknowledgeAllActiveAlarms, sendTelegramMessage } from './services/telegramService.js';
 import './db/sqlite.js';
 
 const app = express();
@@ -42,6 +43,26 @@ app.use('/api/branding', brandingRouter);
 // do fallback estático do frontend (final do arquivo) pra não cair no
 // index.html no lugar do JSON.
 app.use('/manifest.webmanifest', manifestRouter);
+
+// Público de propósito (o Telegram chama isso, não um usuário logado do
+// Portal) — autenticado pelo `secret` na própria URL em vez de JWT (ver
+// webhook_secret/isValidWebhookSecret em telegramService.js). Configurado
+// no bot via setWebhook pra essa URL completa.
+app.post('/api/telegram/webhook/:secret', async (req, res) => {
+  if (!isValidWebhookSecret(req.params.secret)) return res.status(404).end();
+  res.status(200).end(); // responde rápido — o Telegram não espera processamento
+  const text = req.body?.message?.text;
+  if (!text) return;
+  try {
+    const acked = await acknowledgeAllActiveAlarms();
+    if (acked.length > 0) {
+      await sendTelegramMessage(`✅ ${acked.length} alarme(s) reconhecido(s), parei de insistir.`).catch(() => {});
+    }
+  } catch {
+    // webhook do Telegram não tem pra quem devolver erro depois do 200 já
+    // mandado — só não derruba o processo.
+  }
+});
 
 app.use('/api/auth', authRouter);
 app.use('/api/modules', requireAuth, modulesRouter);

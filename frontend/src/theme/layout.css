@@ -2,6 +2,15 @@
   min-height: 100vh;
 }
 
+/* Modo TV / painel de portaria — sem Sidebar/TopBar/BottomNav, conteúdo
+   ocupando a tela inteira (ver App.jsx e Home.jsx com tvMode). */
+.shell-tv {
+  min-height: 100vh;
+  padding: var(--space-6);
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
 /* Trilho de ícones recolhido por padrão no desktop, expande por cima do
    conteúdo (sem empurrar nada) ao passar o mouse — volta a largura cheia,
    com nome dos itens, submenus e a logo maior. Mobile (ver media query lá
