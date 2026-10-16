@@ -617,6 +617,7 @@ function TelegramSettingsCard() {
   const [chatId, setChatId] = useState('');
   const [webhookRegisteredUrl, setWebhookRegisteredUrl] = useState('');
   const [resendIntervalSeconds, setResendIntervalSeconds] = useState(1800);
+  const [snoozeMinutes, setSnoozeMinutes] = useState(10);
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
@@ -632,6 +633,7 @@ function TelegramSettingsCard() {
       setChatId(s.chatId);
       setWebhookRegisteredUrl(s.webhookRegisteredUrl);
       setResendIntervalSeconds(s.resendIntervalSeconds);
+      setSnoozeMinutes(s.snoozeMinutes);
       setLoaded(true);
       return s;
     });
@@ -659,7 +661,12 @@ function TelegramSettingsCard() {
   async function handleSaveToken() {
     setSaving(true);
     try {
-      await api.settings.saveTelegram({ enabled, botToken: botToken || undefined, resendIntervalSeconds: Number(resendIntervalSeconds) });
+      await api.settings.saveTelegram({
+        enabled,
+        botToken: botToken || undefined,
+        resendIntervalSeconds: Number(resendIntervalSeconds),
+        snoozeMinutes: Number(snoozeMinutes),
+      });
       setBotToken('');
       toast('Token salvo.');
       load();
@@ -707,7 +714,7 @@ function TelegramSettingsCard() {
   async function handleSaveAtivacao() {
     setSaving(true);
     try {
-      await api.settings.saveTelegram({ enabled, resendIntervalSeconds: Number(resendIntervalSeconds) });
+      await api.settings.saveTelegram({ enabled, resendIntervalSeconds: Number(resendIntervalSeconds), snoozeMinutes: Number(snoozeMinutes) });
       toast('Configuração salva.');
       load();
     } catch (err) {
@@ -831,6 +838,21 @@ function TelegramSettingsCard() {
               <option value={7200}>2 horas</option>
             </select>
           </div>
+          <div className="field">
+            <label className="field-label">Botão "🚗 Já estou indo" adia por</label>
+            <select className="select" style={{ maxWidth: 220 }} value={snoozeMinutes} onChange={(e) => setSnoozeMinutes(e.target.value)}>
+              <option value={5}>5 minutos</option>
+              <option value={10}>10 minutos</option>
+              <option value={20}>20 minutos</option>
+              <option value={30}>30 minutos</option>
+              <option value={60}>1 hora</option>
+            </select>
+            <span className="field-hint">
+              Cada mensagem de alarme de prioridade vem com três botões: <strong>✅ Visto</strong> e{' '}
+              <strong>🔧 Em manutenção</strong> reconhecem de vez (para de insistir até resolver e disparar de novo);{' '}
+              <strong>🚗 Já estou indo</strong> só adia — se não resolver até o tempo acima, volta a insistir sozinho.
+            </span>
+          </div>
           <div>
             <button className="btn btn-primary" onClick={handleSaveAtivacao} disabled={saving || !chatId}>
               {saving ? <span className="spinner" /> : 'Salvar'}
@@ -864,6 +886,7 @@ function PrioritiesCard() {
   const [pumpConfig, setPumpConfig] = useState(null);
   const [generatorConfig, setGeneratorConfig] = useState(null);
   const [devices, setDevices] = useState(null);
+  const [redeDevices, setRedeDevices] = useState(null); // { supported, devices }
   const [moduleFlags, setModuleFlags] = useState(null);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState('');
@@ -877,12 +900,14 @@ function PrioritiesCard() {
       api.generator.getConfig(),
       api.accessDevices.list(),
       api.settings.getTelegramPriorities(),
+      api.settings.getExternalDevices('rede'),
     ])
-      .then(([pump, gen, devs, flags]) => {
+      .then(([pump, gen, devs, flags, rede]) => {
         setPumpConfig(pump);
         setGeneratorConfig(gen);
         setDevices(devs);
         setModuleFlags(flags);
+        setRedeDevices(rede);
         setLoaded(true);
       })
       .catch((err) => {
@@ -936,6 +961,18 @@ function PrioritiesCard() {
     try {
       await api.settings.saveTelegramPriorities(next);
       setModuleFlags(next);
+    } catch (err) {
+      toast(err.message, 'error');
+    } finally {
+      setSavingKey(null);
+    }
+  }
+
+  async function toggleRedeDevice(device, value) {
+    setSavingKey(`rede-${device.id}`);
+    try {
+      await api.settings.saveExternalDevicePriority('rede', device.id, value);
+      setRedeDevices((r) => ({ ...r, devices: r.devices.map((d) => (d.id === device.id ? { ...d, priority: value } : d)) }));
     } catch (err) {
       toast(err.message, 'error');
     } finally {
@@ -1015,17 +1052,47 @@ function PrioritiesCard() {
       </div>
 
       <div>
-        <div style={{ fontWeight: 600, marginBottom: 8 }}>Rede / Interfone / Segurança</div>
+        <div style={{ fontWeight: 600, marginBottom: 8 }}>Rede</div>
+        {!redeDevices.supported ? (
+          <span className="field-hint">Painel de Rede ainda não suporta marcar favorito por equipamento.</span>
+        ) : redeDevices.devices.length === 0 ? (
+          <span className="field-hint">
+            Nenhum equipamento favoritado ainda. Marque favorito nos equipamentos importantes lá no painel de Rede
+            (ícone de estrela) — só esses aparecem aqui pra escolher prioridade, em vez de um alarme só pra "N
+            equipamentos offline" do módulo inteiro.
+          </span>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <span className="field-hint" style={{ marginBottom: 2 }}>
+              Só aparecem aqui os favoritados no painel de Rede — marque quais desses também insistem via Telegram.
+            </span>
+            {redeDevices.devices.map((d) => (
+              <label key={d.id} className="checkbox-row">
+                <input
+                  type="checkbox"
+                  checked={Boolean(d.priority)}
+                  disabled={savingKey === `rede-${d.id}`}
+                  onChange={(e) => toggleRedeDevice(d, e.target.checked)}
+                />
+                {d.name}
+                {d.offline && (
+                  <span className="badge badge-danger" style={{ marginLeft: 6 }}>
+                    <span className="badge-dot" /> offline
+                  </span>
+                )}
+              </label>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div>
+        <div style={{ fontWeight: 600, marginBottom: 8 }}>Interfone / Segurança</div>
+        <div className="field-hint" style={{ marginBottom: 4 }}>
+          Interfone ainda não tem favorito por equipamento (como Rede já tem) — por enquanto é só um alarme pro
+          módulo inteiro ("N ramal(is) offline"), até esse campo existir lá também.
+        </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <label className="checkbox-row">
-            <input
-              type="checkbox"
-              checked={moduleFlags.redeOffline}
-              disabled={savingKey === 'modulo-redeOffline'}
-              onChange={(e) => toggleModuleFlag('redeOffline', e.target.checked)}
-            />
-            Rede — equipamento(s) offline
-          </label>
           <label className="checkbox-row">
             <input
               type="checkbox"

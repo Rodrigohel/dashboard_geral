@@ -1,11 +1,13 @@
-// Alertas via Telegram (ver IDEIAS.md) — manda mensagem quando um alarme da
-// casa de bombas dispara, com dois botões ("Visto" / "Em manutenção")
-// embutidos na própria mensagem. Tocar um botão reconhece SÓ aquele alarme
-// (via callback_data = "ack:<alarmKey>" / "maint:<alarmKey>"), diferente de
-// só digitar uma mensagem solta no chat, que continua reconhecendo todos os
-// alarmes ativos de uma vez (fallback pra quem prefere digitar).
-// Alarmes marcados como "prioridade" insistem (reenviam) a cada X segundos
-// até alguém reconhecer, de um jeito ou de outro.
+// Alertas via Telegram (ver IDEIAS.md) — manda mensagem quando um alarme
+// dispara, com três botões embutidos na própria mensagem: "Visto" e "Em
+// manutenção" RECONHECEM o alarme (para de insistir até ele resolver e
+// disparar de novo); "Já estou indo" só ADIA (snooze) — não reconhece,
+// só empurra a próxima insistência pra mais tarde, pra quem está indo
+// resolver mas ainda não chegou. Tocar um botão manda um callback_data
+// ("ack:<key>" / "maint:<key>" / "snooze:<key>"); digitar qualquer
+// mensagem solta no chat reconhece TODOS os alarmes ativos de uma vez
+// (fallback pra quem prefere digitar). Alarmes marcados como "prioridade"
+// insistem (reenviam) a cada X segundos até alguém reconhecer ou adiar.
 import crypto from 'node:crypto';
 import { db } from '../db/sqlite.js';
 import { encryptSecret, decryptSecret } from './cryptoService.js';
@@ -22,6 +24,7 @@ export function getTelegramSettings() {
     hasToken: Boolean(row.bot_token_enc),
     chatId: row.chat_id,
     resendIntervalSeconds: row.resend_interval_seconds,
+    snoozeMinutes: row.snooze_minutes,
     webhookSecret: row.webhook_secret,
     // Guardados pra tela mostrar status PERSISTENTE ("já configurado") em
     // vez de só um toast que passa e não deixa rastro — ver IDEIAS.md
@@ -33,19 +36,20 @@ export function getTelegramSettings() {
 // Token nunca volta pro front depois de salvo (igual senha de equipamento)
 // — só `hasToken: true/false`, pra tela saber se já tem um configurado sem
 // expor o valor de novo.
-export function saveTelegramSettings({ enabled, botToken, chatId, resendIntervalSeconds }) {
+export function saveTelegramSettings({ enabled, botToken, chatId, resendIntervalSeconds, snoozeMinutes }) {
   const row = getRow();
   const webhookSecret = row.webhook_secret || crypto.randomBytes(24).toString('hex');
   const tokenEnc = botToken ? encryptSecret(botToken) : row.bot_token_enc;
   const interval = Math.min(24 * 3600, Math.max(60, Number(resendIntervalSeconds) || row.resend_interval_seconds));
+  const snooze = Math.min(180, Math.max(1, Number(snoozeMinutes) || row.snooze_minutes));
   // `enabled` tratado como os outros campos opcionais: se não vier no corpo
   // (ex.: a tela salvando só o token, ou só trocando de chat), mantém o
   // valor atual em vez de desligar sozinho — mesmo cuidado já aplicado em
   // Bombas/Gerador pra esse tipo de update parcial.
   const enabledValue = enabled === undefined ? row.enabled : enabled ? 1 : 0;
   db.prepare(
-    'UPDATE telegram_settings SET enabled = ?, bot_token_enc = ?, chat_id = ?, webhook_secret = ?, resend_interval_seconds = ? WHERE id = 1'
-  ).run(enabledValue, tokenEnc, chatId ?? row.chat_id, webhookSecret, interval);
+    'UPDATE telegram_settings SET enabled = ?, bot_token_enc = ?, chat_id = ?, webhook_secret = ?, resend_interval_seconds = ?, snooze_minutes = ? WHERE id = 1'
+  ).run(enabledValue, tokenEnc, chatId ?? row.chat_id, webhookSecret, interval, snooze);
   return getTelegramSettings();
 }
 
@@ -123,11 +127,12 @@ function alarmReplyMarkup(alarmKey) {
         { text: '✅ Visto', callback_data: `ack:${alarmKey}` },
         { text: '🔧 Em manutenção', callback_data: `maint:${alarmKey}` },
       ],
+      [{ text: '🚗 Já estou indo', callback_data: `snooze:${alarmKey}` }],
     ],
   };
 }
 
-const ACK_REASON_LABEL = { ack: 'visto', maint: 'em manutenção', texto: 'reconhecido pelo chat' };
+const ACK_REASON_LABEL = { ack: 'visto', maint: 'em manutenção', texto: 'reconhecido pelo chat', telefone: 'atendido por telefone' };
 
 // Reconhece UM alarme específico — usado quando a pessoa toca um dos
 // botões da mensagem (ver handleCallbackQuery). `reason` é só pra confirmar
@@ -136,6 +141,18 @@ function acknowledgeAlarm(alarmKey, reason) {
   const info = db
     .prepare("UPDATE telegram_alarm_state SET acknowledged_at = datetime('now'), ack_reason = ? WHERE alarm_key = ? AND acknowledged_at IS NULL")
     .run(reason, alarmKey);
+  return info.changes > 0;
+}
+
+// "Já estou indo" — NÃO reconhece (o alarme continua "ativo" pra todo
+// efeito), só empurra a próxima insistência/ligação pra depois de
+// `minutes`. Se a pessoa não voltar a interagir até lá, a insistência
+// normal recomeça sozinha (ver upsertAlarm) — é um soneca, não um "ok,
+// resolvido".
+function snoozeAlarm(alarmKey, minutes) {
+  const info = db
+    .prepare("UPDATE telegram_alarm_state SET snoozed_until = datetime('now', '+' || ? || ' minutes') WHERE alarm_key = ? AND acknowledged_at IS NULL")
+    .run(minutes, alarmKey);
   return info.changes > 0;
 }
 
@@ -167,7 +184,7 @@ export async function acknowledgeAllActiveAlarms() {
 export async function handleCallbackQuery(data, callbackQueryId) {
   const row = getRow();
   const [action, alarmKey] = String(data || '').split(':');
-  if (!['ack', 'maint'].includes(action) || !alarmKey) {
+  if (!['ack', 'maint', 'snooze'].includes(action) || !alarmKey) {
     if (row.bot_token_enc) await callTelegramApi(decryptSecret(row.bot_token_enc), 'answerCallbackQuery', { callback_query_id: callbackQueryId }).catch(() => {});
     return;
   }
@@ -176,8 +193,25 @@ export async function handleCallbackQuery(data, callbackQueryId) {
   // ALARM_LABELS, que só cobria os 7 alarmes de Bombas; qualquer outro
   // alarme aparecia com a alarm_key crua nessa confirmação).
   const alarmRow = db.prepare('SELECT label FROM telegram_alarm_state WHERE alarm_key = ?').get(alarmKey);
-  const ok = acknowledgeAlarm(alarmKey, action);
   const label = alarmRow?.label || alarmKey;
+
+  if (action === 'snooze') {
+    const minutes = row.snooze_minutes;
+    const ok = snoozeAlarm(alarmKey, minutes);
+    if (row.bot_token_enc) {
+      const token = decryptSecret(row.bot_token_enc);
+      await callTelegramApi(token, 'answerCallbackQuery', {
+        callback_query_id: callbackQueryId,
+        text: ok ? `Ok, aguardando ${minutes} min.` : 'Esse alarme já não estava mais ativo.',
+      }).catch(() => {});
+    }
+    if (ok) {
+      await sendTelegramMessage(`🚗 "${label}" — ok, paro de insistir por ${minutes} minuto(s). Se não resolver até lá, volto a avisar.`).catch(() => {});
+    }
+    return;
+  }
+
+  const ok = acknowledgeAlarm(alarmKey, action);
   if (row.bot_token_enc) {
     const token = decryptSecret(row.bot_token_enc);
     await callTelegramApi(token, 'answerCallbackQuery', {
@@ -238,6 +272,12 @@ async function upsertAlarm(alarmKey, label, isActive, isPriority) {
 
   if (!isPriority || existing.acknowledged_at) return;
 
+  // "Já estou indo" (ver snoozeAlarm) — enquanto a soneca não passar, nem
+  // insiste por mensagem nem escala pra ligação; passado esse prazo sem
+  // resolver, volta a insistir normal (não precisa de nenhuma ação extra
+  // pra "destravar", só o tempo passar).
+  if (existing.snoozed_until && new Date(existing.snoozed_until.replace(' ', 'T') + 'Z').getTime() > Date.now()) return;
+
   maybeEscalateToCall(alarmKey, label, existing.active_since, existing.call_sent_at)
     .then((called) => {
       if (called) db.prepare("UPDATE telegram_alarm_state SET call_sent_at = datetime('now') WHERE alarm_key = ?").run(alarmKey);
@@ -281,13 +321,32 @@ export async function checkAccessDeviceAlarms(devices) {
   }
 }
 
-// Rede/Interfone são painéis à parte (ver gatewayService.js) — só dão uma
-// CONTAGEM de offline, não uma lista estável de equipamentos com id local.
-// Por isso o alarme é por MÓDULO ("tem N offline" ou não), não por
-// equipamento individual.
+// Fallback pra módulo que ainda não tem como marcar prioridade por
+// equipamento (ver checkExternalDeviceAlarms abaixo) — só dá uma CONTAGEM de
+// offline, não uma lista estável de equipamentos com id local. Usado hoje só
+// por Interfone (Rede já tem favorito/prioridade por equipamento).
 export async function checkNetworkAlarm(moduleKey, moduleLabel, offlineCount, isPriority) {
   const label = `${moduleLabel}: ${offlineCount} equipamento(s)/ramal(is) offline`;
   await upsertAlarm(`${moduleKey}.offline`, label, offlineCount > 0, isPriority);
+}
+
+// Chamado pelo networkAlarmPoller.js com os equipamentos de Rede/Interfone
+// JÁ FILTRADOS pra só os marcados como favorito no próprio painel de
+// origem (ver externalDeviceService.js) — um alarme por equipamento, igual
+// Acesso, em vez de um só "N offline" pro módulo inteiro (que ficaria cada
+// vez mais ruidoso conforme mais equipamento favoritado cai junto).
+// `priority` de cada equipamento vem do que o Rodrigo marcou na tela de
+// Prioridades do Portal — controla só a INSISTÊNCIA; o aviso inicial manda
+// sempre que um favoritado cai, como os demais módulos.
+export async function checkExternalDeviceAlarms(moduleKey, moduleLabel, devices) {
+  for (const device of devices) {
+    await upsertAlarm(
+      `${moduleKey}.device-${device.id}`,
+      `${moduleLabel}: "${device.name}" offline`,
+      device.offline === true,
+      Boolean(device.priority)
+    );
+  }
 }
 
 // Força bruta é um EVENTO (uma tentativa isolada), não um sinal contínuo —

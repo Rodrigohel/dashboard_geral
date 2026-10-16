@@ -109,6 +109,18 @@
   display: block;
 }
 
+/* Versão do Portal (ver GET /api/version) — pequena e discreta, mas sempre
+   visível (mesmo recolhida), pra sempre ter "em algum lugar" pra olhar e
+   saber se o install.sh já rodou a última atualização. */
+.sidebar-version {
+  flex-shrink: 0;
+  text-align: center;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  padding: 4px 0 2px;
+}
+
 .nav {
   display: flex;
   flex-direction: column;
@@ -554,28 +566,34 @@
   .bottom-nav {
     display: flex;
     align-items: center;
-    justify-content: space-around;
+    justify-content: stretch;
     position: fixed;
     left: 0;
     right: 0;
     bottom: 0;
     z-index: 50;
-    padding: 8px 4px calc(8px + env(safe-area-inset-bottom));
+    padding: 8px 2px calc(8px + env(safe-area-inset-bottom));
     background: var(--bg-surface);
     border-top: 1px solid var(--border-subtle);
+    /* Com 5 módulos + "Mais" (6 itens), a soma de ícone+rótulo+padding de
+       cada um não pode nunca forçar rolagem lateral — esse overflow:hidden
+       é a garantia disso, não só o encolhimento abaixo (flex:1 + min-width:0
+       já deveriam bastar, mas qualquer folga a mais vira scroll horizontal
+       estranho numa barra que deveria ficar fixa). */
+    overflow-x: hidden;
   }
   .bottom-nav-item {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 3px;
+    gap: 2px;
     background: none;
     border: none;
     color: var(--text-tertiary);
-    font-size: 10.5px;
+    font-size: 9.5px;
     font-weight: 700;
-    padding: 4px 8px;
-    flex: 1;
+    padding: 4px 1px;
+    flex: 1 1 0;
     min-width: 0;
   }
   .bottom-nav-item span {

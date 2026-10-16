@@ -11,6 +11,7 @@ import {
 import { getPushSettings, setPushEnabled } from '../services/pushService.js';
 import { getTelegramSettings, saveTelegramSettings, testTelegramToken, getSavedBotToken, registerWebhook } from '../services/telegramService.js';
 import { getTwilioSettings, saveTwilioSettings, testTwilioConnection } from '../services/twilioService.js';
+import { listFavoritedExternalDevices, setExternalDevicePriority, supportsFavoritePriority } from '../services/externalDeviceService.js';
 
 export const settingsRouter = Router();
 const GATEWAY_MODULES = MODULE_KEYS.filter((k) => k !== 'acesso'); // 'rede' | 'interfone'
@@ -119,11 +120,15 @@ settingsRouter.post('/telegram/register-webhook', async (req, res) => {
   }
 });
 
-// Prioridade dos alarmes que não são "por equipamento cadastrado" (ver
-// telegramService.js): Rede/Interfone (só dão uma contagem de offline) e a
-// trava de força bruta (evento, não sinal contínuo). Porteiro é por
-// equipamento (telegramPriority no próprio cadastro, ver accessDevices.js);
-// Bombas/Gerador são por sinal (checkbox na própria tela de configuração).
+// Prioridade dos alarmes que não são "por equipamento" (ver
+// telegramService.js): hoje só Interfone (contagem agregada de offline,
+// enquanto não tiver campo de favorito igual Rede) e a trava de força
+// bruta (evento, não sinal contínuo). `redeOffline` fica no formato por
+// compatibilidade mas não é mais usado — Rede virou por equipamento (ver
+// GET/PUT /external-devices/rede, alimentado pelo favorito do próprio
+// painel). Porteiro é por equipamento (telegramPriority no cadastro, ver
+// accessDevices.js); Bombas/Gerador são por sinal (checkbox na própria
+// tela de configuração).
 settingsRouter.get('/telegram/priorities', (req, res) => {
   const row = db.prepare('SELECT * FROM telegram_module_priority WHERE id = 1').get();
   res.json({
@@ -166,4 +171,28 @@ settingsRouter.post('/twilio/test-connection', async (req, res) => {
   } catch (err) {
     res.status(502).json({ error: err.message });
   }
+});
+
+// Equipamentos de Rede/Interfone já marcados como favorito NO PRÓPRIO
+// painel (ver externalDeviceService.js) — candidatos a marcar prioridade
+// aqui no Portal, um por um, em vez de um alarme só pro módulo inteiro.
+settingsRouter.get('/external-devices/:moduleKey', async (req, res) => {
+  const { moduleKey } = req.params;
+  if (!['rede', 'interfone'].includes(moduleKey)) return res.status(400).json({ error: 'Módulo inválido.' });
+  if (!supportsFavoritePriority(moduleKey)) {
+    return res.json({ supported: false, devices: [] });
+  }
+  try {
+    const devices = await listFavoritedExternalDevices(moduleKey);
+    res.json({ supported: true, devices });
+  } catch (err) {
+    res.status(502).json({ error: `Não consegui falar com o painel: ${err.message}` });
+  }
+});
+
+settingsRouter.put('/external-devices/:moduleKey/:deviceId', (req, res) => {
+  const { moduleKey, deviceId } = req.params;
+  if (!['rede', 'interfone'].includes(moduleKey)) return res.status(400).json({ error: 'Módulo inválido.' });
+  setExternalDevicePriority(moduleKey, deviceId, Boolean(req.body?.priority));
+  res.json({ ok: true });
 });

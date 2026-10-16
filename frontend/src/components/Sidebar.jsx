@@ -186,6 +186,14 @@ export default function Sidebar({ branding, view, onNavigate, onOpenDevice, can,
   const [redeDevices, setRedeDevices] = useState([]);
   const [interfoneExtensions, setInterfoneExtensions] = useState([]);
   const [acessoDevices, setAcessoDevices] = useState([]);
+  const [version, setVersion] = useState('');
+
+  useEffect(() => {
+    api.system
+      .version()
+      .then((v) => setVersion(v.version))
+      .catch(() => {});
+  }, []);
 
   const hasRede = can('rede');
   const hasInterfone = can('interfone');
@@ -312,6 +320,8 @@ export default function Sidebar({ branding, view, onNavigate, onOpenDevice, can,
             </>
           )}
         </nav>
+
+        {version && <div className="sidebar-version">v{version}</div>}
       </aside>
     </>
   );
