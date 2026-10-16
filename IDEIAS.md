@@ -266,3 +266,21 @@ pensado:
 - Antes de reativar essa ideia: decidir COM o Rodrigo, de propósito (não por uma resposta
   rápida tipo "sem preferência"), exatamente quais pontos ele quer poder forçar — ação que
   aciona equipamento físico de verdade merece decisão explícita, não suposição.
+
+## Abrir portão/porteiro por voz (OK Google / Hey Siri)
+Pedido do Rodrigo: abrir qualquer porta/portão que ele escolher só falando "OK Google" ou "Hey
+Siri", sem abrir o Portal. Caminho mais realista pros dois lados é um webhook próprio (token
+fixo na URL, um por equipamento+usuário — mesmo esquema já usado no webhook do Telegram/Twilio,
+não JWT, porque o assistente de voz não loga) que chama a abertura real (mesma rota que o botão
+"Abrir" já usa) e grava em Auditoria → Sistema quem abriu por voz:
+- **Siri**: direto no app Atalhos (Shortcuts) do iPhone, sem precisar de nada novo do lado do
+  Portal além do webhook — cria um atalho "Buscar conteúdo da URL" apontando pro token daquele
+  equipamento, dá um nome, e "Hey Siri, abrir portão" já funciona. Mais simples dos dois.
+- **Google**: integração "smart home" oficial (Actions on Google) é pesada pra esse caso (OAuth,
+  catálogo de dispositivo, revisão do Google). Caminho mais direto é IFTTT: applet "Google
+  Assistant" (frase de disparo) → "Webhooks" (chama a URL do Portal) — sem precisar publicar
+  nada, só configurar no app do IFTTT.
+- Cada token só abre UM equipamento especifico pra UM usuário (reaproveita a permissão
+  `device_open_permissions` que já existe) — nunca um token genérico "abre qualquer coisa".
+Não começado ainda — fica pra quando o Rodrigo quiser escolher por onde começar (Siri é o mais
+rápido de entregar).
