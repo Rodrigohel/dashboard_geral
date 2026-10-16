@@ -37,12 +37,14 @@ export function probeTcp({ host, port, send = '', timeoutMs = 4000 }) {
 }
 
 // Varredura de portas (pedido do Rodrigo: "eu só queria botar o IP e ele
-// catar... os IPs e as portas que aquele IP tem aberta") — não troca dados
-// com nenhuma, só tenta conectar em cada uma e vê se fecha a conexão TCP
-// (aberta) ou recusa/não responde (fechada/filtrada). `spec` é uma lista
-// tipo "22,80,443,8000-8100"; capada em MAX_PORTS pra um clique não travar
-// a tela sondando a faixa inteira (65535) sem querer.
-const MAX_PORTS = 5000;
+// catar... os IPs e as portas que aquele IP tem aberta", depois "cobre
+// tudo" — faixa inteira 1-65535) — não troca dados com nenhuma, só tenta
+// conectar em cada uma e vê se fecha a conexão TCP (aberta) ou recusa/não
+// responde (fechada/filtrada). `spec` é uma lista tipo "22,80,443,8000-
+// 8100"; MAX_PORTS = 65535 é o máximo que existe, então na prática não
+// bloqueia nada — só impede um valor absurdo tipo "0-999999999" de travar
+// o parse.
+const MAX_PORTS = 65535;
 
 export function parsePortSpec(spec) {
   const ports = new Set();
@@ -78,16 +80,24 @@ function isPortOpen(host, port, timeoutMs) {
   });
 }
 
-export async function scanPorts({ host, ports, timeoutMs = 350, concurrency = 150 }) {
+export async function scanPorts({ host, ports, timeoutMs, concurrency }) {
   if (!host) throw new Error('Informe o IP/host.');
+  // Faixa grande (milhares de portas) precisa de timeout mais curto e bem
+  // mais concorrência, senão o pior caso (várias portas filtradas, sem RST
+  // nenhum) passa do tempo que o proxy na frente do Portal aguenta antes
+  // de devolver o próprio erro genérico — mesma lição aprendida com a
+  // leitura do gerador (ver generatorClient.js). Porta fechada de verdade
+  // recusa quase na hora (RST); só filtrada espera o timeout inteiro.
+  const effectiveTimeout = timeoutMs ?? (ports.length > 2000 ? 200 : 350);
+  const effectiveConcurrency = concurrency ?? (ports.length > 2000 ? 500 : 150);
   const open = [];
   let next = 0;
   async function worker() {
     while (next < ports.length) {
       const port = ports[next++];
-      if (await isPortOpen(host, port, timeoutMs)) open.push(port);
+      if (await isPortOpen(host, port, effectiveTimeout)) open.push(port);
     }
   }
-  await Promise.all(Array.from({ length: Math.min(concurrency, ports.length) }, worker));
+  await Promise.all(Array.from({ length: Math.min(effectiveConcurrency, ports.length) }, worker));
   return { host, scanned: ports.length, open: open.sort((a, b) => a - b) };
 }
