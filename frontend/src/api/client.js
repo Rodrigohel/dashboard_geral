@@ -264,6 +264,7 @@ export const api = {
     addCustomPoint: (payload) => request('/api/generator/custom-points', { method: 'POST', body: payload }),
     saveCustomPoint: (id, payload) => request(`/api/generator/custom-points/${id}`, { method: 'PUT', body: payload }),
     deleteCustomPoint: (id) => request(`/api/generator/custom-points/${id}`, { method: 'DELETE' }),
+    telnetProbe: (send) => request('/api/generator/telnet-probe', { method: 'POST', body: { send } }),
   },
 
   settings: {
