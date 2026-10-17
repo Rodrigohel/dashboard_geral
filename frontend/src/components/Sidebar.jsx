@@ -24,8 +24,9 @@ const ADMIN_ITEMS = [
 ];
 
 // Separado de ADMIN_ITEMS (não é "auditoria de tudo", é relatório por
-// módulo: Bombas, Acesso) — quem só tem acesso a um desses módulos (sem
-// `auditoria.ver`) ainda assim pode ver o relatório daquele módulo.
+// módulo: Bombas, Acesso) — mas com a MESMA regra de acesso de Auditoria:
+// permissão própria (`relatorios.ver`), não basta ter Bombas/Acesso
+// liberado (pedido do Rodrigo: "não pode todos terem acesso").
 const REPORTS_ITEM = { key: 'relatorios', label: 'Relatórios', icon: 'activity' };
 
 const OTHER_ITEMS = [{ key: 'configuracoes', label: 'Configurações', icon: 'settings' }];
@@ -316,16 +317,15 @@ export default function Sidebar({ branding, view, onNavigate, onOpenDevice, can,
               ))}
             </>
           )}
-          {/* Quem não é dono mas tem "usuarios.ver"/"auditoria.ver" (ver RBAC
-              em config.js) ou acesso a Bombas/Acesso (pro relatório daquele
-              módulo) ganha só esses atalhos — Saúde do servidor continua
-              só-dono. */}
-          {!isOwner && (can('usuarios.ver') || can('auditoria.ver') || can('bombas') || can('acesso')) && (
+          {/* Quem não é dono mas tem "usuarios.ver"/"auditoria.ver"/
+              "relatorios.ver" (ver RBAC em config.js) ganha só esses
+              atalhos — Saúde do servidor continua só-dono. */}
+          {!isOwner && (can('usuarios.ver') || can('auditoria.ver') || can('relatorios.ver')) && (
             <>
               <div className="nav-section-label">Administração</div>
               {can('usuarios.ver') && <NavButton item={ADMIN_ITEMS[0]} active={view === 'usuarios'} onNavigate={onNavigate} />}
               {can('auditoria.ver') && <NavButton item={ADMIN_ITEMS[1]} active={view === 'auditoria'} onNavigate={onNavigate} />}
-              {(can('bombas') || can('acesso')) && <NavButton item={REPORTS_ITEM} active={view === 'relatorios'} onNavigate={onNavigate} />}
+              {can('relatorios.ver') && <NavButton item={REPORTS_ITEM} active={view === 'relatorios'} onNavigate={onNavigate} />}
             </>
           )}
         </nav>

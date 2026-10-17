@@ -1,18 +1,17 @@
 import { Router } from 'express';
 import { db } from '../db/sqlite.js';
-import { requireModule } from '../middleware/auth.js';
 import { getPumpActivationReport } from '../services/pumpStationHistoryService.js';
 
 export const reportsRouter = Router();
 
-// Cada rota checa o módulo dela mesma (não tem um "requireModule" só no
-// mount, porque são dois módulos diferentes nesse mesmo router) — quem tem
-// Bombas liberado vê o relatório de Bombas, independente de ter Acesso.
-reportsRouter.get('/bombas', requireModule('bombas'), (req, res) => {
+// Acesso controlado pela permissão `relatorios.ver` (checada no mount, ver
+// server.js) — independente dos módulos Bombas/Acesso, só quem o dono
+// liberar explicitamente em Usuários → permissões vê qualquer relatório.
+reportsRouter.get('/bombas', (req, res) => {
   res.json(getPumpActivationReport({ from: req.query.from, to: req.query.to }));
 });
 
-reportsRouter.get('/acesso', requireModule('acesso'), (req, res) => {
+reportsRouter.get('/acesso', (req, res) => {
   const to = req.query.to ? `${req.query.to} 23:59:59` : new Date().toISOString().slice(0, 19).replace('T', ' ');
   const from = req.query.from
     ? `${req.query.from} 00:00:00`

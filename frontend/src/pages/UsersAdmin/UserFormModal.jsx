@@ -48,6 +48,7 @@ const USUARIOS_FEATURES = [
   { key: 'usuarios.excluir', label: 'Excluir usuários' },
 ];
 const AUDITORIA_FEATURES = [{ key: 'auditoria.ver', label: 'Ver e baixar os logs de auditoria/sistema' }];
+const RELATORIOS_FEATURES = [{ key: 'relatorios.ver', label: 'Ver e baixar os relatórios (Bombas, Acessos)' }];
 
 export default function UserFormModal({ user, currentUserId, isOwner, can, onClose, onSave }) {
   // Mesma regra de escalonamento do backend (assertNoEscalation em
@@ -323,6 +324,21 @@ export default function UserFormModal({ user, currentUserId, isOwner, can, onClo
                     </label>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {RELATORIOS_FEATURES.some((f) => allowed(f.key)) && (
+              <div className="field">
+                <label className="field-label">Relatórios:</label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
+                  {RELATORIOS_FEATURES.filter((f) => allowed(f.key)).map((f) => (
+                    <label className="checkbox-row" key={f.key}>
+                      <input type="checkbox" checked={form.modules.includes(f.key)} onChange={() => toggleModule(f.key)} />
+                      {f.label}
+                    </label>
+                  ))}
+                </div>
+                <span className="field-hint">Independente dos módulos Bombas/Acesso — é a permissão própria da tela de Relatórios.</span>
               </div>
             )}
           </>

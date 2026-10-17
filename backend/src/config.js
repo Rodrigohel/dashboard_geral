@@ -83,4 +83,8 @@ export const FEATURE_KEYS = [
   // sempre só-dono — essa chave dá pro dono liberar alguém específico pra
   // ver/baixar os logs sem virar dono.
   'auditoria.ver',
+  // Idem pra Relatórios (ver Rodrigo: "não pode todos terem acesso, eu
+  // tenho que poder dizer quais usuários terão acesso") — independente de
+  // ter os módulos Bombas/Acesso, só quem o dono marcar aqui vê a tela.
+  'relatorios.ver',
 ];

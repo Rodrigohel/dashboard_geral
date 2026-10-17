@@ -172,9 +172,10 @@ app.use('/api/system', requireAuth, requireOwner, systemRouter);
 // Dono sempre passa (ver requirePermission) — além dele, só quem o dono
 // liberou explicitamente com "auditoria.ver" (ver Usuários → permissões).
 app.use('/api/audit', requireAuth, requirePermission('auditoria.ver'), auditRouter);
-// Sem requireOwner/requirePermission no mount — cada rota dentro do router
-// checa o módulo dela (Bombas/Acesso), igual /api/pumpstation.
-app.use('/api/reports', requireAuth, reportsRouter);
+// Igual Auditoria: dono sempre passa, além dele só quem foi liberado com
+// "relatorios.ver" (ver Usuários → permissões) — independente de ter os
+// módulos Bombas/Acesso.
+app.use('/api/reports', requireAuth, requirePermission('relatorios.ver'), reportsRouter);
 
 // Gateway: o front-end do Portal chama /gateway/rede/... e /gateway/interfone/...
 // como se fossem API própria; por trás, isso vira uma chamada autenticada
