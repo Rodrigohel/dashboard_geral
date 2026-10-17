@@ -645,6 +645,10 @@
   display: none;
 }
 @media print {
+  @page {
+    size: A4 portrait;
+    margin: 12mm;
+  }
   .sidebar,
   .topbar,
   .bottom-nav,
@@ -657,12 +661,62 @@
   .content {
     padding: 0 !important;
     max-width: 100% !important;
+    gap: 10px !important;
   }
   .print-only {
     display: block;
   }
-  .data-table {
+  /* Força a paleta CLARA na impressão, não importa o tema escolhido na
+     tela (Configurações → tema). Era essa a causa do relatório "ilegível":
+     em modo escuro, linha sim/linha não da tabela ficava tarja escura com
+     texto quase branco (lê) alternada com tarja quase branca (o fundo
+     escuro da página não é impresso por padrão) com o MESMO texto quase
+     branco por cima — texto branco sobre fundo branco, invisível. Com a
+     paleta clara forçada aqui, o texto é sempre escuro, então mesmo se
+     algum fundo não imprimir (comum, cor de fundo decorativa costuma ser
+     cortada na impressão) o texto continua legível em cima do branco. */
+  :root,
+  :root[data-theme='dark'],
+  :root[data-theme='light'] {
+    --bg-page: #ffffff;
+    --bg-page-gradient: none;
+    --bg-surface: #ffffff;
+    --bg-surface-raised: #ffffff;
+    --bg-surface-hover: #f1f4fc;
+    --border-subtle: rgba(15, 23, 42, 0.14);
+    --border-strong: rgba(15, 23, 42, 0.24);
+    --text-primary: #0f1424;
+    --text-secondary: #333a52;
+    --text-tertiary: #555d78;
+    --table-stripe: rgba(15, 23, 42, 0.045);
+    --chart-series-1: #2a78d6;
+    --chart-series-2: #eb6834;
+  }
+  body,
+  .data-table,
+  .surface {
+    background: #ffffff !important;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
+  }
+  /* Tabela compacta pra caber numa folha A4 retrato sem cortar coluna —
+     fonte/preenchimento normal da tela (14px, 14x18px) é grande demais pra
+     7 colunas numa folha; e "ligou em"/"desligou em" (data+hora juntos)
+     precisa ficar numa linha só, não quebrada em duas (ver
+     formatDateTimeShort em Reports.jsx). */
+  .data-table {
+    font-size: 9.5px;
+  }
+  .data-table thead th,
+  .data-table tbody td {
+    padding: 5px 7px;
+    white-space: nowrap;
+  }
+  .data-table .hide-mobile {
+    display: table-cell !important;
+  }
+  .table-wrap {
+    border-radius: 0;
+    overflow: visible;
   }
 }
