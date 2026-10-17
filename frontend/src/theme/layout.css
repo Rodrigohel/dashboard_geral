@@ -705,11 +705,11 @@
      precisa ficar numa linha só, não quebrada em duas (ver
      formatDateTimeShort em Reports.jsx). */
   .data-table {
-    font-size: 9.5px;
+    font-size: 9.5px !important;
   }
   .data-table thead th,
   .data-table tbody td {
-    padding: 5px 7px;
+    padding: 5px 7px !important;
     white-space: nowrap;
   }
   .data-table .hide-mobile {

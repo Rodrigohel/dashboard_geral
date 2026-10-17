@@ -160,15 +160,15 @@ function BombasReport({ branding }) {
       )}
       {!error && rows !== null && rows.length > 0 && (
         <div className="table-wrap">
-          <table className="data-table">
+          <table className="data-table reports-table">
             <thead>
               <tr>
                 <th>Bomba</th>
                 <th>Ligou em</th>
                 <th>Desligou em</th>
-                <th>Tempo ligada</th>
-                <th className="hide-mobile">Bomba do dia?</th>
-                <th className="hide-mobile">Simultânea?</th>
+                <th className="col-narrow">Tempo ligada</th>
+                <th className="hide-mobile col-narrow">Do dia?</th>
+                <th className="hide-mobile col-narrow">Simultânea?</th>
                 <th className="hide-mobile">Enchimento antes</th>
               </tr>
             </thead>
@@ -180,9 +180,9 @@ function BombasReport({ branding }) {
                   </td>
                   <td>{formatDateTimeShort(r.startedAt)}</td>
                   <td>{r.endedAt ? formatDateTimeShort(r.endedAt) : <span className="badge badge-success">ligada agora</span>}</td>
-                  <td>{formatDuration(r.durationSeconds)}</td>
-                  <td className="hide-mobile">{r.wasBombaDoDia ? 'sim' : 'não'}</td>
-                  <td className="hide-mobile">
+                  <td className="col-narrow">{formatDuration(r.durationSeconds)}</td>
+                  <td className="hide-mobile col-narrow">{r.wasBombaDoDia ? 'sim' : 'não'}</td>
+                  <td className="hide-mobile col-narrow">
                     {r.simultaneous ? (
                       <span className="badge badge-warning" title="Bomba 1 e Bomba 2 ligadas ao mesmo tempo">
                         <span className="badge-dot" /> sim
@@ -263,13 +263,13 @@ function AcessoReport({ branding }) {
       )}
       {!error && rows !== null && rows.length > 0 && (
         <div className="table-wrap">
-          <table className="data-table">
+          <table className="data-table reports-table">
             <thead>
               <tr>
                 <th>Data/hora</th>
                 <th>Usuário</th>
                 <th>Porteiro</th>
-                <th>Resultado</th>
+                <th className="col-narrow">Resultado</th>
               </tr>
             </thead>
             <tbody>
@@ -278,7 +278,7 @@ function AcessoReport({ branding }) {
                   <td>{formatDateTimeShort(r.created_at)}</td>
                   <td style={{ fontWeight: 600 }}>{r.username}</td>
                   <td>{r.device_name}</td>
-                  <td>
+                  <td className="col-narrow">
                     {r.success ? (
                       <span className="badge badge-success"><span className="badge-dot" /> abriu</span>
                     ) : (
@@ -303,6 +303,16 @@ export default function Reports({ can }) {
 
   return (
     <>
+      {/* Linha mais fina que o padrão de outras tabelas do Portal (essa
+          tem mais colunas, precisa de mais densidade) — e "col-narrow"
+          encolhe a coluna até caber só o "sim"/"não", em vez de ficar do
+          tamanho do cabeçalho ("Bomba do dia?"/"Simultânea?"), que sobrava
+          um espaço vazio enorme (pedido do Rodrigo). */}
+      <style>{`
+        .reports-table th, .reports-table td { padding: 7px 10px !important; font-size: 13px; }
+        .reports-table td.col-narrow { width: 1%; white-space: nowrap; text-align: center; }
+        .reports-table th.col-narrow { width: 1%; white-space: normal !important; text-align: center; }
+      `}</style>
       <div className="page-header no-print">
         <div>
           <h1>Relatórios</h1>
