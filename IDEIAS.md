@@ -43,16 +43,6 @@ quando se quer atacar algum destes.
   antes de consultar, em vez de tentar e cair em `errors`. Testado criando um equipamento
   Segplace de teste e um porteiro XPE inalcançável de propósito — o Segplace não aparece mais
   em `errors`, só o porteiro de verdade que falhou aparece.
-- **Bomba 1 não aparece ligada no Portal quando está ligada de verdade** — acionamento manual
-  real (levantou a boia do nível médio): no painel físico as duas bombas (1 e 2) acionaram, "bomba
-  do dia" bateu certo com o Portal, mas o Portal mostrou só a Bomba 2 como ligada (Bomba 1
-  aparecia desligada). Endereço configurado hoje pra `bomba1` é LB00112 (`LIGA_BOMBA_01`, fonte
-  Q1 do LOGO — ver `docs/casa-de-bombas.md`). Pode ser endereço errado, sinal invertido (mesma
-  causa já vista em emergência/falta de fase — ver `invert` por ponto, já suportado), ou só o
-  instante errado do poll (bomba 1 ligou/desligou entre uma leitura e outra). As bombas já
-  desligaram antes de dar pra conferir a leitura crua — da próxima vez que ligarem as duas
-  juntas, pegar o JSON de `GET /api/pumpstation/status` na hora, comparando com o painel físico
-  nesse exato instante, pra confirmar se é persistente ou só uma coincidência de timing.
 
 ## ~~Notificações push (PWA)~~ — feito (parcial)
 Implementado: liga/desliga em Configurações (dono), cada administrador ativa depois no
