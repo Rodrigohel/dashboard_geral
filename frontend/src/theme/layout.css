@@ -635,3 +635,34 @@
     padding: 6px;
   }
 }
+
+/* "Exportar PDF" dos Relatórios (ver Reports.jsx) = window.print() comum —
+   sem lib nova nem rota de backend, usa o "Salvar como PDF" que todo
+   navegador já tem no diálogo de impressão. `.no-print` esconde o menu/
+   botões/filtros; `.print-only` mostra o cabeçalho do relatório (título +
+   período) só na hora de imprimir, senão fica oculto na tela normal. */
+.print-only {
+  display: none;
+}
+@media print {
+  .sidebar,
+  .topbar,
+  .bottom-nav,
+  .no-print {
+    display: none !important;
+  }
+  .shell-main {
+    margin-left: 0 !important;
+  }
+  .content {
+    padding: 0 !important;
+    max-width: 100% !important;
+  }
+  .print-only {
+    display: block;
+  }
+  .data-table {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
