@@ -207,13 +207,22 @@ export function getLevelTransitionStats() {
   // média (pedido do Rodrigo — "onde você tirou esse número?") — cada item
   // é um ciclo real, com data/hora de início e fim, não só o número final.
   // Limitado aos 20 mais recentes pra não inflar a resposta à toa.
-  function summarize(samples) {
+  // `withPumps`: só pra ESVAZIANDO (ver pumpsActiveDuring) — o Rodrigo notou
+  // o mesmo volume de água baixando em tempos bem diferentes em dias
+  // diferentes ("27 minutos" vs "21 minutos") e queria saber qual bomba
+  // rodou em cada ciclo, já que cada bomba esvazia num ritmo diferente.
+  function summarize(samples, withPumps = false) {
     if (samples.length === 0) return null;
     const avgMs = samples.reduce((a, s) => a + s.ms, 0) / samples.length;
     const recent = [...samples]
       .sort((a, b) => b.endAt - a.endAt)
       .slice(0, 20)
-      .map((s) => ({ startAt: new Date(s.startAt).toISOString(), endAt: new Date(s.endAt).toISOString(), seconds: Math.round(s.ms / 1000) }));
+      .map((s) => ({
+        startAt: new Date(s.startAt).toISOString(),
+        endAt: new Date(s.endAt).toISOString(),
+        seconds: Math.round(s.ms / 1000),
+        pumps: withPumps ? pumpsActiveDuring(s.startAt, s.endAt) : undefined,
+      }));
     return { avgSeconds: Math.round(avgMs / 1000), sampleCount: samples.length, samples: recent };
   }
 
@@ -222,8 +231,29 @@ export function getLevelTransitionStats() {
     from: b.from,
     to: b.to,
     rising: summarize(risingSamples[i]),
-    falling: summarize(validSinceMs ? fallingSamples[i].filter((s) => s.startAt >= validSinceMs) : fallingSamples[i]),
+    falling: summarize(validSinceMs ? fallingSamples[i].filter((s) => s.startAt >= validSinceMs) : fallingSamples[i], true),
   }));
+}
+
+// Quais bombas estavam ligadas em algum momento dentro de [startMs, endMs] —
+// usado só pra rotular cada ciclo de ESVAZIAMENTO (ver summarize acima) com
+// a bomba responsável. "Ligada durante a janela" = ou já estava ligada no
+// início (última mudança antes/igual a startMs foi "ligou"), ou ligou em
+// algum instante dentro da janela.
+function pumpsActiveDuring(startMs, endMs) {
+  const startSql = new Date(startMs).toISOString().slice(0, 19).replace('T', ' ');
+  const endSql = new Date(endMs).toISOString().slice(0, 19).replace('T', ' ');
+  const active = [];
+  for (const key of PUMP_KEYS) {
+    const atStart = db
+      .prepare('SELECT state FROM pump_events WHERE point_key = ? AND created_at <= ? ORDER BY id DESC LIMIT 1')
+      .get(key, startSql);
+    const turnedOnInside = db
+      .prepare('SELECT 1 FROM pump_events WHERE point_key = ? AND state = 1 AND created_at > ? AND created_at <= ? LIMIT 1')
+      .get(key, startSql, endSql);
+    if (atStart?.state === 1 || turnedOnInside) active.push(key);
+  }
+  return active;
 }
 
 // Mínimo de amostras pra confiar na média o bastante pra usar num cálculo
