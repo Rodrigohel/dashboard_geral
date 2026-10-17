@@ -20,12 +20,13 @@ import UsersAdmin from './pages/UsersAdmin/index.jsx';
 import Settings from './pages/Settings.jsx';
 import ServerHealth from './pages/ServerHealth.jsx';
 import AuditLog from './pages/AuditLog.jsx';
+import Reports from './pages/Reports.jsx';
 
 // Telas válidas na URL (ex.: /gerador) — qualquer outro caminho cai em
 // "home". Sem isso, `view` só existia na memória do React: atualizar a
 // página (comum no PWA do celular) sempre voltava pro Início, mesmo
 // estando em Gerador/Bombas/etc.
-const VALID_VIEWS = ['rede', 'interfone', 'acesso', 'bombas', 'gerador', 'usuarios', 'servidor', 'auditoria', 'configuracoes'];
+const VALID_VIEWS = ['rede', 'interfone', 'acesso', 'bombas', 'gerador', 'usuarios', 'servidor', 'auditoria', 'relatorios', 'configuracoes'];
 
 function viewFromPath(pathname) {
   const key = pathname.replace(/^\//, '');
@@ -158,6 +159,8 @@ export default function App() {
         return isOwner ? <ServerHealth /> : <NoAccess />;
       case 'auditoria':
         return isOwner || can('auditoria.ver') ? <AuditLog /> : <NoAccess />;
+      case 'relatorios':
+        return can('bombas') || can('acesso') ? <Reports can={can} /> : <NoAccess />;
       case 'configuracoes':
         return isOwner ? <Settings /> : <NoAccess />;
       default:

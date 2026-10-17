@@ -167,6 +167,13 @@ export const api = {
     systemEvents: ({ from, to } = {}) => request(`/api/audit/system-events?from=${from || ''}&to=${to || ''}`),
   },
 
+  // Relatórios por módulo (diferente de Auditoria: aqui é o detalhe de UM
+  // módulo — Bombas, Acesso — não o log geral do sistema inteiro).
+  reports: {
+    bombas: ({ from, to } = {}) => request(`/api/reports/bombas?from=${from || ''}&to=${to || ''}`),
+    acesso: ({ from, to } = {}) => request(`/api/reports/acesso?from=${from || ''}&to=${to || ''}`),
+  },
+
   // Painel de Interfone consumido nativamente pelo Portal, igual o de Rede —
   // só leitura (ramais, chamadas): cadastro/config continuam no painel
   // original. Respostas de lá vêm envelopadas em `{ data, source }` — os

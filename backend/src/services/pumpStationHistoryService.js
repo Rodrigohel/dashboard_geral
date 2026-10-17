@@ -118,6 +118,90 @@ export function getPumpStationHistory({ days = 30 } = {}) {
   };
 }
 
+const DODIA_KEYS = ['bomba1DoDia', 'bomba2DoDia'];
+
+function normalizeRange(from, to) {
+  const toDate = to ? `${to} 23:59:59` : new Date().toISOString().slice(0, 19).replace('T', ' ');
+  const fromDate = from ? `${from} 00:00:00` : new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString().slice(0, 19).replace('T', ' ');
+  return { fromDate, toDate };
+}
+
+// Relatório de Bombas pedido pelo Rodrigo: cada ciclo de bomba (ligou →
+// desligou) com TUDO junto numa linha — qual bomba, se era a "bomba do dia"
+// no momento em que ligou, se ligou junto com a outra (simultânea — o
+// sintoma da falha física relatada antes), quanto tempo ficou ligada, e
+// quanto tempo o poço levou pra encher desde a ativação anterior (qualquer
+// bomba) até essa ligar de novo. Igual a getPumpStationHistory, processa
+// TODO o histórico de borda (não só o período pedido) porque "bomba do dia"
+// e "tempo de enchimento" dependem do que aconteceu ANTES do período.
+export function getPumpActivationReport({ from, to } = {}) {
+  const { fromDate, toDate } = normalizeRange(from, to);
+  const rows = db
+    .prepare(`SELECT point_key, state, created_at FROM pump_events WHERE point_key IN (?, ?, ?, ?) ORDER BY created_at ASC, id ASC`)
+    .all(...PUMP_KEYS, ...DODIA_KEYS);
+
+  const doDiaState = { bomba1DoDia: false, bomba2DoDia: false };
+  const open = {};
+  const activations = [];
+
+  for (const row of rows) {
+    const isoAt = row.created_at.replace(' ', 'T') + 'Z';
+    const atMs = new Date(isoAt).getTime();
+    if (DODIA_KEYS.includes(row.point_key)) {
+      doDiaState[row.point_key] = row.state === 1;
+      continue;
+    }
+    if (row.state === 1) {
+      open[row.point_key] = { pointKey: row.point_key, startedAt: isoAt, startMs: atMs, wasBombaDoDia: Boolean(doDiaState[`${row.point_key}DoDia`]) };
+    } else {
+      const o = open[row.point_key];
+      if (o) {
+        activations.push({ ...o, endedAt: isoAt, endMs: atMs, durationSeconds: Math.round((atMs - o.startMs) / 1000) });
+        delete open[row.point_key];
+      }
+    }
+  }
+  const nowMs = Date.now();
+  for (const o of Object.values(open)) {
+    activations.push({ ...o, endedAt: null, endMs: nowMs, durationSeconds: Math.round((nowMs - o.startMs) / 1000) });
+  }
+  activations.sort((a, b) => a.startMs - b.startMs);
+
+  // "Tempo de enchimento" = intervalo entre o fim da ativação anterior
+  // (qualquer bomba) e o início desta — reconstruído em ordem cronológica
+  // pra usar o histórico INTEIRO como contexto, mesmo que o período pedido
+  // comece no meio. Não respeita o corte de validade (ver
+  // resetPumpHistoryValidity): enchimento é sempre pump-independente, mesma
+  // regra já usada em getLevelTransitionStats.
+  let prevEndMs = null;
+  const enriched = activations.map((a) => {
+    const simultaneous = activations.some((b) => b !== a && b.pointKey !== a.pointKey && a.startMs < b.endMs && b.startMs < a.endMs);
+    const fillSeconds = prevEndMs !== null ? Math.max(0, Math.round((a.startMs - prevEndMs) / 1000)) : null;
+    prevEndMs = prevEndMs === null ? a.endMs : Math.max(prevEndMs, a.endMs);
+    return {
+      pointKey: a.pointKey,
+      startedAt: a.startedAt,
+      endedAt: a.endedAt,
+      durationSeconds: a.durationSeconds,
+      wasBombaDoDia: a.wasBombaDoDia,
+      simultaneous,
+      fillSeconds,
+    };
+  });
+
+  // Duração/contagem desse ciclo em si ainda respeita o corte (pode ter sido
+  // contaminado pela falha física) — igual getPumpStationHistory.
+  const validSince = getHistoryValidSince();
+  const validSinceMs = validSince ? new Date(validSince.replace(' ', 'T') + 'Z').getTime() : null;
+  const afterCutoff = validSinceMs ? enriched.filter((a) => new Date(a.startedAt).getTime() >= validSinceMs) : enriched;
+
+  const fromMs = new Date(fromDate.replace(' ', 'T') + 'Z').getTime();
+  const toMs = new Date(toDate.replace(' ', 'T') + 'Z').getTime();
+  return afterCutoff
+    .filter((a) => new Date(a.startedAt).getTime() >= fromMs && new Date(a.startedAt).getTime() <= toMs)
+    .sort((a, b) => (a.startedAt < b.startedAt ? 1 : -1));
+}
+
 // Quanto tempo leva pra cruzar cada fronteira entre boias consecutivas,
 // enchendo (a boia de cima liga depois da de baixo já estar ligada) e
 // esvaziando (a boia de cima desliga, depois, tempo depois, a de baixo

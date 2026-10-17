@@ -12,6 +12,7 @@ const PAGES = [
   { key: 'usuarios', label: 'Usuários', icon: 'users', ownerOnly: true },
   { key: 'servidor', label: 'Saúde do servidor', icon: 'server', ownerOnly: true },
   { key: 'auditoria', label: 'Auditoria', icon: 'key', ownerOnly: true },
+  { key: 'relatorios', label: 'Relatórios', icon: 'activity' },
   { key: 'configuracoes', label: 'Configurações', icon: 'settings', ownerOnly: true },
 ];
 
@@ -51,6 +52,7 @@ export default function CommandPalette({ open, onClose, can, isOwner, onNavigate
 
     const pageResults = PAGES.filter((p) => {
       if (p.key === 'usuarios') return isOwner || can('usuarios.ver');
+      if (p.key === 'relatorios') return can('bombas') || can('acesso');
       return p.ownerOnly ? isOwner : !p.module || can(p.module);
     })
       .filter((p) => matches(p.label))

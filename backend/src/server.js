@@ -18,6 +18,7 @@ import { pushRouter } from './routes/push.js';
 import { modulesRouter } from './routes/modules.js';
 import { systemRouter } from './routes/system.js';
 import { auditRouter } from './routes/audit.js';
+import { reportsRouter } from './routes/reports.js';
 import { requireAuth, requireOwner, requireModule, requirePermission } from './middleware/auth.js';
 import { gatewayProxy } from './services/gatewayService.js';
 import { startDeviceHealthPoller } from './services/deviceHealthPoller.js';
@@ -171,6 +172,9 @@ app.use('/api/system', requireAuth, requireOwner, systemRouter);
 // Dono sempre passa (ver requirePermission) — além dele, só quem o dono
 // liberou explicitamente com "auditoria.ver" (ver Usuários → permissões).
 app.use('/api/audit', requireAuth, requirePermission('auditoria.ver'), auditRouter);
+// Sem requireOwner/requirePermission no mount — cada rota dentro do router
+// checa o módulo dela (Bombas/Acesso), igual /api/pumpstation.
+app.use('/api/reports', requireAuth, reportsRouter);
 
 // Gateway: o front-end do Portal chama /gateway/rede/... e /gateway/interfone/...
 // como se fossem API própria; por trás, isso vira uma chamada autenticada
