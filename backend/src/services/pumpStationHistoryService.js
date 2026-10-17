@@ -126,21 +126,37 @@ function normalizeRange(from, to) {
   return { fromDate, toDate };
 }
 
+// Mesma escala de LEVEL_STOPS do frontend (ver pumpLevel.js) — duplicado
+// aqui de propósito (back/front não compartilham módulo): % da boia mais
+// alta ativa no instante em que a bomba ligou. É o que explica, pro
+// Rodrigo, por que um ciclo leva 20min e outro leva 1h pra mesma bomba —
+// não é "mais devagar", é que começou de um nível mais alto (mais água pra
+// tirar até o mínimo).
+const LEVEL_PERCENT = { nivelSeguranca: 92, nivelMaximo: 72, nivelMedio: 48, nivelMinimo: 24 };
+function levelPercentFor(levelsAtStart) {
+  for (const key of ['nivelSeguranca', 'nivelMaximo', 'nivelMedio', 'nivelMinimo']) {
+    if (levelsAtStart[key]) return LEVEL_PERCENT[key];
+  }
+  return 6;
+}
+
 // Relatório de Bombas pedido pelo Rodrigo: cada ciclo de bomba (ligou →
 // desligou) com TUDO junto numa linha — qual bomba, se era a "bomba do dia"
 // no momento em que ligou, se ligou junto com a outra (simultânea — o
-// sintoma da falha física relatada antes), quanto tempo ficou ligada, e
-// quanto tempo o poço levou pra encher desde a ativação anterior (qualquer
-// bomba) até essa ligar de novo. Igual a getPumpStationHistory, processa
-// TODO o histórico de borda (não só o período pedido) porque "bomba do dia"
-// e "tempo de enchimento" dependem do que aconteceu ANTES do período.
+// sintoma da falha física relatada antes), quanto tempo ficou ligada, em
+// que % o poço estava quando ligou, e quanto tempo o poço levou pra encher
+// desde a ativação anterior (qualquer bomba) até essa ligar de novo. Igual
+// a getPumpStationHistory, processa TODO o histórico de borda (não só o
+// período pedido) porque "bomba do dia"/"tempo de enchimento"/"nível ao
+// ligar" dependem do que aconteceu ANTES do período.
 export function getPumpActivationReport({ from, to } = {}) {
   const { fromDate, toDate } = normalizeRange(from, to);
   const rows = db
-    .prepare(`SELECT point_key, state, created_at FROM pump_events WHERE point_key IN (?, ?, ?, ?) ORDER BY created_at ASC, id ASC`)
-    .all(...PUMP_KEYS, ...DODIA_KEYS);
+    .prepare(`SELECT point_key, state, created_at FROM pump_events WHERE point_key IN (?, ?, ?, ?, ?, ?, ?, ?) ORDER BY created_at ASC, id ASC`)
+    .all(...PUMP_KEYS, ...DODIA_KEYS, ...LEVEL_KEYS);
 
   const doDiaState = { bomba1DoDia: false, bomba2DoDia: false };
+  const levelState = {};
   const open = {};
   const activations = [];
 
@@ -151,8 +167,18 @@ export function getPumpActivationReport({ from, to } = {}) {
       doDiaState[row.point_key] = row.state === 1;
       continue;
     }
+    if (LEVEL_KEYS.includes(row.point_key)) {
+      levelState[row.point_key] = row.state === 1;
+      continue;
+    }
     if (row.state === 1) {
-      open[row.point_key] = { pointKey: row.point_key, startedAt: isoAt, startMs: atMs, wasBombaDoDia: Boolean(doDiaState[`${row.point_key}DoDia`]) };
+      open[row.point_key] = {
+        pointKey: row.point_key,
+        startedAt: isoAt,
+        startMs: atMs,
+        wasBombaDoDia: Boolean(doDiaState[`${row.point_key}DoDia`]),
+        startLevelPercent: levelPercentFor(levelState),
+      };
     } else {
       const o = open[row.point_key];
       if (o) {
@@ -184,6 +210,7 @@ export function getPumpActivationReport({ from, to } = {}) {
       endedAt: a.endedAt,
       durationSeconds: a.durationSeconds,
       wasBombaDoDia: a.wasBombaDoDia,
+      startLevelPercent: a.startLevelPercent,
       simultaneous,
       fillSeconds,
     };

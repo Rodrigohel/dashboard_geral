@@ -111,6 +111,7 @@ function BombasReport({ branding }) {
       { header: 'Ligou em', get: (r) => formatDateTime(r.startedAt) },
       { header: 'Desligou em', get: (r) => (r.endedAt ? formatDateTime(r.endedAt) : 'ainda ligada') },
       { header: 'Tempo ligada', get: (r) => formatDuration(r.durationSeconds) },
+      { header: 'Nível do poço ao ligar', get: (r) => `${r.startLevelPercent}%` },
       { header: 'Era a bomba do dia?', get: (r) => (r.wasBombaDoDia ? 'sim' : 'não') },
       { header: 'Ligou junto com a outra?', get: (r) => (r.simultaneous ? 'sim' : 'não') },
       { header: 'Tempo de enchimento antes', get: (r) => (r.fillSeconds === null ? '' : formatDuration(r.fillSeconds)) },
@@ -167,6 +168,9 @@ function BombasReport({ branding }) {
                 <th>Ligou em</th>
                 <th>Desligou em</th>
                 <th className="col-narrow">Tempo ligada</th>
+                <th className="col-narrow" title="Boia mais alta ativa no instante em que a bomba ligou — explica por que um ciclo demora mais que outro">
+                  Nível
+                </th>
                 <th className="hide-mobile col-narrow">Do dia?</th>
                 <th className="hide-mobile col-narrow">Simultânea?</th>
                 <th className="hide-mobile">Enchimento antes</th>
@@ -181,6 +185,7 @@ function BombasReport({ branding }) {
                   <td>{formatDateTimeShort(r.startedAt)}</td>
                   <td>{r.endedAt ? formatDateTimeShort(r.endedAt) : <span className="badge badge-success">ligada agora</span>}</td>
                   <td className="col-narrow">{formatDuration(r.durationSeconds)}</td>
+                  <td className="col-narrow">{r.startLevelPercent}%</td>
                   <td className="hide-mobile col-narrow">{r.wasBombaDoDia ? 'sim' : 'não'}</td>
                   <td className="hide-mobile col-narrow">
                     {r.simultaneous ? (
