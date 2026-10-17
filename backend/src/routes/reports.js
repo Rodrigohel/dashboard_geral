@@ -1,8 +1,25 @@
 import { Router } from 'express';
 import { db } from '../db/sqlite.js';
 import { getPumpActivationReport } from '../services/pumpStationHistoryService.js';
+import { getRedeDowntimeReport, getInterfoneDowntimeReport } from '../services/networkReportService.js';
 
 export const reportsRouter = Router();
+
+reportsRouter.get('/rede', async (req, res) => {
+  try {
+    res.json(await getRedeDowntimeReport({ from: req.query.from, to: req.query.to }));
+  } catch (err) {
+    res.status(502).json({ error: err.message });
+  }
+});
+
+reportsRouter.get('/interfone', async (req, res) => {
+  try {
+    res.json(await getInterfoneDowntimeReport({ from: req.query.from, to: req.query.to }));
+  } catch (err) {
+    res.status(502).json({ error: err.message });
+  }
+});
 
 // Acesso controlado pela permissão `relatorios.ver` (checada no mount, ver
 // server.js) — independente dos módulos Bombas/Acesso, só quem o dono

@@ -26,6 +26,7 @@ import { startAuditRetentionPruner } from './services/auditRetentionPruner.js';
 import { startPumpStationHistoryPoller } from './services/pumpStationHistoryPoller.js';
 import { startGeneratorPoller } from './services/generatorPoller.js';
 import { startNetworkAlarmPoller } from './services/networkAlarmPoller.js';
+import { startInterfoneHealthPoller } from './services/interfoneHealthPoller.js';
 import {
   isValidWebhookSecret,
   acknowledgeAllActiveAlarms,
@@ -271,3 +272,4 @@ startAuditRetentionPruner();
 startPumpStationHistoryPoller();
 startGeneratorPoller();
 startNetworkAlarmPoller();
+startInterfoneHealthPoller();

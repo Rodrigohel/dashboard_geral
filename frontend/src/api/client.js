@@ -172,6 +172,8 @@ export const api = {
   reports: {
     bombas: ({ from, to } = {}) => request(`/api/reports/bombas?from=${from || ''}&to=${to || ''}`),
     acesso: ({ from, to } = {}) => request(`/api/reports/acesso?from=${from || ''}&to=${to || ''}`),
+    rede: ({ from, to } = {}) => request(`/api/reports/rede?from=${from || ''}&to=${to || ''}`),
+    interfone: ({ from, to } = {}) => request(`/api/reports/interfone?from=${from || ''}&to=${to || ''}`),
   },
 
   // Painel de Interfone consumido nativamente pelo Portal, igual o de Rede —
