@@ -11,6 +11,18 @@ PR, sem processo formal): **patch** (1.1.0 → 1.1.1) pra correção pequena/aju
 2.0.0) só pra mudança grande o bastante pra mudar como o Portal funciona por fora. Bump manual,
 um PR por vez — não existe automação pra isso.
 
+## Sugestões do Claude (não pedidas, só ideias)
+
+- **Backup automático do banco SQLite** — hoje não existe rotina de backup; um `cp`/cron
+  periódico do arquivo do banco (fácil) evita perda total em caso de falha de disco.
+- **2FA (código por app) pro login do dono** — é a conta com mais poder (reset de histórico de
+  bombas, gestão de usuários, tudo); hoje só senha (médio).
+- **Relatório periódico automático por e-mail/Telegram** — resumo semanal de alarmes/uptime,
+  em vez de só exportar CSV manual em Auditoria (médio).
+- **Horas de motor / nível de combustível do gerador** — HIPÓTESE, não confirmada: se o
+  ComAp expuser esses valores via Modbus (não confirmado no mapa recebido até agora), dava pra
+  mostrar no card do Gerador e até avisar de manutenção preventiva por horas rodadas (médio,
+  depende de existir o registrador).
 ## Problemas conhecidos (pendências a revisitar)
 
 Bugs relatados que ainda não foram fechados de verdade — perguntar ao Rodrigo de vez em
