@@ -739,14 +739,14 @@ function PumpHistoryChart({ activations, days }) {
     return PAD.top + plotH - (min / maxMinutes) * plotH;
   }
 
-  function lineFor(series) {
-    return dayKeys.map((k, i) => `${i === 0 ? 'M' : 'L'}${xFor(i)},${yFor(perDay[k][series])}`).join(' ');
-  }
-
   // Mostra no máximo ~6 marcações de data no eixo X — com 60 dias, uma
   // etiqueta por dia ficaria ilegível, principalmente no celular (tela
   // estreita).
   const labelEvery = Math.max(1, Math.ceil(dayKeys.length / 6));
+  // Barras em vez de linha — pedido do Rodrigo ("o gráfico é muito estranho"):
+  // linha+pontos sugere uma grandeza contínua entre dias, quando na verdade
+  // é "quantos minutos a bomba ligou NAQUELE dia", um valor discreto por dia.
+  const barW = Math.max(2, Math.min(stepX * 0.32, 10));
 
   const selectedKey = dayKeys[selectedIdx];
   const selected = selectedKey ? { key: selectedKey, ...perDay[selectedKey] } : null;
@@ -754,8 +754,8 @@ function PumpHistoryChart({ activations, days }) {
   return (
     <div>
       <div className="field-hint" style={{ marginBottom: 8 }}>
-        Quantos minutos cada bomba ficou ligada em cada dia, nos últimos {days} dias — toque num ponto do gráfico pra
-        ver o dia exato.
+        Quantos minutos cada bomba ficou ligada em cada dia, nos últimos {days} dias — toque numa barra pra ver o dia
+        exato.
       </div>
       <div style={{ display: 'flex', gap: 20, marginBottom: 8, fontSize: 12.5 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-secondary)' }}>
@@ -769,21 +769,22 @@ function PumpHistoryChart({ activations, days }) {
       </div>
       <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} style={{ display: 'block', overflow: 'visible', touchAction: 'pan-y' }} role="img" aria-label="Minutos de bomba ligada por dia">
         <line x1={PAD.left} x2={W - PAD.right} y1={PAD.top + plotH} y2={PAD.top + plotH} stroke="var(--border-subtle)" strokeWidth="1" />
-        <path d={lineFor('bomba1')} fill="none" stroke="var(--chart-series-1)" strokeWidth="2" />
-        <path d={lineFor('bomba2')} fill="none" stroke="var(--chart-series-2)" strokeWidth="2" />
-        {dayKeys.map((k, i) => (
-          <g key={k} onClick={() => setSelectedIdx(i)} style={{ cursor: 'pointer' }}>
-            <rect x={xFor(i) - stepX / 2} y={PAD.top} width={Math.max(stepX, 4)} height={plotH} fill="transparent" />
-            {i % labelEvery === 0 && (
-              <text x={xFor(i)} y={PAD.top + plotH + 14} fontSize="10.5" textAnchor="middle" fill="var(--text-tertiary)">
-                {new Date(k).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
-              </text>
-            )}
-            {selectedIdx === i && <line x1={xFor(i)} x2={xFor(i)} y1={PAD.top} y2={PAD.top + plotH} stroke="var(--border-strong)" strokeWidth="1" strokeDasharray="2,3" />}
-            {perDay[k].bomba1 > 0 && <circle cx={xFor(i)} cy={yFor(perDay[k].bomba1)} r={selectedIdx === i ? 5 : 2.5} fill="var(--chart-series-1)" />}
-            {perDay[k].bomba2 > 0 && <circle cx={xFor(i)} cy={yFor(perDay[k].bomba2)} r={selectedIdx === i ? 5 : 2.5} fill="var(--chart-series-2)" />}
-          </g>
-        ))}
+        {dayKeys.map((k, i) => {
+          const h1 = (perDay[k].bomba1 / maxMinutes) * plotH;
+          const h2 = (perDay[k].bomba2 / maxMinutes) * plotH;
+          return (
+            <g key={k} onClick={() => setSelectedIdx(i)} style={{ cursor: 'pointer' }}>
+              <rect x={xFor(i) - stepX / 2} y={PAD.top} width={Math.max(stepX, 4)} height={plotH} fill={selectedIdx === i ? 'var(--border-subtle)' : 'transparent'} opacity={selectedIdx === i ? 0.35 : 1} />
+              {i % labelEvery === 0 && (
+                <text x={xFor(i)} y={PAD.top + plotH + 14} fontSize="10.5" textAnchor="middle" fill="var(--text-tertiary)">
+                  {new Date(k).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
+                </text>
+              )}
+              {h1 > 0 && <rect x={xFor(i) - barW - 1} y={PAD.top + plotH - h1} width={barW} height={h1} rx="2" fill="var(--chart-series-1)" />}
+              {h2 > 0 && <rect x={xFor(i) + 1} y={PAD.top + plotH - h2} width={barW} height={h2} rx="2" fill="var(--chart-series-2)" />}
+            </g>
+          );
+        })}
       </svg>
       {selected && (
         <div className="surface" style={{ marginTop: 10, padding: '10px 14px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '6px 18px' }}>
@@ -796,6 +797,41 @@ function PumpHistoryChart({ activations, days }) {
       )}
     </div>
   );
+}
+
+// Agrupa ativações de bomba1/bomba2 cujo intervalo [startedAt, endedAt] se
+// sobrepõe — é exatamente o sintoma da falha física que o Rodrigo relatou
+// (contatores jumpeados fazendo as duas bombas ligarem juntas), então vale
+// destacar como UM evento ("bomba 1 e bomba 2 simultaneamente"), não duas
+// linhas soltas e iguais.
+function groupSimultaneousActivations(activations) {
+  const used = new Array(activations.length).fill(false);
+  const groups = [];
+  for (let i = 0; i < activations.length; i++) {
+    if (used[i]) continue;
+    const a = activations[i];
+    const aStart = new Date(a.startedAt).getTime();
+    const aEnd = a.endedAt ? new Date(a.endedAt).getTime() : Date.now();
+    let pair = null;
+    for (let j = i + 1; j < activations.length; j++) {
+      if (used[j] || activations[j].pointKey === a.pointKey) continue;
+      const b = activations[j];
+      const bStart = new Date(b.startedAt).getTime();
+      const bEnd = b.endedAt ? new Date(b.endedAt).getTime() : Date.now();
+      if (aStart < bEnd && bStart < aEnd) {
+        pair = j;
+        break;
+      }
+    }
+    used[i] = true;
+    if (pair !== null) {
+      used[pair] = true;
+      groups.push({ simultaneous: true, items: [a, activations[pair]] });
+    } else {
+      groups.push({ simultaneous: false, items: [a] });
+    }
+  }
+  return groups;
 }
 
 function StatTile({ label, value, sub }) {
@@ -837,7 +873,10 @@ function TransitionRow({ label, stat }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2, padding: '4px 0 8px', maxHeight: 220, overflowY: 'auto' }}>
           {stat.samples.map((s, i) => (
             <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11.5, color: 'var(--text-tertiary)' }}>
-              <span>{formatDateTime(s.startAt)} → {formatDateTime(s.endAt)}</span>
+              <span>
+                {formatDateTime(s.startAt)} → {formatDateTime(s.endAt)}
+                {s.pumps && (s.pumps.length > 0 ? ` — ${s.pumps.map((p) => (p === 'bomba1' ? 'bomba 1' : 'bomba 2')).join(' e ')}` : ' — bomba não identificada')}
+              </span>
               <span>{formatDuration(s.seconds)}</span>
             </div>
           ))}
@@ -1025,18 +1064,34 @@ function HistoryCard({ canEditConfig, isOwner }) {
               <p className="field-hint">Nenhuma ativação registrada nesse período ainda.</p>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', maxHeight: 320, overflowY: 'auto' }}>
-                {history.activations.slice(0, 100).map((a, i) => (
-                  <div key={i} className="service-row">
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                      <span style={{ fontWeight: 600, fontSize: 13 }}>
-                        <span style={{ color: a.pointKey === 'bomba1' ? 'var(--chart-series-1)' : 'var(--chart-series-2)' }}>●</span>{' '}
-                        {a.pointKey === 'bomba1' ? 'Bomba 1' : 'Bomba 2'} ligou em {formatDateTime(a.startedAt)}
-                      </span>
-                      <span style={{ fontSize: 11.5, color: 'var(--text-tertiary)' }}>Níveis ativos no momento: {LEVELS_ACTIVE_LABEL(a.levelsAtStart)}</span>
-                    </div>
-                    <span className="field-hint">{a.endedAt ? `ficou ligada ${formatDuration(a.durationSeconds)}` : 'ainda ligada agora'}</span>
-                  </div>
-                ))}
+                {groupSimultaneousActivations(history.activations)
+                  .slice(0, 100)
+                  .map((g, i) =>
+                    g.simultaneous ? (
+                      <div key={i} className="service-row" style={{ borderLeft: '3px solid var(--warning-500)', paddingLeft: 8 }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                          <span style={{ fontWeight: 700, fontSize: 13, color: 'var(--warning-500)' }}>
+                            ⚠ Bomba 1 e Bomba 2 ligaram ao mesmo tempo em {formatDateTime(g.items[0].startedAt)}
+                          </span>
+                          <span style={{ fontSize: 11.5, color: 'var(--text-tertiary)' }}>Níveis ativos no momento: {LEVELS_ACTIVE_LABEL(g.items[0].levelsAtStart)}</span>
+                        </div>
+                        <span className="field-hint">
+                          {g.items.map((a) => `${a.pointKey === 'bomba1' ? 'bomba 1' : 'bomba 2'}: ${a.endedAt ? formatDuration(a.durationSeconds) : 'ainda ligada'}`).join(' · ')}
+                        </span>
+                      </div>
+                    ) : (
+                      <div key={i} className="service-row">
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                          <span style={{ fontWeight: 600, fontSize: 13 }}>
+                            <span style={{ color: g.items[0].pointKey === 'bomba1' ? 'var(--chart-series-1)' : 'var(--chart-series-2)' }}>●</span>{' '}
+                            Ligou {g.items[0].pointKey === 'bomba1' ? 'bomba 1' : 'bomba 2'} em {formatDateTime(g.items[0].startedAt)}
+                          </span>
+                          <span style={{ fontSize: 11.5, color: 'var(--text-tertiary)' }}>Níveis ativos no momento: {LEVELS_ACTIVE_LABEL(g.items[0].levelsAtStart)}</span>
+                        </div>
+                        <span className="field-hint">{g.items[0].endedAt ? `ficou ligada ${formatDuration(g.items[0].durationSeconds)}` : 'ainda ligada agora'}</span>
+                      </div>
+                    )
+                  )}
               </div>
             )}
           </div>

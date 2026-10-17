@@ -21,11 +21,27 @@ import Settings from './pages/Settings.jsx';
 import ServerHealth from './pages/ServerHealth.jsx';
 import AuditLog from './pages/AuditLog.jsx';
 
+// Telas válidas na URL (ex.: /gerador) — qualquer outro caminho cai em
+// "home". Sem isso, `view` só existia na memória do React: atualizar a
+// página (comum no PWA do celular) sempre voltava pro Início, mesmo
+// estando em Gerador/Bombas/etc.
+const VALID_VIEWS = ['rede', 'interfone', 'acesso', 'bombas', 'gerador', 'usuarios', 'servidor', 'auditoria', 'configuracoes'];
+
+function viewFromPath(pathname) {
+  const key = pathname.replace(/^\//, '');
+  return VALID_VIEWS.includes(key) ? key : 'home';
+}
+
+function pushViewToUrl(next) {
+  const path = next === 'home' ? '/' : `/${next}`;
+  if (window.location.pathname !== path) window.history.pushState({}, '', path);
+}
+
 export default function App() {
   const { user, checking, login, logout, can } = useAuth();
   const { theme, setTheme } = useTheme();
   const branding = useBranding();
-  const [view, setView] = useState('home');
+  const [view, setView] = useState(() => viewFromPath(window.location.pathname));
   const [menuOpen, setMenuOpen] = useState(false);
   const [acessoDevice, setAcessoDevice] = useState(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -63,7 +79,18 @@ export default function App() {
   async function handleLogin(username, password) {
     await login(username, password);
     setView('home');
+    pushViewToUrl('home');
   }
+
+  // Botão "voltar" do navegador/gesto do celular — mantém a URL em sincronia
+  // com `view` nos dois sentidos.
+  useEffect(() => {
+    function onPopState() {
+      setView(viewFromPath(window.location.pathname));
+    }
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
 
   if (checking) return <LoadingScreen />;
   if (!user) return <Login branding={branding} onLogin={handleLogin} />;
@@ -89,6 +116,7 @@ export default function App() {
     setView(next);
     setMenuOpen(false);
     setPendingSection(section || null);
+    pushViewToUrl(next);
   }
 
   // Clicou num equipamento direto na tela Início — abre ele já na tela de
@@ -97,6 +125,7 @@ export default function App() {
     setAcessoDevice(device);
     setView('acesso');
     setMenuOpen(false);
+    pushViewToUrl('acesso');
   }
 
   function renderView() {

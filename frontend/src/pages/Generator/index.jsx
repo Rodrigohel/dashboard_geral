@@ -571,7 +571,7 @@ function ConfigCard({ configId }) {
         precisa disso por algum outro caminho (ex.: tela web própria do ComAp).
       </span>
 
-      <div style={{ display: 'flex', gap: 8 }}>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
           {saving ? <span className="spinner" /> : 'Salvar'}
         </button>
