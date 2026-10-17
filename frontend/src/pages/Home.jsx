@@ -580,13 +580,18 @@ export default function Home({ user, onNavigate, can, tvMode = false, onLogout }
       const s = geradorStatus;
       const points = s?.points || {};
       const falha = points.falha === true;
+      const avisoAtivo = points.avisoAtivo === true;
       const emOperacao = points.emOperacao === true;
       const pronto = points.pronto === true;
+      const estadoMotor = points.estadoMotor?.label;
+      const tensao = typeof points.tensaoGeradorL1N === 'number' ? points.tensaoGeradorL1N : null;
       return {
         status: !s
           ? null
           : falha
-          ? { color: 'var(--danger-500)', label: 'falha' }
+          ? { color: 'var(--danger-500)', label: 'falha ativa' }
+          : avisoAtivo
+          ? { color: 'var(--warning-500)', label: 'aviso ativo' }
           : emOperacao
           ? { color: 'var(--success-500)', label: 'gerando energia' }
           : pronto
@@ -596,8 +601,8 @@ export default function Home({ user, onNavigate, can, tvMode = false, onLogout }
         points: null,
         online: null,
         total: null,
-        stat1: null,
-        stat2: null,
+        stat1: estadoMotor ? { value: estadoMotor, label: 'estado do motor' } : null,
+        stat2: tensao !== null ? { value: `${tensao}V`, label: 'tensão gerador', color: falha ? 'var(--danger-500)' : undefined } : null,
       };
     }
     // acesso: sem histórico de aberturas guardado no backend, então não
@@ -641,6 +646,9 @@ export default function Home({ user, onNavigate, can, tvMode = false, onLogout }
           .map(([key, text]) => ({ id: `bombas-${key}`, text }))
       : []),
     ...(hasGerador && geradorStatus?.points?.falha === true ? [{ id: 'gerador-falha', text: 'Gerador — falha ativa' }] : []),
+    ...(hasGerador && geradorStatus?.points?.falha !== true && geradorStatus?.points?.avisoAtivo === true
+      ? [{ id: 'gerador-aviso', text: 'Gerador — aviso ativo' }]
+      : []),
   ];
 
   return (
