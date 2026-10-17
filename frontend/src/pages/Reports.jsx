@@ -18,11 +18,57 @@ function formatDateTime(iso) {
   return d.toLocaleString('pt-BR');
 }
 
+function formatDateBr(dateStr) {
+  return new Date(`${dateStr}T00:00:00`).toLocaleDateString('pt-BR');
+}
+
 function todayStr() {
   return new Date().toISOString().slice(0, 10);
 }
 function daysAgoStr(days) {
   return new Date(Date.now() - days * 24 * 3600 * 1000).toISOString().slice(0, 10);
+}
+
+function StatTile({ label, value, sub }) {
+  return (
+    <div className="surface" style={{ padding: 14 }}>
+      <div style={{ fontSize: 11.5, color: 'var(--text-tertiary)', marginBottom: 4 }}>{label}</div>
+      <div style={{ fontSize: 19, fontWeight: 800, fontFamily: 'var(--font-display)' }}>{value}</div>
+      {sub && <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 2 }}>{sub}</div>}
+    </div>
+  );
+}
+
+// Cabeçalho que só aparece na impressão/PDF (ver .print-only em layout.css)
+// — na tela normal o título já vem do page-header; impresso, o menu/topbar
+// somem (.no-print), então o relatório precisa do próprio título + período.
+function PrintHeader({ title, from, to }) {
+  return (
+    <div className="print-only" style={{ marginBottom: 16 }}>
+      <h2 style={{ margin: 0 }}>{title}</h2>
+      <p style={{ margin: '4px 0 0', fontSize: 13, color: '#555' }}>
+        Período: {formatDateBr(from)} até {formatDateBr(to)} — gerado em {new Date().toLocaleString('pt-BR')}
+      </p>
+    </div>
+  );
+}
+
+// Botões "Exportar CSV"/"Exportar PDF" — PDF não precisa de lib nenhuma nem
+// rota de backend: usa window.print() (some com o menu/filtros via
+// .no-print, mostra o PrintHeader via .print-only — ver layout.css) e deixa
+// o próprio navegador salvar como PDF no diálogo de impressão, que todo
+// navegador (desktop e celular) já tem.
+function ExportButtons({ onCsv, disabled }) {
+  return (
+    <div className="no-print" style={{ display: 'flex', gap: 8 }}>
+      <button className="btn btn-secondary" onClick={onCsv} disabled={disabled}>
+        <Icon name="copy" size={15} /> Exportar CSV
+      </button>
+      <button className="btn btn-secondary" onClick={() => window.print()} disabled={disabled}>
+        <Icon name="download" size={15} /> Exportar PDF
+      </button>
+    </div>
+  );
 }
 
 const PUMP_LABEL = { bomba1: 'Bomba 1', bomba2: 'Bomba 2' };
@@ -51,18 +97,29 @@ function BombasReport() {
     ]);
   }
 
+  // Resumo do período — pedido de melhoria: ver de cara quantas vezes cada
+  // bomba ligou, tempo total e quantas simultâneas, sem precisar somar linha
+  // por linha.
+  const summary = rows && {
+    bomba1Count: rows.filter((r) => r.pointKey === 'bomba1').length,
+    bomba2Count: rows.filter((r) => r.pointKey === 'bomba2').length,
+    bomba1Seconds: rows.filter((r) => r.pointKey === 'bomba1').reduce((s, r) => s + r.durationSeconds, 0),
+    bomba2Seconds: rows.filter((r) => r.pointKey === 'bomba2').reduce((s, r) => s + r.durationSeconds, 0),
+    simultaneousCount: new Set(rows.filter((r) => r.simultaneous).map((r) => r.startedAt)).size,
+  };
+
   return (
     <>
-      <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', justifyContent: 'space-between' }}>
+      <div className="no-print" style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
           <input className="input" type="date" value={from} max={to} onChange={(e) => setFrom(e.target.value)} />
           <span className="field-hint">até</span>
           <input className="input" type="date" value={to} min={from} max={todayStr()} onChange={(e) => setTo(e.target.value)} />
         </div>
-        <button className="btn btn-secondary" onClick={handleExport} disabled={!rows || rows.length === 0}>
-          <Icon name="copy" size={15} /> Exportar CSV
-        </button>
+        <ExportButtons onCsv={handleExport} disabled={!rows || rows.length === 0} />
       </div>
+
+      <PrintHeader title="Relatório de Bombas" from={from} to={to} />
 
       {error && (
         <div className="surface" style={{ padding: 20, borderLeft: '3px solid var(--danger-500)' }}>
@@ -73,6 +130,13 @@ function BombasReport() {
       {!error && rows === null && <div className="skeleton" style={{ height: 300, borderRadius: 20 }} />}
       {!error && rows !== null && rows.length === 0 && (
         <EmptyState icon="droplet" title="Nenhuma ativação nesse período" description="Troque as datas acima pra ver outro período." />
+      )}
+      {!error && summary && rows.length > 0 && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10, marginBottom: 16 }}>
+          <StatTile label="Bomba 1 — ligou" value={`${summary.bomba1Count}x`} sub={formatDuration(summary.bomba1Seconds) + ' no total'} />
+          <StatTile label="Bomba 2 — ligou" value={`${summary.bomba2Count}x`} sub={formatDuration(summary.bomba2Seconds) + ' no total'} />
+          <StatTile label="Ativações simultâneas" value={summary.simultaneousCount} sub={summary.simultaneousCount > 0 ? 'bomba 1 e 2 juntas' : 'nenhuma'} />
+        </div>
       )}
       {!error && rows !== null && rows.length > 0 && (
         <div className="table-wrap">
@@ -140,18 +204,25 @@ function AcessoReport() {
     ]);
   }
 
+  const summary = rows && {
+    total: rows.length,
+    success: rows.filter((r) => r.success).length,
+    failed: rows.filter((r) => !r.success).length,
+    byDevice: rows.reduce((set, r) => set.add(r.device_name), new Set()).size,
+  };
+
   return (
     <>
-      <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', justifyContent: 'space-between' }}>
+      <div className="no-print" style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
           <input className="input" type="date" value={from} max={to} onChange={(e) => setFrom(e.target.value)} />
           <span className="field-hint">até</span>
           <input className="input" type="date" value={to} min={from} max={todayStr()} onChange={(e) => setTo(e.target.value)} />
         </div>
-        <button className="btn btn-secondary" onClick={handleExport} disabled={!rows || rows.length === 0}>
-          <Icon name="copy" size={15} /> Exportar CSV
-        </button>
+        <ExportButtons onCsv={handleExport} disabled={!rows || rows.length === 0} />
       </div>
+
+      <PrintHeader title="Relatório de Acessos" from={from} to={to} />
 
       {error && (
         <div className="surface" style={{ padding: 20, borderLeft: '3px solid var(--danger-500)' }}>
@@ -162,6 +233,13 @@ function AcessoReport() {
       {!error && rows === null && <div className="skeleton" style={{ height: 300, borderRadius: 20 }} />}
       {!error && rows !== null && rows.length === 0 && (
         <EmptyState icon="shieldFace" title="Nenhuma abertura nesse período" description="Troque as datas acima pra ver outro período." />
+      )}
+      {!error && summary && rows.length > 0 && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10, marginBottom: 16 }}>
+          <StatTile label="Total de aberturas" value={summary.total} sub={`${summary.byDevice} porteiro(s)`} />
+          <StatTile label="Com sucesso" value={summary.success} />
+          <StatTile label="Falharam" value={summary.failed} sub={summary.failed > 0 ? 'ver detalhe na tabela' : undefined} />
+        </div>
       )}
       {!error && rows !== null && rows.length > 0 && (
         <div className="table-wrap">
@@ -204,7 +282,7 @@ export default function Reports({ can }) {
 
   return (
     <>
-      <div className="page-header">
+      <div className="page-header no-print">
         <div>
           <h1>Relatórios</h1>
           <p>Relatório detalhado por módulo — diferente de Auditoria, que é o log geral do sistema.</p>
@@ -212,7 +290,7 @@ export default function Reports({ can }) {
       </div>
 
       {hasBombas && hasAcesso && (
-        <div className="tabs">
+        <div className="tabs no-print">
           <button className={`tab ${tab === 'bombas' ? 'active' : ''}`} onClick={() => setTab('bombas')}>
             Bombas
           </button>
