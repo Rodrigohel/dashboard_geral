@@ -48,6 +48,8 @@ const paths = {
   droplet: 'M12 2.69s-6 6.5-6 10.81a6 6 0 0 0 12 0c0-4.31-6-10.81-6-10.81Z',
   // Gerador / energia.
   zap: 'M13 2 3 14h9l-1 8 10-12h-9l1-8Z',
+  alertTriangle: 'M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0ZM12 9v4M12 17h.01',
+  checkCircle: 'M21 12a9 9 0 1 1-9-9c1.64 0 3.17.41 4.5 1.14M22 4 12 14.01l-3-3',
 };
 
 export default function Icon({ name, size = 18, strokeWidth = 1.8, className, style }) {
