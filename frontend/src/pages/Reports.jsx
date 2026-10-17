@@ -3,6 +3,7 @@ import Icon from '../components/Icon.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import { api } from '../api/client.js';
 import { downloadCsv } from '../utils/csv.js';
+import { useBranding } from '../hooks/useBranding.js';
 
 function formatDuration(totalSeconds) {
   if (totalSeconds === null || totalSeconds === undefined) return '—';
@@ -12,10 +13,22 @@ function formatDuration(totalSeconds) {
   return `${h}h ${m}min`;
 }
 
+// Completo, com segundos — só pro CSV (lá cabe, não é limitado por
+// largura de coluna/folha A4 igual a tabela na tela/PDF).
 function formatDateTime(iso) {
   if (!iso) return '—';
   const d = new Date(iso.endsWith('Z') ? iso : `${iso}Z`);
   return d.toLocaleString('pt-BR');
+}
+
+// Compacto, sem segundos, numa linha só — pra tabela (tela e PDF). Era
+// "17/10/2026, 10:08:31" quebrando em duas linhas dentro da coluna, dobrando
+// a altura de cada linha da tabela e estourando a largura da folha A4.
+function formatDateTimeShort(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso.endsWith('Z') ? iso : `${iso}Z`);
+  const p = (n) => String(n).padStart(2, '0');
+  return `${p(d.getDate())}/${p(d.getMonth() + 1)} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
 function formatDateBr(dateStr) {
@@ -41,14 +54,21 @@ function StatTile({ label, value, sub }) {
 
 // Cabeçalho que só aparece na impressão/PDF (ver .print-only em layout.css)
 // — na tela normal o título já vem do page-header; impresso, o menu/topbar
-// somem (.no-print), então o relatório precisa do próprio título + período.
-function PrintHeader({ title, from, to }) {
+// somem (.no-print), então o relatório precisa do próprio título + período
+// + a logo configurada em Configurações → Marca (pedido do Rodrigo).
+function PrintHeader({ title, from, to, branding }) {
   return (
-    <div className="print-only" style={{ marginBottom: 16 }}>
-      <h2 style={{ margin: 0 }}>{title}</h2>
-      <p style={{ margin: '4px 0 0', fontSize: 13, color: '#555' }}>
-        Período: {formatDateBr(from)} até {formatDateBr(to)} — gerado em {new Date().toLocaleString('pt-BR')}
-      </p>
+    <div className="print-only" style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 14, borderBottom: '2px solid #0f1424', paddingBottom: 12 }}>
+      {branding?.logoUrl && <img src={branding.logoUrl} alt={branding.name} style={{ height: 44, width: 'auto' }} />}
+      <div>
+        <h2 style={{ margin: 0, fontSize: 19 }}>
+          {branding?.name ? `${branding.name} — ` : ''}
+          {title}
+        </h2>
+        <p style={{ margin: '4px 0 0', fontSize: 12, color: '#555' }}>
+          Período: {formatDateBr(from)} até {formatDateBr(to)} — gerado em {new Date().toLocaleString('pt-BR')}
+        </p>
+      </div>
     </div>
   );
 }
@@ -73,7 +93,7 @@ function ExportButtons({ onCsv, disabled }) {
 
 const PUMP_LABEL = { bomba1: 'Bomba 1', bomba2: 'Bomba 2' };
 
-function BombasReport() {
+function BombasReport({ branding }) {
   const [from, setFrom] = useState(daysAgoStr(30));
   const [to, setTo] = useState(todayStr());
   const [rows, setRows] = useState(null);
@@ -119,7 +139,7 @@ function BombasReport() {
         <ExportButtons onCsv={handleExport} disabled={!rows || rows.length === 0} />
       </div>
 
-      <PrintHeader title="Relatório de Bombas" from={from} to={to} />
+      <PrintHeader title="Relatório de Bombas" from={from} to={to} branding={branding} />
 
       {error && (
         <div className="surface" style={{ padding: 20, borderLeft: '3px solid var(--danger-500)' }}>
@@ -154,12 +174,12 @@ function BombasReport() {
             </thead>
             <tbody>
               {rows.map((r, i) => (
-                <tr key={i} style={r.simultaneous ? { background: 'color-mix(in srgb, var(--warning-500) 10%, transparent)' } : undefined}>
+                <tr key={i} className={r.simultaneous ? 'row-tone-warning' : undefined}>
                   <td style={{ fontWeight: 600 }}>
                     <span style={{ color: r.pointKey === 'bomba1' ? 'var(--chart-series-1)' : 'var(--chart-series-2)' }}>●</span> {PUMP_LABEL[r.pointKey]}
                   </td>
-                  <td>{formatDateTime(r.startedAt)}</td>
-                  <td>{r.endedAt ? formatDateTime(r.endedAt) : <span className="badge badge-success">ligada agora</span>}</td>
+                  <td>{formatDateTimeShort(r.startedAt)}</td>
+                  <td>{r.endedAt ? formatDateTimeShort(r.endedAt) : <span className="badge badge-success">ligada agora</span>}</td>
                   <td>{formatDuration(r.durationSeconds)}</td>
                   <td className="hide-mobile">{r.wasBombaDoDia ? 'sim' : 'não'}</td>
                   <td className="hide-mobile">
@@ -182,7 +202,7 @@ function BombasReport() {
   );
 }
 
-function AcessoReport() {
+function AcessoReport({ branding }) {
   const [from, setFrom] = useState(daysAgoStr(30));
   const [to, setTo] = useState(todayStr());
   const [rows, setRows] = useState(null);
@@ -222,7 +242,7 @@ function AcessoReport() {
         <ExportButtons onCsv={handleExport} disabled={!rows || rows.length === 0} />
       </div>
 
-      <PrintHeader title="Relatório de Acessos" from={from} to={to} />
+      <PrintHeader title="Relatório de Acessos" from={from} to={to} branding={branding} />
 
       {error && (
         <div className="surface" style={{ padding: 20, borderLeft: '3px solid var(--danger-500)' }}>
@@ -255,7 +275,7 @@ function AcessoReport() {
             <tbody>
               {rows.map((r, i) => (
                 <tr key={i}>
-                  <td>{formatDateTime(r.created_at)}</td>
+                  <td>{formatDateTimeShort(r.created_at)}</td>
                   <td style={{ fontWeight: 600 }}>{r.username}</td>
                   <td>{r.device_name}</td>
                   <td>
@@ -279,6 +299,7 @@ export default function Reports({ can }) {
   const hasBombas = can('bombas');
   const hasAcesso = can('acesso');
   const [tab, setTab] = useState(hasBombas ? 'bombas' : 'acesso');
+  const branding = useBranding();
 
   return (
     <>
@@ -300,8 +321,8 @@ export default function Reports({ can }) {
         </div>
       )}
 
-      {tab === 'bombas' && hasBombas && <BombasReport />}
-      {tab === 'acesso' && hasAcesso && <AcessoReport />}
+      {tab === 'bombas' && hasBombas && <BombasReport branding={branding} />}
+      {tab === 'acesso' && hasAcesso && <AcessoReport branding={branding} />}
     </>
   );
 }
