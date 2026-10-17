@@ -160,7 +160,7 @@ export default function App() {
       case 'auditoria':
         return isOwner || can('auditoria.ver') ? <AuditLog /> : <NoAccess />;
       case 'relatorios':
-        return can('bombas') || can('acesso') ? <Reports can={can} /> : <NoAccess />;
+        return isOwner || can('relatorios.ver') ? <Reports /> : <NoAccess />;
       case 'configuracoes':
         return isOwner ? <Settings /> : <NoAccess />;
       default:

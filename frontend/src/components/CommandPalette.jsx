@@ -52,7 +52,7 @@ export default function CommandPalette({ open, onClose, can, isOwner, onNavigate
 
     const pageResults = PAGES.filter((p) => {
       if (p.key === 'usuarios') return isOwner || can('usuarios.ver');
-      if (p.key === 'relatorios') return can('bombas') || can('acesso');
+      if (p.key === 'relatorios') return isOwner || can('relatorios.ver');
       return p.ownerOnly ? isOwner : !p.module || can(p.module);
     })
       .filter((p) => matches(p.label))

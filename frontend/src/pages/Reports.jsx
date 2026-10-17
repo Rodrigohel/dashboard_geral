@@ -93,6 +93,16 @@ function ExportButtons({ onCsv, disabled }) {
 
 const PUMP_LABEL = { bomba1: 'Bomba 1', bomba2: 'Bomba 2' };
 
+// Mesmos nomes de LEVEL_STOPS (pumpLevel.js) — pra escrever o nível de um
+// jeito que qualquer um entende de cara ("72% (Máximo)"), não só o número
+// cru (pedido do Rodrigo: "não sei como ficar didático... a pessoa
+// entender"). 92% (Segurança) é o pior caso — o poço encheu até a última
+// boia antes da bomba responder — por isso vem em vermelho.
+const LEVEL_LABEL = { 92: 'Segurança', 72: 'Máximo', 48: 'Médio', 24: 'Mínimo', 6: 'abaixo do mínimo' };
+function levelDisplay(percent) {
+  return `${percent}% (${LEVEL_LABEL[percent] ?? '—'})`;
+}
+
 function BombasReport({ branding }) {
   const [from, setFrom] = useState(daysAgoStr(30));
   const [to, setTo] = useState(todayStr());
@@ -108,13 +118,13 @@ function BombasReport({ branding }) {
   function handleExport() {
     downloadCsv(`relatorio-bombas-${from}-a-${to}.csv`, rows || [], [
       { header: 'Bomba', get: (r) => PUMP_LABEL[r.pointKey] },
+      { header: 'Poço encheu em (antes de ligar)', get: (r) => (r.fillSeconds === null ? '' : formatDuration(r.fillSeconds)) },
+      { header: 'Até que nível encheu', get: (r) => levelDisplay(r.startLevelPercent) },
       { header: 'Ligou em', get: (r) => formatDateTime(r.startedAt) },
       { header: 'Desligou em', get: (r) => (r.endedAt ? formatDateTime(r.endedAt) : 'ainda ligada') },
       { header: 'Tempo ligada', get: (r) => formatDuration(r.durationSeconds) },
-      { header: 'Nível do poço ao ligar', get: (r) => `${r.startLevelPercent}%` },
       { header: 'Era a bomba do dia?', get: (r) => (r.wasBombaDoDia ? 'sim' : 'não') },
       { header: 'Ligou junto com a outra?', get: (r) => (r.simultaneous ? 'sim' : 'não') },
-      { header: 'Tempo de enchimento antes', get: (r) => (r.fillSeconds === null ? '' : formatDuration(r.fillSeconds)) },
     ]);
   }
 
@@ -160,20 +170,29 @@ function BombasReport({ branding }) {
         </div>
       )}
       {!error && rows !== null && rows.length > 0 && (
-        <div className="table-wrap">
+        <>
+          <p className="field-hint no-print" style={{ marginBottom: 8 }}>
+            "Poço encheu em" + "Até" explicam a duração de cada ciclo: o poço levou um tempo pra subir até aquele
+            nível (quanto mais alto, mais água acumulada) — só depois disso a bomba ligou. Por isso o mesmo volume de
+            água pode levar 20min num dia e 1h noutro: não é a bomba mais lenta, é o poço que encheu mais antes de
+            ligar.
+          </p>
+          <div className="table-wrap">
           <table className="data-table reports-table">
             <thead>
               <tr>
                 <th>Bomba</th>
+                <th className="hide-mobile" title="Quanto tempo o poço levou pra encher até esse nível, desde a última vez que uma bomba desligou">
+                  Poço encheu em
+                </th>
+                <th className="col-narrow" title="Até onde o poço encheu antes da bomba ligar — explica por que um ciclo demora mais que outro: quanto mais alto, mais água pra tirar">
+                  Até
+                </th>
                 <th>Ligou em</th>
                 <th>Desligou em</th>
                 <th className="col-narrow">Tempo ligada</th>
-                <th className="col-narrow" title="Boia mais alta ativa no instante em que a bomba ligou — explica por que um ciclo demora mais que outro">
-                  Nível
-                </th>
                 <th className="hide-mobile col-narrow">Do dia?</th>
                 <th className="hide-mobile col-narrow">Simultânea?</th>
-                <th className="hide-mobile">Enchimento antes</th>
               </tr>
             </thead>
             <tbody>
@@ -182,10 +201,13 @@ function BombasReport({ branding }) {
                   <td style={{ fontWeight: 600 }}>
                     <span style={{ color: r.pointKey === 'bomba1' ? 'var(--chart-series-1)' : 'var(--chart-series-2)' }}>●</span> {PUMP_LABEL[r.pointKey]}
                   </td>
+                  <td className="hide-mobile">{r.fillSeconds === null ? '—' : formatDuration(r.fillSeconds)}</td>
+                  <td className="col-narrow" style={r.startLevelPercent === 92 ? { color: 'var(--danger-500)', fontWeight: 700 } : undefined}>
+                    {levelDisplay(r.startLevelPercent)}
+                  </td>
                   <td>{formatDateTimeShort(r.startedAt)}</td>
                   <td>{r.endedAt ? formatDateTimeShort(r.endedAt) : <span className="badge badge-success">ligada agora</span>}</td>
                   <td className="col-narrow">{formatDuration(r.durationSeconds)}</td>
-                  <td className="col-narrow">{r.startLevelPercent}%</td>
                   <td className="hide-mobile col-narrow">{r.wasBombaDoDia ? 'sim' : 'não'}</td>
                   <td className="hide-mobile col-narrow">
                     {r.simultaneous ? (
@@ -196,12 +218,12 @@ function BombasReport({ branding }) {
                       'não'
                     )}
                   </td>
-                  <td className="hide-mobile">{r.fillSeconds === null ? '—' : formatDuration(r.fillSeconds)}</td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </div>
+          </div>
+        </>
       )}
     </>
   );
@@ -300,10 +322,13 @@ function AcessoReport({ branding }) {
   );
 }
 
-export default function Reports({ can }) {
-  const hasBombas = can('bombas');
-  const hasAcesso = can('acesso');
-  const [tab, setTab] = useState(hasBombas ? 'bombas' : 'acesso');
+// Acesso à tela inteira já é controlado por "relatorios.ver" (ver App.jsx)
+// — diferente da versão anterior, aqui dentro as duas abas aparecem pra
+// quem tiver essa permissão, sem depender também de ter os módulos
+// Bombas/Acesso liberados (pedido do Rodrigo: permissão própria de
+// relatório, não "herdada" do módulo).
+export default function Reports() {
+  const [tab, setTab] = useState('bombas');
   const branding = useBranding();
 
   return (
@@ -325,19 +350,17 @@ export default function Reports({ can }) {
         </div>
       </div>
 
-      {hasBombas && hasAcesso && (
-        <div className="tabs no-print">
-          <button className={`tab ${tab === 'bombas' ? 'active' : ''}`} onClick={() => setTab('bombas')}>
-            Bombas
-          </button>
-          <button className={`tab ${tab === 'acesso' ? 'active' : ''}`} onClick={() => setTab('acesso')}>
-            Acessos
-          </button>
-        </div>
-      )}
+      <div className="tabs no-print">
+        <button className={`tab ${tab === 'bombas' ? 'active' : ''}`} onClick={() => setTab('bombas')}>
+          Bombas
+        </button>
+        <button className={`tab ${tab === 'acesso' ? 'active' : ''}`} onClick={() => setTab('acesso')}>
+          Acessos
+        </button>
+      </div>
 
-      {tab === 'bombas' && hasBombas && <BombasReport branding={branding} />}
-      {tab === 'acesso' && hasAcesso && <AcessoReport branding={branding} />}
+      {tab === 'bombas' && <BombasReport branding={branding} />}
+      {tab === 'acesso' && <AcessoReport branding={branding} />}
     </>
   );
 }
