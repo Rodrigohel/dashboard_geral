@@ -92,8 +92,17 @@ function StatusCard({ status, error, loaded, canEditConfig, onGoToConfig }) {
     ? { cls: 'badge-success', label: 'pronto (standby)' }
     : { cls: 'badge-neutral', label: 'não pronto' };
 
+  // Indicador grande de falha, igual ao "alarme ativo" das Bombas — pra ficar
+  // visível de cara, sem precisar ler os badges pequenos abaixo.
+  const faultBanner = falha
+    ? { cls: 'badge-danger', icon: 'alertTriangle', label: 'COM FALHA', pulse: true }
+    : avisoAtivo
+    ? { cls: 'badge-warning', icon: 'alertTriangle', label: 'AVISO ATIVO', pulse: true }
+    : { cls: 'badge-success', icon: 'checkCircle', label: 'SEM FALHA', pulse: false };
+
   return (
     <div className="surface" style={{ padding: 24 }}>
+      <style>{`.generator-fault-icon-on { animation: generator-fault-pulse 1.1s ease-in-out infinite; } @keyframes generator-fault-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }`}</style>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700 }}>
           <Icon name="zap" size={17} />
@@ -103,6 +112,15 @@ function StatusCard({ status, error, loaded, canEditConfig, onGoToConfig }) {
           <span className="badge-dot" /> {badge.label}
         </span>
       </div>
+
+      <div
+        className={`badge ${faultBanner.cls}`}
+        style={{ fontSize: 15, fontWeight: 700, padding: '10px 16px', gap: 8, marginBottom: 20, width: 'fit-content' }}
+      >
+        <Icon name={faultBanner.icon} size={18} className={faultBanner.pulse ? 'generator-fault-icon-on' : ''} />
+        {faultBanner.label}
+      </div>
+
       <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
         {POINT_META.map((p) => {
           const value = points[p.key];
