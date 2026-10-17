@@ -12,6 +12,9 @@ function formatDuration(totalSeconds) {
   if (h === 0) return `${m} min`;
   return `${h}h ${m}min`;
 }
+function formatDurationMs(ms) {
+  return formatDuration(Math.round(ms / 1000));
+}
 
 // Completo, com segundos — só pro CSV (lá cabe, não é limitado por
 // largura de coluna/folha A4 igual a tabela na tela/PDF).
@@ -322,6 +325,116 @@ function AcessoReport({ branding }) {
   );
 }
 
+// Relatório de quedas — Rede e Interfone têm o mesmo formato de linha
+// (nome, quantas vezes caiu, % disponível, as até-3 maiores quedas com
+// data), só a fonte de dados muda (ver networkReportService.js no
+// backend). Pedido do Rodrigo: "quantidade de vezes que caiu... % de
+// disponibilidade... o maior tempo que ficou offline, e o dia... os
+// últimos dois ou três maiores tempos".
+function DowntimeReport({ title, icon, fetchFn, csvPrefix, branding, limitation }) {
+  const [from, setFrom] = useState(daysAgoStr(30));
+  const [to, setTo] = useState(todayStr());
+  const [rows, setRows] = useState(null);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    setError('');
+    setRows(null);
+    fetchFn({ from, to }).then(setRows).catch((err) => setError(err.message));
+  }, [from, to]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function handleExport() {
+    downloadCsv(`${csvPrefix}-${from}-a-${to}.csv`, rows || [], [
+      { header: 'Nome', get: (r) => r.name },
+      { header: 'Quantas vezes caiu', get: (r) => r.drops },
+      { header: 'Disponibilidade no período', get: (r) => (r.uptimePercent === null ? '' : `${r.uptimePercent}%`) },
+      { header: 'Maior queda', get: (r) => (r.topOutages[0] ? `${formatDurationMs(r.topOutages[0].durationMs)} em ${formatDateTime(r.topOutages[0].at)}` : '') },
+      { header: '2ª maior queda', get: (r) => (r.topOutages[1] ? `${formatDurationMs(r.topOutages[1].durationMs)} em ${formatDateTime(r.topOutages[1].at)}` : '') },
+      { header: '3ª maior queda', get: (r) => (r.topOutages[2] ? `${formatDurationMs(r.topOutages[2].durationMs)} em ${formatDateTime(r.topOutages[2].at)}` : '') },
+    ]);
+  }
+
+  const summary = rows && rows.length > 0 && {
+    totalDrops: rows.reduce((s, r) => s + r.drops, 0),
+    worst: [...rows].sort((a, b) => b.drops - a.drops)[0],
+    lowestUptime: rows.filter((r) => r.uptimePercent !== null).sort((a, b) => a.uptimePercent - b.uptimePercent)[0],
+  };
+
+  return (
+    <>
+      <div className="no-print" style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          <input className="input" type="date" value={from} max={to} onChange={(e) => setFrom(e.target.value)} />
+          <span className="field-hint">até</span>
+          <input className="input" type="date" value={to} min={from} max={todayStr()} onChange={(e) => setTo(e.target.value)} />
+        </div>
+        <ExportButtons onCsv={handleExport} disabled={!rows || rows.length === 0} />
+      </div>
+
+      <PrintHeader title={title} from={from} to={to} branding={branding} />
+
+      {limitation && <p className="field-hint no-print" style={{ marginBottom: 12 }}>{limitation}</p>}
+
+      {error && (
+        <div className="surface" style={{ padding: 20, borderLeft: '3px solid var(--danger-500)' }}>
+          <strong style={{ color: 'var(--danger-500)' }}>Não foi possível carregar o relatório.</strong>
+          <p style={{ color: 'var(--text-secondary)', marginTop: 6, fontSize: 13.5 }}>{error}</p>
+        </div>
+      )}
+      {!error && rows === null && <div className="skeleton" style={{ height: 300, borderRadius: 20 }} />}
+      {!error && rows !== null && rows.length === 0 && (
+        <EmptyState icon={icon} title="Nenhum dado nesse período" description="Troque as datas acima pra ver outro período." />
+      )}
+      {!error && summary && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10, marginBottom: 16 }}>
+          <StatTile label="Total de quedas no período" value={summary.totalDrops} />
+          <StatTile label="Mais instável" value={summary.worst.name} sub={`${summary.worst.drops}x`} />
+          {summary.lowestUptime && (
+            <StatTile label="Menor disponibilidade" value={`${summary.lowestUptime.uptimePercent}%`} sub={summary.lowestUptime.name} />
+          )}
+        </div>
+      )}
+      {!error && rows !== null && rows.length > 0 && (
+        <div className="table-wrap">
+          <table className="data-table reports-table">
+            <thead>
+              <tr>
+                <th>Nome</th>
+                <th className="col-narrow">Quedas</th>
+                <th className="col-narrow">Disponível</th>
+                <th>Maiores quedas (até 3)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r, i) => (
+                <tr key={i} className={r.uptimePercent !== null && r.uptimePercent < 95 ? 'row-tone-danger' : undefined}>
+                  <td style={{ fontWeight: 600 }}>{r.name}</td>
+                  <td className="col-narrow">{r.drops}</td>
+                  <td className="col-narrow">{r.uptimePercent === null ? '—' : `${r.uptimePercent}%`}</td>
+                  <td>
+                    {r.topOutages.length === 0 ? (
+                      '—'
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        {r.topOutages.map((o, j) => (
+                          <span key={j} style={{ fontSize: j === 0 ? 13 : 11.5, fontWeight: j === 0 ? 700 : 400, color: j === 0 ? 'var(--text-primary)' : 'var(--text-tertiary)' }}>
+                            {formatDurationMs(o.durationMs)} — {formatDateTime(o.at)}
+                            {o.ongoing ? ' (em andamento)' : ''}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </>
+  );
+}
+
 // Acesso à tela inteira já é controlado por "relatorios.ver" (ver App.jsx)
 // — diferente da versão anterior, aqui dentro as duas abas aparecem pra
 // quem tiver essa permissão, sem depender também de ter os módulos
@@ -357,10 +470,35 @@ export default function Reports() {
         <button className={`tab ${tab === 'acesso' ? 'active' : ''}`} onClick={() => setTab('acesso')}>
           Acessos
         </button>
+        <button className={`tab ${tab === 'rede' ? 'active' : ''}`} onClick={() => setTab('rede')}>
+          Rede
+        </button>
+        <button className={`tab ${tab === 'interfone' ? 'active' : ''}`} onClick={() => setTab('interfone')}>
+          Interfone
+        </button>
       </div>
 
       {tab === 'bombas' && <BombasReport branding={branding} />}
       {tab === 'acesso' && <AcessoReport branding={branding} />}
+      {tab === 'rede' && (
+        <DowntimeReport
+          title="Relatório de Rede"
+          icon="network"
+          csvPrefix="relatorio-rede"
+          fetchFn={api.reports.rede}
+          branding={branding}
+        />
+      )}
+      {tab === 'interfone' && (
+        <DowntimeReport
+          title="Relatório de Interfone"
+          icon="phone"
+          csvPrefix="relatorio-interfone"
+          fetchFn={api.reports.interfone}
+          branding={branding}
+          limitation="O histórico de ramal fica registrado a partir de agora — ramais que já estavam caindo antes dessa tela existir não aparecem retroativamente (diferente de Rede, que usa o histórico que o painel original já tinha)."
+        />
+      )}
     </>
   );
 }

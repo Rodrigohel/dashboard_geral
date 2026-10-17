@@ -239,6 +239,22 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_pump_events_created_at ON pump_events(created_at);
 
+  -- Log de borda (igual pump_events) de cada ramal do Interfone ficando
+  -- online/offline — o painel original do Interfone não tem (nem expõe)
+  -- histórico de conectividade por ramal, só o estado atual (ver
+  -- interfoneHealthPoller.js) — diferente de Rede, que já tem isso pronto
+  -- no painel original (/api/history). Então, ao contrário do relatório de
+  -- Rede (retroativo), o de Interfone só tem dado a partir de quando essa
+  -- tabela passou a existir.
+  CREATE TABLE IF NOT EXISTS interfone_extension_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    extension_number TEXT NOT NULL,
+    extension_name TEXT NOT NULL DEFAULT '',
+    state TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_interfone_events_created_at ON interfone_extension_events(created_at);
+
   -- Foto completa (todos os pontos, já com invert aplicado) tirada sozinha
   -- no instante em que bomba1 OU bomba2 liga (ver pumpStationHistoryPoller.js)
   -- — pra comparar com o painel físico sem precisar estar lá esperando ligar.
